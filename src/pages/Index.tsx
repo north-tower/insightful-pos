@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { CartProvider } from '@/context/CartContext';
 import OrderLine from '@/pages/OrderLine';
 import ManageTable from '@/pages/ManageTable';
+import ManageDishes from '@/pages/ManageDishes';
 
 function POSApp() {
   const [currentPage, setCurrentPage] = useState('order-line');
@@ -16,6 +17,8 @@ function POSApp() {
       return <OrderLine onNavigate={handleNavigate} />;
     case 'manage-table':
       return <ManageTable onNavigate={handleNavigate} />;
+    case 'manage-dishes':
+      return <ManageDishes onNavigate={handleNavigate} />;
     default:
       // For unimplemented pages, show OrderLine with the correct active tab
       return <OrderLine onNavigate={handleNavigate} />;
