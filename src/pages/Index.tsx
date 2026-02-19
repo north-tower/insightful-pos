@@ -12,6 +12,7 @@ import RetailDashboard from '@/pages/RetailDashboard';
 import RetailPOS from '@/pages/RetailPOS';
 import RetailProducts from '@/pages/RetailProducts';
 import RetailInventory from '@/pages/RetailInventory';
+import AccountsReceivable from '@/pages/AccountsReceivable';
 
 function POSApp() {
   const { isSetup, isRestaurant } = useBusinessMode();
@@ -38,6 +39,8 @@ function POSApp() {
         return <OrderHistory onNavigate={handleNavigate} />;
       case 'customers':
         return <CustomerManagement onNavigate={handleNavigate} />;
+      case 'accounts':
+        return <AccountsReceivable onNavigate={handleNavigate} />;
       case 'manage-table':
         return <ManageTable onNavigate={handleNavigate} />;
       case 'manage-dishes':
@@ -59,6 +62,8 @@ function POSApp() {
       return <RetailInventory onNavigate={handleNavigate} />;
     case 'order-history':
       return <OrderHistory onNavigate={handleNavigate} />;
+    case 'accounts':
+      return <AccountsReceivable onNavigate={handleNavigate} />;
     case 'customers':
       return <CustomerManagement onNavigate={handleNavigate} />;
     default:

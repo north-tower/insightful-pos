@@ -21,10 +21,13 @@ import {
   ShoppingBag,
   CreditCard,
   Loader2,
+  CircleDollarSign,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import { PaymentDialog } from '@/components/payment/PaymentDialog';
+import { toast } from 'sonner';
 
 interface CustomerDetailDialogProps {
   open: boolean;
@@ -55,7 +58,10 @@ export function CustomerDetailDialog({
   customer,
   onEdit,
 }: CustomerDetailDialogProps) {
-  const { orders, loading: ordersLoading } = useOrders();
+  const { orders, loading: ordersLoading, recordPayment, getOrderBalanceDue } = useOrders();
+
+  const [paymentOrder, setPaymentOrder] = useState<SaleOrder | null>(null);
+  const [isPaymentOpen, setIsPaymentOpen] = useState(false);
 
   // Filter orders for this customer
   const customerOrders = useMemo(() => {
@@ -67,7 +73,24 @@ export function CustomerDetailDialog({
     );
   }, [orders, customer]);
 
+  const unpaidOrders = useMemo(
+    () =>
+      customerOrders.filter(
+        (o) =>
+          o.sale_type === 'credit' &&
+          (o.payment_status === 'unpaid' || o.payment_status === 'partial') &&
+          o.status !== 'voided' &&
+          o.status !== 'cancelled',
+      ),
+    [customerOrders],
+  );
+
   const displayName = `${customer.first_name} ${customer.last_name}`.trim();
+
+  const handleRecordPayment = (order: SaleOrder) => {
+    setPaymentOrder(order);
+    setIsPaymentOpen(true);
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -290,72 +313,120 @@ export function CustomerDetailDialog({
 
           {/* Order History Tab */}
           <TabsContent value="orders" className="space-y-4">
+            {/* Unpaid invoices banner */}
+            {unpaidOrders.length > 0 && (
+              <div className="p-3 bg-warning/5 border border-warning/20 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-warning font-medium text-sm">
+                    <CreditCard className="w-4 h-4" />
+                    {unpaidOrders.length} unpaid invoice{unpaidOrders.length > 1 ? 's' : ''} —
+                    Total: $
+                    {unpaidOrders
+                      .reduce((sum, o) => sum + getOrderBalanceDue(o), 0)
+                      .toFixed(2)}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {ordersLoading ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="w-6 h-6 animate-spin text-primary" />
               </div>
             ) : customerOrders.length > 0 ? (
               <div className="space-y-3">
-                {customerOrders.map((order) => (
-                  <Card key={order.id}>
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2 flex-wrap">
-                            <h4 className="font-semibold">
-                              Order #{order.order_number}
-                            </h4>
-                            {order.invoice_number && (
-                              <span className="text-xs text-muted-foreground font-mono">
-                                {order.invoice_number}
-                              </span>
-                            )}
-                            <Badge
-                              className={cn(
-                                'text-xs',
-                                orderStatusColors[order.status] || '',
+                {customerOrders.map((order) => {
+                  const isUnpaid =
+                    order.sale_type === 'credit' &&
+                    (order.payment_status === 'unpaid' || order.payment_status === 'partial') &&
+                    order.status !== 'voided' &&
+                    order.status !== 'cancelled';
+                  const balanceDue = getOrderBalanceDue(order);
+
+                  return (
+                    <Card
+                      key={order.id}
+                      className={cn(
+                        isUnpaid && 'border-l-4 border-l-warning',
+                      )}
+                    >
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2 flex-wrap">
+                              <h4 className="font-semibold">
+                                Order #{order.order_number}
+                              </h4>
+                              {order.invoice_number && (
+                                <span className="text-xs text-muted-foreground font-mono">
+                                  {order.invoice_number}
+                                </span>
                               )}
-                            >
-                              {order.status}
-                            </Badge>
-                            {order.sale_type === 'credit' && (
-                              <Badge className="text-xs bg-warning/10 text-warning gap-1">
-                                <CreditCard className="w-3 h-3" />
-                                Credit
+                              <Badge
+                                className={cn(
+                                  'text-xs',
+                                  orderStatusColors[order.status] || '',
+                                )}
+                              >
+                                {order.status}
                               </Badge>
-                            )}
-                            <Badge variant="outline" className="text-xs">
-                              {format(
-                                new Date(order.created_at),
-                                'MMM dd, yyyy HH:mm',
+                              {order.sale_type === 'credit' && (
+                                <Badge className="text-xs bg-warning/10 text-warning gap-1">
+                                  <CreditCard className="w-3 h-3" />
+                                  Credit
+                                </Badge>
                               )}
-                            </Badge>
+                              <Badge variant="outline" className="text-xs">
+                                {format(
+                                  new Date(order.created_at),
+                                  'MMM dd, yyyy HH:mm',
+                                )}
+                              </Badge>
+                            </div>
+                            <div className="grid grid-cols-4 gap-4 text-sm">
+                              <div>
+                                <p className="text-muted-foreground">Items</p>
+                                <p className="font-medium">
+                                  {order.items.length}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-muted-foreground">Total</p>
+                                <p className="font-medium">
+                                  ${order.total.toFixed(2)}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-muted-foreground">Payment</p>
+                                <p className="font-medium capitalize">
+                                  {order.payment_status}
+                                </p>
+                              </div>
+                              {isUnpaid && (
+                                <div>
+                                  <p className="text-muted-foreground">Balance</p>
+                                  <p className="font-bold text-warning">
+                                    ${balanceDue.toFixed(2)}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
                           </div>
-                          <div className="grid grid-cols-3 gap-4 text-sm">
-                            <div>
-                              <p className="text-muted-foreground">Items</p>
-                              <p className="font-medium">
-                                {order.items.length}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-muted-foreground">Total</p>
-                              <p className="font-medium">
-                                ${order.total.toFixed(2)}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-muted-foreground">Payment</p>
-                              <p className="font-medium capitalize">
-                                {order.payment_status}
-                              </p>
-                            </div>
-                          </div>
+                          {isUnpaid && (
+                            <Button
+                              size="sm"
+                              onClick={() => handleRecordPayment(order)}
+                              className="gap-1.5 bg-success hover:bg-success/90 text-white ml-3"
+                            >
+                              <CircleDollarSign className="w-4 h-4" />
+                              Pay
+                            </Button>
+                          )}
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
             ) : (
               <div className="text-center py-12 text-muted-foreground">
@@ -401,6 +472,23 @@ export function CustomerDetailDialog({
           </TabsContent>
         </Tabs>
       </DialogContent>
+
+      {/* Payment Dialog */}
+      {paymentOrder && (
+        <PaymentDialog
+          open={isPaymentOpen}
+          onOpenChange={(open) => {
+            setIsPaymentOpen(open);
+            if (!open) setPaymentOrder(null);
+          }}
+          order={paymentOrder}
+          customer={customer}
+          onRecordPayment={recordPayment}
+          onPaymentComplete={() => {
+            toast.success('Payment recorded successfully');
+          }}
+        />
+      )}
     </Dialog>
   );
 }

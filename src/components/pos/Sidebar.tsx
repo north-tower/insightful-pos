@@ -14,6 +14,7 @@ import {
   Warehouse,
   Receipt,
   Store,
+  CircleDollarSign,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -39,6 +40,7 @@ const restaurantNavItems: NavItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'order-line', label: 'Order Line', icon: ClipboardList },
   { id: 'order-history', label: 'Order History', icon: History },
+  { id: 'accounts', label: 'Accounts', icon: CircleDollarSign, roles: ['admin', 'manager', 'cashier'] },
   { id: 'manage-table', label: 'Manage Table', icon: Armchair, roles: ['admin', 'manager'] },
   { id: 'manage-dishes', label: 'Manage Dishes', icon: UtensilsCrossed, roles: ['admin', 'manager'] },
   { id: 'customers', label: 'Customers', icon: Users, roles: ['admin', 'manager'] },
@@ -50,6 +52,7 @@ const retailNavItems: NavItem[] = [
   { id: 'products', label: 'Products', icon: Package, roles: ['admin', 'manager'] },
   { id: 'inventory', label: 'Inventory', icon: Warehouse, roles: ['admin', 'manager'] },
   { id: 'order-history', label: 'Transactions', icon: Receipt },
+  { id: 'accounts', label: 'Accounts', icon: CircleDollarSign, roles: ['admin', 'manager', 'cashier'] },
   { id: 'customers', label: 'Customers', icon: Users, roles: ['admin', 'manager'] },
 ];
 

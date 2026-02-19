@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Search, RotateCcw, Eye, Printer, X, Loader2, DollarSign, ShoppingBag, AlertTriangle, FileText, CreditCard, Banknote } from 'lucide-react';
+import { Search, RotateCcw, Eye, Printer, X, Loader2, DollarSign, ShoppingBag, AlertTriangle, FileText, CreditCard, Banknote, CircleDollarSign } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import {
@@ -16,6 +16,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { InvoiceDialog } from '@/components/receipt/InvoiceDialog';
+import { PaymentDialog } from '@/components/payment/PaymentDialog';
 import { ReceiptData } from '@/data/receiptData';
 import { useOrders, SaleOrder } from '@/hooks/useOrders';
 import { useCustomers, Customer } from '@/hooks/useCustomers';
@@ -83,7 +84,7 @@ function orderToReceiptData(order: SaleOrder): ReceiptData {
 }
 
 export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
-  const { orders, loading, voidOrder, refundOrder, todaysOrders, todaysRevenue } = useOrders();
+  const { orders, loading, voidOrder, refundOrder, recordPayment, todaysOrders, todaysRevenue, getOrderBalanceDue } = useOrders();
   const { customers, getCustomerById } = useCustomers();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -93,6 +94,9 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
   const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
   const [selectedOrderForInvoice, setSelectedOrderForInvoice] = useState<SaleOrder | null>(null);
   const [selectedOrderCustomer, setSelectedOrderCustomer] = useState<Customer | null>(null);
+  const [isPaymentOpen, setIsPaymentOpen] = useState(false);
+  const [paymentOrder, setPaymentOrder] = useState<SaleOrder | null>(null);
+  const [paymentCustomer, setPaymentCustomer] = useState<Customer | null>(null);
 
   const filteredOrders = useMemo(() => {
     let result = orders;
@@ -155,6 +159,22 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
       setIsDetailOpen(false);
     } catch (err: any) {
       toast.error(err.message || 'Failed to void order');
+    }
+  };
+
+  const handleRecordPayment = (order: SaleOrder) => {
+    const cust = order.customer_id ? getCustomerById(order.customer_id) : null;
+    setPaymentOrder(order);
+    setPaymentCustomer(cust);
+    setIsPaymentOpen(true);
+  };
+
+  const handlePaymentComplete = () => {
+    toast.success('Payment recorded successfully');
+    // If the detail dialog was showing this order, refresh its data
+    if (selectedOrder && paymentOrder && selectedOrder.id === paymentOrder.id) {
+      // The orders list will re-render from the hook refetch
+      setIsDetailOpen(false);
     }
   };
 
@@ -426,6 +446,19 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                             <FileText className="w-4 h-4" />
                             {order.sale_type === 'credit' ? 'Invoice' : 'Receipt'}
                           </Button>
+                          {order.sale_type === 'credit' &&
+                            (order.payment_status === 'unpaid' || order.payment_status === 'partial') &&
+                            order.status !== 'voided' &&
+                            order.status !== 'cancelled' && (
+                              <Button
+                                size="sm"
+                                onClick={() => handleRecordPayment(order)}
+                                className="gap-2 bg-success hover:bg-success/90 text-white"
+                              >
+                                <CircleDollarSign className="w-4 h-4" />
+                                Pay
+                              </Button>
+                            )}
                           {order.payment_status === 'paid' &&
                             order.status !== 'cancelled' &&
                             order.status !== 'voided' && (
@@ -649,13 +682,28 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
               </div>
 
               {/* Credit Sale Balance Info */}
-              {selectedOrder.sale_type === 'credit' && selectedOrder.payment_status === 'unpaid' && (
+              {selectedOrder.sale_type === 'credit' &&
+                (selectedOrder.payment_status === 'unpaid' || selectedOrder.payment_status === 'partial') &&
+                selectedOrder.status !== 'voided' &&
+                selectedOrder.status !== 'cancelled' && (
                 <div className="p-4 bg-warning/5 border border-warning/20 rounded-lg">
-                  <div className="flex items-center gap-2 text-warning font-semibold mb-1">
-                    <CreditCard className="w-4 h-4" />
-                    Credit Sale — Balance Due
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2 text-warning font-semibold">
+                      <CreditCard className="w-4 h-4" />
+                      Credit Sale — Balance Due
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={() => handleRecordPayment(selectedOrder)}
+                      className="gap-1.5 bg-success hover:bg-success/90 text-white"
+                    >
+                      <CircleDollarSign className="w-4 h-4" />
+                      Record Payment
+                    </Button>
                   </div>
-                  <p className="text-lg font-bold text-warning">${selectedOrder.total.toFixed(2)}</p>
+                  <p className="text-lg font-bold text-warning">
+                    ${getOrderBalanceDue(selectedOrder).toFixed(2)}
+                  </p>
                   {selectedOrder.due_date && (
                     <p className="text-xs text-muted-foreground mt-1">
                       Due by {format(new Date(selectedOrder.due_date), 'MMMM dd, yyyy')}
@@ -708,6 +756,24 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
           customer={selectedOrderCustomer}
           receiptData={orderToReceiptData(selectedOrderForInvoice)}
           defaultView={selectedOrderForInvoice.sale_type === 'credit' ? 'invoice' : 'receipt'}
+        />
+      )}
+
+      {/* Payment Dialog */}
+      {paymentOrder && (
+        <PaymentDialog
+          open={isPaymentOpen}
+          onOpenChange={(open) => {
+            setIsPaymentOpen(open);
+            if (!open) {
+              setPaymentOrder(null);
+              setPaymentCustomer(null);
+            }
+          }}
+          order={paymentOrder}
+          customer={paymentCustomer}
+          onRecordPayment={recordPayment}
+          onPaymentComplete={handlePaymentComplete}
         />
       )}
     </div>
