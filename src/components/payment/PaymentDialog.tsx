@@ -32,6 +32,13 @@ interface PaymentDialogProps {
     orderId: string,
     payment: { method: PaymentMethod; amount: number; reference?: string },
   ) => Promise<any>;
+  /** Called after successful payment to deduct from customer's main credit balance */
+  onDeductCustomerBalance?: (
+    customerId: string,
+    amount: number,
+    method: PaymentMethod,
+  ) => Promise<any>;
+  /** Called after everything is done (payment recorded + balance deducted) */
   onPaymentComplete?: () => void;
 }
 
@@ -51,6 +58,7 @@ export function PaymentDialog({
   order,
   customer,
   onRecordPayment,
+  onDeductCustomerBalance,
   onPaymentComplete,
 }: PaymentDialogProps) {
   const [method, setMethod] = useState<PaymentMethod>('cash');
@@ -73,10 +81,6 @@ export function PaymentDialog({
       setError('Please enter a valid amount');
       return;
     }
-    if (enteredAmount > balanceDue) {
-      setError(`Amount exceeds balance due ($${balanceDue.toFixed(2)})`);
-      return;
-    }
 
     setIsProcessing(true);
     setError(null);
@@ -89,6 +93,11 @@ export function PaymentDialog({
       });
 
       if (result) {
+        // Deduct from customer's main credit balance
+        if (onDeductCustomerBalance && order.customer_id) {
+          await onDeductCustomerBalance(order.customer_id, enteredAmount, method);
+        }
+
         setSuccess(true);
         setTimeout(() => {
           setSuccess(false);
@@ -220,7 +229,6 @@ export function PaymentDialog({
                   type="number"
                   step="0.01"
                   min="0.01"
-                  max={balanceDue}
                   value={amount}
                   onChange={(e) => {
                     setAmount(e.target.value);
@@ -280,7 +288,7 @@ export function PaymentDialog({
             )}
 
             {/* After-payment preview */}
-            {enteredAmount > 0 && enteredAmount <= balanceDue && (
+            {enteredAmount > 0 && (
               <div className="p-3 bg-muted/30 rounded-lg text-sm space-y-1">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">After this payment</span>
@@ -305,6 +313,12 @@ export function PaymentDialog({
                     ${Math.max(balanceDue - enteredAmount, 0).toFixed(2)}
                   </span>
                 </div>
+                {enteredAmount > balanceDue && (
+                  <div className="flex justify-between font-medium text-info">
+                    <span>Overpayment (advance credit)</span>
+                    <span>${(enteredAmount - balanceDue).toFixed(2)}</span>
+                  </div>
+                )}
               </div>
             )}
 
@@ -321,7 +335,7 @@ export function PaymentDialog({
               <Button
                 className="flex-1 gap-2"
                 onClick={handleSubmit}
-                disabled={isProcessing || enteredAmount <= 0 || enteredAmount > balanceDue}
+                disabled={isProcessing || enteredAmount <= 0}
               >
                 {isProcessing ? (
                   <>

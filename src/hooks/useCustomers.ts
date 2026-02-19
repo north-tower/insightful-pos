@@ -358,6 +358,49 @@ export function useCustomers() {
     [isDemoMode, customers, fetchCustomers],
   );
 
+  // ── Adjust customer balance (positive = increase, negative = decrease) ──
+
+  const adjustCustomerBalance = useCallback(
+    async (customerId: string, delta: number) => {
+      if (delta === 0) return { success: true };
+
+      if (isDemoMode) {
+        setCustomers((prev) =>
+          prev.map((c) =>
+            c.id === customerId
+              ? {
+                  ...c,
+                  credit_balance: Math.max(c.credit_balance + delta, 0),
+                  updated_at: new Date().toISOString(),
+                }
+              : c,
+          ),
+        );
+        return { success: true };
+      }
+
+      try {
+        const customer = customers.find((c) => c.id === customerId);
+        if (!customer) throw new Error('Customer not found');
+
+        const { error: err } = await supabase
+          .from('customers')
+          .update({
+            credit_balance: Math.max(customer.credit_balance + delta, 0),
+          })
+          .eq('id', customerId);
+
+        if (err) throw err;
+        await fetchCustomers();
+        return { success: true };
+      } catch (err: any) {
+        console.error('Failed to adjust customer balance:', err);
+        return { success: false, error: err.message };
+      }
+    },
+    [isDemoMode, customers, fetchCustomers],
+  );
+
   // ── Helpers ──────────────────────────────────────────────────────────────
 
   const customersWithBalance = useMemo(
@@ -392,6 +435,7 @@ export function useCustomers() {
 
     // Payment
     makePaymentOnAccount,
+    adjustCustomerBalance,
 
     // Helpers
     customersWithBalance,

@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Search, RotateCcw, Eye, Printer, X, Loader2, DollarSign, ShoppingBag, AlertTriangle, FileText, CreditCard, Banknote, CircleDollarSign } from 'lucide-react';
+import { Search, RotateCcw, Eye, Printer, X, Loader2, DollarSign, ShoppingBag, AlertTriangle, FileText, CreditCard, Banknote, CircleDollarSign, Pencil, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import {
@@ -17,8 +17,9 @@ import {
 } from '@/components/ui/dialog';
 import { InvoiceDialog } from '@/components/receipt/InvoiceDialog';
 import { PaymentDialog } from '@/components/payment/PaymentDialog';
+import { EditPaymentDialog } from '@/components/payment/EditPaymentDialog';
 import { ReceiptData } from '@/data/receiptData';
-import { useOrders, SaleOrder } from '@/hooks/useOrders';
+import { useOrders, SaleOrder, Payment } from '@/hooks/useOrders';
 import { useCustomers, Customer } from '@/hooks/useCustomers';
 import { toast } from 'sonner';
 
@@ -84,8 +85,8 @@ function orderToReceiptData(order: SaleOrder): ReceiptData {
 }
 
 export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
-  const { orders, loading, voidOrder, refundOrder, recordPayment, todaysOrders, todaysRevenue, getOrderBalanceDue } = useOrders();
-  const { customers, getCustomerById } = useCustomers();
+  const { orders, loading, voidOrder, refundOrder, recordPayment, updatePayment, deletePayment, todaysOrders, todaysRevenue, getOrderBalanceDue } = useOrders();
+  const { customers, getCustomerById, makePaymentOnAccount, adjustCustomerBalance, refetch: refetchCustomers } = useCustomers();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [saleTypeFilter, setSaleTypeFilter] = useState<string>('all');
@@ -97,6 +98,9 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [paymentOrder, setPaymentOrder] = useState<SaleOrder | null>(null);
   const [paymentCustomer, setPaymentCustomer] = useState<Customer | null>(null);
+  const [isEditPaymentOpen, setIsEditPaymentOpen] = useState(false);
+  const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
+  const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
 
   const filteredOrders = useMemo(() => {
     let result = orders;
@@ -110,7 +114,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
     }
 
     if (searchQuery) {
-      const query = searchQuery.toLowerCase();
+    const query = searchQuery.toLowerCase();
       result = result.filter(
         (order) =>
           order.order_number.toLowerCase().includes(query) ||
@@ -175,6 +179,42 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
     if (selectedOrder && paymentOrder && selectedOrder.id === paymentOrder.id) {
       // The orders list will re-render from the hook refetch
       setIsDetailOpen(false);
+    }
+  };
+
+  const handleEditPayment = (payment: Payment) => {
+    setEditingPayment(payment);
+    setIsEditPaymentOpen(true);
+  };
+
+  const handleEditPaymentComplete = () => {
+    toast.success('Payment updated');
+    // Close the detail dialog so it refreshes when reopened
+    setIsDetailOpen(false);
+  };
+
+  const handleDeletePayment = async (paymentId: string) => {
+    // Find the order & payment before deleting so we can adjust customer balance
+    const order = orders.find((o) => o.payments.some((p) => p.id === paymentId));
+    const payment = order?.payments.find((p) => p.id === paymentId);
+
+    setDeletingPaymentId(paymentId);
+    try {
+      const ok = await deletePayment(paymentId);
+      if (ok) {
+        // Adjust customer balance in demo mode (DB trigger handles Supabase)
+        if (order?.sale_type === 'credit' && order?.customer_id && payment) {
+          await adjustCustomerBalance(order.customer_id, payment.amount);
+        }
+        toast.success('Payment deleted');
+        setIsDetailOpen(false);
+      } else {
+        toast.error('Failed to delete payment');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete payment');
+    } finally {
+      setDeletingPaymentId(null);
     }
   };
 
@@ -244,13 +284,13 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
           <div className="mb-6 space-y-3">
             <div className="flex gap-3 items-center">
               <div className="relative flex-1 max-w-md">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
                   placeholder="Search by order #, invoice #, customer, or table..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
               </div>
               <div className="flex gap-2">
                 {['all', 'completed', 'pending', 'preparing', 'cancelled', 'voided'].map((s) => (
@@ -297,7 +337,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
 
           {/* Orders List */}
           {!loading && (
-            <div className="space-y-4">
+          <div className="space-y-4">
               {filteredOrders.length === 0 && (
                 <div className="text-center py-16 text-muted-foreground">
                   <ShoppingBag className="w-12 h-12 mx-auto mb-4 opacity-50" />
@@ -327,9 +367,9 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                       order.sale_type === 'credit' && order.payment_status === 'unpaid' && 'border-l-4 border-l-warning',
                     )}
                   >
-                    <CardContent className="p-6">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
+                <CardContent className="p-6">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
                           <div className="flex items-center gap-3 mb-3 flex-wrap">
                             <h3 className="font-bold text-lg text-foreground">
                               Order #{order.order_number}
@@ -340,8 +380,8 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                               </span>
                             )}
                             <Badge className={cn('text-xs', statusColors[order.status] || '')}>
-                              {order.status}
-                            </Badge>
+                          {order.status}
+                        </Badge>
                             <Badge
                               className={cn(
                                 'text-xs',
@@ -353,35 +393,35 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                             <Badge className={cn('text-xs gap-1', saleConfig?.className || '')}>
                               <SaleIcon className="w-3 h-3" />
                               {saleConfig?.label || 'Cash Sale'}
-                            </Badge>
+                        </Badge>
                             {primaryPayment === 'split' && (
-                              <Badge className="text-xs bg-info/10 text-info">Split Payment</Badge>
-                            )}
-                          </div>
+                          <Badge className="text-xs bg-info/10 text-info">Split Payment</Badge>
+                        )}
+                      </div>
 
                           <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm mb-4">
                             {order.table_number && (
-                              <div>
-                                <p className="text-muted-foreground">Table</p>
+                          <div>
+                            <p className="text-muted-foreground">Table</p>
                                 <p className="font-medium">#{order.table_number}</p>
-                              </div>
-                            )}
+                          </div>
+                        )}
                             {order.customer_name && (
-                              <div>
-                                <p className="text-muted-foreground">Customer</p>
+                          <div>
+                            <p className="text-muted-foreground">Customer</p>
                                 <p className="font-medium">{order.customer_name}</p>
-                              </div>
-                            )}
-                            <div>
-                              <p className="text-muted-foreground">Date</p>
+                          </div>
+                        )}
+                        <div>
+                          <p className="text-muted-foreground">Date</p>
                               <p className="font-medium">
                                 {format(new Date(order.created_at), 'MMM dd, yyyy HH:mm')}
                               </p>
-                            </div>
-                            <div>
-                              <p className="text-muted-foreground">Total</p>
-                              <p className="font-medium">${order.total.toFixed(2)}</p>
-                            </div>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Total</p>
+                          <p className="font-medium">${order.total.toFixed(2)}</p>
+                        </div>
                             {order.sale_type === 'credit' && order.payment_status === 'unpaid' && (
                               <div>
                                 <p className="text-muted-foreground">Balance Due</p>
@@ -394,10 +434,10 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                                 <p className="font-bold text-warning">${orderCustomer.credit_balance.toFixed(2)}</p>
                               </div>
                             )}
-                          </div>
+                      </div>
 
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
-                            <span>{order.items.length} items</span>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
+                        <span>{order.items.length} items</span>
                             {order.order_type && (
                               <>
                                 <span>•</span>
@@ -413,36 +453,36 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                               </>
                             )}
                             {order.staff_name && (
-                              <>
-                                <span>•</span>
+                          <>
+                            <span>•</span>
                                 <span>by {order.staff_name}</span>
-                              </>
-                            )}
+                          </>
+                        )}
                             {order.due_date && (
-                              <>
-                                <span>•</span>
+                          <>
+                            <span>•</span>
                                 <span>Due: {format(new Date(order.due_date), 'MMM dd, yyyy')}</span>
-                              </>
-                            )}
-                          </div>
-                        </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
 
-                        <div className="flex flex-col gap-2 ml-4">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleViewOrder(order)}
-                            className="gap-2"
-                          >
-                            <Eye className="w-4 h-4" />
-                            View
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
+                    <div className="flex flex-col gap-2 ml-4">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleViewOrder(order)}
+                        className="gap-2"
+                      >
+                        <Eye className="w-4 h-4" />
+                        View
+                      </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
                             onClick={() => handlePrintReceipt(order)}
-                            className="gap-2"
-                          >
+                          className="gap-2"
+                        >
                             <FileText className="w-4 h-4" />
                             {order.sale_type === 'credit' ? 'Invoice' : 'Receipt'}
                           </Button>
@@ -457,41 +497,41 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                               >
                                 <CircleDollarSign className="w-4 h-4" />
                                 Pay
-                              </Button>
-                            )}
+                        </Button>
+                      )}
                           {order.payment_status === 'paid' &&
                             order.status !== 'cancelled' &&
                             order.status !== 'voided' && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleRefund(order)}
-                                className="gap-2 text-destructive hover:text-destructive"
-                              >
-                                <RotateCcw className="w-4 h-4" />
-                                Refund
-                              </Button>
-                            )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleRefund(order)}
+                          className="gap-2 text-destructive hover:text-destructive"
+                        >
+                          <RotateCcw className="w-4 h-4" />
+                          Refund
+                        </Button>
+                      )}
                           {order.status !== 'completed' &&
                             order.status !== 'cancelled' &&
                             order.status !== 'voided' && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleVoid(order)}
-                                className="gap-2 text-destructive hover:text-destructive"
-                              >
-                                <X className="w-4 h-4" />
-                                Void
-                              </Button>
-                            )}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleVoid(order)}
+                          className="gap-2 text-destructive hover:text-destructive"
+                        >
+                          <X className="w-4 h-4" />
+                          Void
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
                 );
               })}
-            </div>
+          </div>
           )}
         </div>
       </div>
@@ -589,8 +629,8 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                         <img
                           src={item.product_image}
                           alt={item.product_name}
-                          className="w-16 h-16 rounded-lg object-cover"
-                        />
+                        className="w-16 h-16 rounded-lg object-cover"
+                      />
                       )}
                       <div className="flex-1">
                         <p className="font-medium">{item.product_name}</p>
@@ -627,22 +667,63 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
               {/* Payments */}
               {selectedOrder.payments.length > 0 && (
                 <div>
-                  <h4 className="font-semibold mb-3">Payments</h4>
+                  <h4 className="font-semibold mb-3">
+                    Payments ({selectedOrder.payments.length})
+                  </h4>
                   <div className="space-y-2">
                     {selectedOrder.payments.map((payment) => (
                       <div
                         key={payment.id}
-                        className="flex justify-between p-2 bg-muted/50 rounded"
+                        className="flex items-center justify-between p-3 bg-muted/50 rounded-lg group"
                       >
-                        <div>
-                          <span className="capitalize font-medium">{payment.method}</span>
-                          <span className="text-xs text-muted-foreground ml-2">
-                            {format(new Date(payment.paid_at), 'HH:mm')}
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="capitalize font-medium">{payment.method}</span>
+                            {payment.reference && (
+                              <span className="text-xs text-muted-foreground font-mono">
+                                ({payment.reference})
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-xs text-muted-foreground">
+                            {format(new Date(payment.paid_at), 'MMM dd, yyyy · HH:mm')}
                           </span>
                         </div>
-                        <span className="font-medium">${payment.amount.toFixed(2)}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-base mr-2">
+                            ${payment.amount.toFixed(2)}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={() => handleEditPayment(payment)}
+                          >
+                            <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
+                            onClick={() => handleDeletePayment(payment.id)}
+                            disabled={deletingPaymentId === payment.id}
+                          >
+                            {deletingPaymentId === payment.id ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-3.5 h-3.5" />
+                            )}
+                          </Button>
+                        </div>
                       </div>
                     ))}
+                    {/* Payments total */}
+                    <div className="flex justify-between pt-2 border-t border-border/50 text-sm">
+                      <span className="text-muted-foreground">Total Paid</span>
+                      <span className="font-semibold text-success">
+                        ${selectedOrder.payments.reduce((s, p) => s + p.amount, 0).toFixed(2)}
+                      </span>
+                    </div>
                   </div>
                 </div>
               )}
@@ -714,8 +795,8 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
 
               {/* Actions */}
               <div className="flex gap-2 pt-4 border-t">
-                <Button
-                  variant="outline"
+                <Button 
+                  variant="outline" 
                   className="flex-1 gap-2"
                   onClick={() => handlePrintReceipt(selectedOrder)}
                 >
@@ -725,15 +806,15 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                 {selectedOrder.payment_status === 'paid' &&
                   selectedOrder.status !== 'cancelled' &&
                   selectedOrder.status !== 'voided' && (
-                    <Button
-                      variant="outline"
+                  <Button
+                    variant="outline"
                       className="flex-1 gap-2 text-destructive hover:text-destructive"
                       onClick={() => handleRefund(selectedOrder)}
-                    >
-                      <RotateCcw className="w-4 h-4" />
+                  >
+                    <RotateCcw className="w-4 h-4" />
                       Refund
-                    </Button>
-                  )}
+                  </Button>
+                )}
               </div>
             </div>
             );
@@ -773,7 +854,24 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
           order={paymentOrder}
           customer={paymentCustomer}
           onRecordPayment={recordPayment}
+          onDeductCustomerBalance={makePaymentOnAccount}
           onPaymentComplete={handlePaymentComplete}
+        />
+      )}
+
+      {/* Edit Payment Dialog */}
+      {editingPayment && (
+        <EditPaymentDialog
+          open={isEditPaymentOpen}
+          onOpenChange={(open) => {
+            setIsEditPaymentOpen(open);
+            if (!open) setEditingPayment(null);
+          }}
+          payment={editingPayment}
+          order={selectedOrder || undefined}
+          onUpdate={updatePayment}
+          onAdjustCustomerBalance={adjustCustomerBalance}
+          onUpdateComplete={handleEditPaymentComplete}
         />
       )}
     </div>

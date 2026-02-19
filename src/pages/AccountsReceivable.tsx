@@ -88,7 +88,7 @@ export default function AccountsReceivable({
     recordPayment,
     getOrderBalanceDue,
   } = useOrders();
-  const { customers, getCustomerById, totalOutstanding } = useCustomers();
+  const { customers, getCustomerById, totalOutstanding, makePaymentOnAccount } = useCustomers();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedCustomer, setExpandedCustomer] = useState<string | null>(null);
@@ -566,6 +566,7 @@ export default function AccountsReceivable({
           order={paymentOrder}
           customer={paymentCustomer}
           onRecordPayment={recordPayment}
+          onDeductCustomerBalance={makePaymentOnAccount}
           onPaymentComplete={handlePaymentComplete}
         />
       )}

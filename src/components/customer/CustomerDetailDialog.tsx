@@ -8,7 +8,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { Customer } from '@/hooks/useCustomers';
+import { Customer, useCustomers } from '@/hooks/useCustomers';
 import { useOrders, SaleOrder } from '@/hooks/useOrders';
 import { format } from 'date-fns';
 import {
@@ -59,6 +59,7 @@ export function CustomerDetailDialog({
   onEdit,
 }: CustomerDetailDialogProps) {
   const { orders, loading: ordersLoading, recordPayment, getOrderBalanceDue } = useOrders();
+  const { makePaymentOnAccount } = useCustomers();
 
   const [paymentOrder, setPaymentOrder] = useState<SaleOrder | null>(null);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
@@ -484,6 +485,7 @@ export function CustomerDetailDialog({
           order={paymentOrder}
           customer={customer}
           onRecordPayment={recordPayment}
+          onDeductCustomerBalance={makePaymentOnAccount}
           onPaymentComplete={() => {
             toast.success('Payment recorded successfully');
           }}

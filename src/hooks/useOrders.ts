@@ -737,6 +737,156 @@ export function useOrders() {
     [isDemoMode, orders, fetchOrders],
   );
 
+  // ── Update payment ─────────────────────────────────────────────────────
+
+  const updatePayment = useCallback(
+    async (
+      paymentId: string,
+      updates: { method?: PaymentMethod; amount?: number; reference?: string },
+    ): Promise<Payment | null> => {
+      // Find the order this payment belongs to
+      const order = orders.find((o) => o.payments.some((p) => p.id === paymentId));
+      if (!order) {
+        setError('Order not found for payment');
+        return null;
+      }
+
+      const existingPayment = order.payments.find((p) => p.id === paymentId);
+      if (!existingPayment) {
+        setError('Payment not found');
+        return null;
+      }
+
+      const updatedAmount = updates.amount ?? existingPayment.amount;
+      const amountDiff = updatedAmount - existingPayment.amount;
+
+      // Recalculate order payment status
+      const otherPaid = order.payments
+        .filter((p) => p.id !== paymentId)
+        .reduce((s, p) => s + p.amount, 0);
+      const newTotalPaid = otherPaid + updatedAmount;
+      const newPaymentStatus: PaymentStatus =
+        newTotalPaid >= order.total ? 'paid' : newTotalPaid > 0 ? 'partial' : 'unpaid';
+
+      if (isDemoMode) {
+        const updatedPayment: Payment = {
+          ...existingPayment,
+          method: updates.method ?? existingPayment.method,
+          amount: updatedAmount,
+          reference: updates.reference !== undefined ? updates.reference : existingPayment.reference,
+        };
+
+        setOrders((prev) =>
+          prev.map((o) =>
+            o.id === order.id
+              ? {
+                  ...o,
+                  payments: o.payments.map((p) =>
+                    p.id === paymentId ? updatedPayment : p,
+                  ),
+                  payment_status: newPaymentStatus,
+                }
+              : o,
+          ),
+        );
+        return updatedPayment;
+      }
+
+      // Supabase
+      try {
+        const updateData: Record<string, unknown> = {};
+        if (updates.method !== undefined) updateData.method = updates.method;
+        if (updates.amount !== undefined) updateData.amount = updates.amount;
+        if (updates.reference !== undefined) updateData.reference = updates.reference || null;
+
+        const { data, error: payErr } = await supabase
+          .from('payments')
+          .update(updateData)
+          .eq('id', paymentId)
+          .select()
+          .single();
+
+        if (payErr) throw payErr;
+
+        // The DB trigger will adjust customer balance and order payment_status
+        await fetchOrders();
+
+        return {
+          id: data.id,
+          order_id: data.order_id,
+          method: data.method,
+          amount: Number(data.amount),
+          reference: data.reference,
+          paid_at: data.paid_at,
+        };
+      } catch (err: any) {
+        console.error('Failed to update payment:', err);
+        setError(err.message || 'Failed to update payment');
+        return null;
+      }
+    },
+    [isDemoMode, orders, fetchOrders],
+  );
+
+  // ── Delete payment ─────────────────────────────────────────────────────
+
+  const deletePayment = useCallback(
+    async (paymentId: string): Promise<boolean> => {
+      const order = orders.find((o) => o.payments.some((p) => p.id === paymentId));
+      if (!order) {
+        setError('Order not found for payment');
+        return false;
+      }
+
+      const existingPayment = order.payments.find((p) => p.id === paymentId);
+      if (!existingPayment) {
+        setError('Payment not found');
+        return false;
+      }
+
+      // Recalculate order payment status after removal
+      const remainingPaid = order.payments
+        .filter((p) => p.id !== paymentId)
+        .reduce((s, p) => s + p.amount, 0);
+      const newPaymentStatus: PaymentStatus =
+        remainingPaid >= order.total ? 'paid' : remainingPaid > 0 ? 'partial' : 'unpaid';
+
+      if (isDemoMode) {
+        setOrders((prev) =>
+          prev.map((o) =>
+            o.id === order.id
+              ? {
+                  ...o,
+                  payments: o.payments.filter((p) => p.id !== paymentId),
+                  payment_status: newPaymentStatus,
+                }
+              : o,
+          ),
+        );
+        return true;
+      }
+
+      // Supabase
+      try {
+        const { error: delErr } = await supabase
+          .from('payments')
+          .delete()
+          .eq('id', paymentId);
+
+        if (delErr) throw delErr;
+
+        // The DB trigger will adjust customer balance and order payment_status
+        await fetchOrders();
+        return true;
+      } catch (err: any) {
+        console.error('Failed to delete payment:', err);
+        setError(err.message || 'Failed to delete payment');
+        return false;
+      }
+    },
+    [isDemoMode, orders, fetchOrders],
+  );
+
   // ── Stats helpers ─────────────────────────────────────────────────────
 
   const todaysOrders = useMemo(() => {
@@ -803,6 +953,8 @@ export function useOrders() {
     voidOrder,
     refundOrder,
     recordPayment,
+    updatePayment,
+    deletePayment,
 
     // Stats
     todaysOrders,
