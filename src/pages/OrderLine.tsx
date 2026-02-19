@@ -8,7 +8,8 @@ import { CartPanelEnhanced as CartPanel } from '@/components/pos/CartPanelEnhanc
 import { OrderStatusTabs } from '@/components/pos/OrderStatusTabs';
 import { IncomingOrdersQueue } from '@/components/order/IncomingOrdersQueue';
 import { OrderQueueProvider } from '@/context/OrderQueueContext';
-import { categories, menuItems, activeOrders } from '@/data/menuData';
+import { useProducts } from '@/hooks/useProducts';
+import { activeOrders } from '@/data/menuData';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 const orderStatusTabs = [
@@ -24,6 +25,7 @@ interface OrderLineProps {
 }
 
 function OrderLineContent({ onNavigate }: OrderLineProps) {
+  const { menuItems, categories, loading } = useProducts();
   const [activeStatus, setActiveStatus] = useState('all');
   const [activeCategory, setActiveCategory] = useState('all');
   const [activeOrderId, setActiveOrderId] = useState(activeOrders[0]?.id);
@@ -32,7 +34,7 @@ function OrderLineContent({ onNavigate }: OrderLineProps) {
   const filteredItems = useMemo(() => {
     if (activeCategory === 'all') return menuItems;
     return menuItems.filter((item) => item.category === activeCategory);
-  }, [activeCategory]);
+  }, [activeCategory, menuItems]);
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">

@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { CategoryTabs } from '@/components/pos/CategoryTabs';
 import { MenuCard } from '@/components/pos/MenuCard';
-import { categories, menuItems } from '@/data/menuData';
+import { useProducts } from '@/hooks/useProducts';
 import { ShoppingCart, CheckCircle2, ArrowLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useMemo } from 'react';
@@ -20,6 +20,7 @@ type OrderType = 'dine-in' | 'takeaway' | 'delivery';
 type OrderSource = 'kiosk' | 'qr' | 'web';
 
 export default function CustomerOrder() {
+  const { menuItems, categories, loading } = useProducts();
   const { items, subtotal, tax, total, clearCart, orderNotes, setOrderNotes } = useCart();
   const { submitCustomerOrder } = useOrderQueue();
   const [activeCategory, setActiveCategory] = useState('all');
@@ -36,7 +37,7 @@ export default function CustomerOrder() {
   const filteredItems = useMemo(() => {
     if (activeCategory === 'all') return menuItems;
     return menuItems.filter((item) => item.category === activeCategory);
-  }, [activeCategory]);
+  }, [activeCategory, menuItems]);
 
   const handleSubmitOrder = async () => {
     if (items.length === 0) {

@@ -6,13 +6,13 @@ import { TopSellingChart } from '@/components/dashboard/TopSellingChart';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { useProducts } from '@/hooks/useProducts';
 import {
   retailDashboardStats,
   retailWeeklySales,
   retailDailySales,
   topSellingProducts,
   recentSales,
-  retailProducts,
 } from '@/data/productData';
 import {
   DollarSign,
@@ -58,13 +58,14 @@ const paymentIcons = {
   qr: QrCode,
 };
 
-// Calculate stock alerts
-const lowStockProducts = retailProducts.filter(
-  (p) => p.stock > 0 && p.stock <= p.lowStockThreshold
-);
-const outOfStockProducts = retailProducts.filter((p) => p.stock === 0);
-
 export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
+  const { retailProducts, loading } = useProducts();
+
+  // Calculate stock alerts from live data
+  const lowStockProducts = retailProducts.filter(
+    (p) => p.stock > 0 && p.stock <= p.lowStockThreshold
+  );
+  const outOfStockProducts = retailProducts.filter((p) => p.stock === 0);
   return (
     <div className="flex h-screen bg-background overflow-hidden">
       <Sidebar activeTab="dashboard" onTabChange={onNavigate} />

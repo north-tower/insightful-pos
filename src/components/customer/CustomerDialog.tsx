@@ -10,65 +10,68 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Customer, CustomerPreference } from '@/data/customerData';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Customer, CreateCustomerParams } from '@/hooks/useCustomers';
 import { X, Plus } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 
 interface CustomerDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  customer?: Customer;
-  onSave: (customerData: Partial<Customer>) => void;
+  customer?: Customer | null;
+  onSave: (customerData: CreateCustomerParams) => void;
 }
 
-export function CustomerDialog({ open, onOpenChange, customer, onSave }: CustomerDialogProps) {
-  const [formData, setFormData] = useState<Partial<Customer>>({
-    firstName: '',
-    lastName: '',
-    email: '',
-    phone: '',
-    address: '',
-    city: '',
-    postalCode: '',
-    country: 'USA',
-    status: 'active',
-    notes: '',
-    preferences: [],
-    tags: [],
-  });
+const emptyForm: CreateCustomerParams = {
+  first_name: '',
+  last_name: '',
+  email: '',
+  phone: '',
+  address: '',
+  city: '',
+  postal_code: '',
+  country: 'USA',
+  credit_limit: 0,
+  status: 'active',
+  notes: '',
+  tags: [],
+};
+
+export function CustomerDialog({
+  open,
+  onOpenChange,
+  customer,
+  onSave,
+}: CustomerDialogProps) {
+  const [formData, setFormData] = useState<CreateCustomerParams>({ ...emptyForm });
+  const [tagInput, setTagInput] = useState('');
 
   useEffect(() => {
     if (customer) {
       setFormData({
-        firstName: customer.firstName,
-        lastName: customer.lastName,
+        first_name: customer.first_name,
+        last_name: customer.last_name,
         email: customer.email || '',
         phone: customer.phone || '',
         address: customer.address || '',
         city: customer.city || '',
-        postalCode: customer.postalCode || '',
+        postal_code: customer.postal_code || '',
         country: customer.country || 'USA',
+        credit_limit: customer.credit_limit,
         status: customer.status,
         notes: customer.notes || '',
-        preferences: customer.preferences || [],
         tags: customer.tags || [],
       });
     } else {
-      setFormData({
-        firstName: '',
-        lastName: '',
-        email: '',
-        phone: '',
-        address: '',
-        city: '',
-        postalCode: '',
-        country: 'USA',
-        status: 'active',
-        notes: '',
-        preferences: [],
-        tags: [],
-      });
+      setFormData({ ...emptyForm });
     }
+    setTagInput('');
   }, [customer, open]);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -77,35 +80,26 @@ export function CustomerDialog({ open, onOpenChange, customer, onSave }: Custome
     onOpenChange(false);
   };
 
-  const addPreference = () => {
+  const addTag = () => {
+    const tag = tagInput.trim().toLowerCase();
+    if (tag && !(formData.tags || []).includes(tag)) {
+      setFormData({ ...formData, tags: [...(formData.tags || []), tag] });
+      setTagInput('');
+    }
+  };
+
+  const removeTag = (tag: string) => {
     setFormData({
       ...formData,
-      preferences: [
-        ...(formData.preferences || []),
-        {
-          id: Date.now().toString(),
-          type: 'note',
-          name: '',
-          description: '',
-        },
-      ],
+      tags: (formData.tags || []).filter((t) => t !== tag),
     });
   };
 
-  const removePreference = (id: string) => {
-    setFormData({
-      ...formData,
-      preferences: formData.preferences?.filter((p) => p.id !== id),
-    });
-  };
-
-  const updatePreference = (id: string, field: keyof CustomerPreference, value: any) => {
-    setFormData({
-      ...formData,
-      preferences: formData.preferences?.map((p) =>
-        p.id === id ? { ...p, [field]: value } : p
-      ),
-    });
+  const handleTagKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addTag();
+    }
   };
 
   return (
@@ -124,20 +118,24 @@ export function CustomerDialog({ open, onOpenChange, customer, onSave }: Custome
             <h3 className="font-semibold mb-4">Basic Information</h3>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="firstName">First Name *</Label>
+                <Label htmlFor="first_name">First Name *</Label>
                 <Input
-                  id="firstName"
-                  value={formData.firstName}
-                  onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                  id="first_name"
+                  value={formData.first_name}
+                  onChange={(e) =>
+                    setFormData({ ...formData, first_name: e.target.value })
+                  }
                   required
                 />
               </div>
               <div>
-                <Label htmlFor="lastName">Last Name *</Label>
+                <Label htmlFor="last_name">Last Name *</Label>
                 <Input
-                  id="lastName"
-                  value={formData.lastName}
-                  onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                  id="last_name"
+                  value={formData.last_name}
+                  onChange={(e) =>
+                    setFormData({ ...formData, last_name: e.target.value })
+                  }
                   required
                 />
               </div>
@@ -147,7 +145,9 @@ export function CustomerDialog({ open, onOpenChange, customer, onSave }: Custome
                   id="email"
                   type="email"
                   value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, email: e.target.value })
+                  }
                 />
               </div>
               <div>
@@ -156,14 +156,16 @@ export function CustomerDialog({ open, onOpenChange, customer, onSave }: Custome
                   id="phone"
                   type="tel"
                   value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, phone: e.target.value })
+                  }
                 />
               </div>
               <div>
                 <Label htmlFor="status">Status</Label>
                 <Select
                   value={formData.status}
-                  onValueChange={(value: 'active' | 'inactive' | 'vip') =>
+                  onValueChange={(value) =>
                     setFormData({ ...formData, status: value })
                   }
                 >
@@ -174,8 +176,25 @@ export function CustomerDialog({ open, onOpenChange, customer, onSave }: Custome
                     <SelectItem value="active">Active</SelectItem>
                     <SelectItem value="vip">VIP</SelectItem>
                     <SelectItem value="inactive">Inactive</SelectItem>
+                    <SelectItem value="suspended">Suspended</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+              <div>
+                <Label htmlFor="credit_limit">Credit Limit ($)</Label>
+                <Input
+                  id="credit_limit"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={formData.credit_limit ?? 0}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      credit_limit: parseFloat(e.target.value) || 0,
+                    })
+                  }
+                />
               </div>
             </div>
           </div>
@@ -189,7 +208,9 @@ export function CustomerDialog({ open, onOpenChange, customer, onSave }: Custome
                 <Input
                   id="address"
                   value={formData.address}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, address: e.target.value })
+                  }
                 />
               </div>
               <div className="grid grid-cols-3 gap-4">
@@ -198,15 +219,19 @@ export function CustomerDialog({ open, onOpenChange, customer, onSave }: Custome
                   <Input
                     id="city"
                     value={formData.city}
-                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, city: e.target.value })
+                    }
                   />
                 </div>
                 <div>
-                  <Label htmlFor="postalCode">Postal Code</Label>
+                  <Label htmlFor="postal_code">Postal Code</Label>
                   <Input
-                    id="postalCode"
-                    value={formData.postalCode}
-                    onChange={(e) => setFormData({ ...formData, postalCode: e.target.value })}
+                    id="postal_code"
+                    value={formData.postal_code}
+                    onChange={(e) =>
+                      setFormData({ ...formData, postal_code: e.target.value })
+                    }
                   />
                 </div>
                 <div>
@@ -214,62 +239,44 @@ export function CustomerDialog({ open, onOpenChange, customer, onSave }: Custome
                   <Input
                     id="country"
                     value={formData.country}
-                    onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, country: e.target.value })
+                    }
                   />
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Preferences */}
+          {/* Tags */}
           <div>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold">Preferences & Notes</h3>
-              <Button type="button" variant="outline" size="sm" onClick={addPreference}>
-                <Plus className="w-4 h-4 mr-1" />
-                Add Preference
-              </Button>
-            </div>
-            <div className="space-y-2">
-              {formData.preferences?.map((pref) => (
-                <div key={pref.id} className="flex gap-2 p-3 bg-muted/50 rounded-lg">
-                  <Select
-                    value={pref.type}
-                    onValueChange={(value: any) => updatePreference(pref.id, 'type', value)}
-                  >
-                    <SelectTrigger className="w-32">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="allergy">Allergy</SelectItem>
-                      <SelectItem value="dietary">Dietary</SelectItem>
-                      <SelectItem value="dislike">Dislike</SelectItem>
-                      <SelectItem value="like">Like</SelectItem>
-                      <SelectItem value="note">Note</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    placeholder="Name"
-                    value={pref.name}
-                    onChange={(e) => updatePreference(pref.id, 'name', e.target.value)}
-                    className="flex-1"
-                  />
-                  <Input
-                    placeholder="Description (optional)"
-                    value={pref.description || ''}
-                    onChange={(e) => updatePreference(pref.id, 'description', e.target.value)}
-                    className="flex-1"
-                  />
-                  <Button
+            <h3 className="font-semibold mb-4">Tags</h3>
+            <div className="flex flex-wrap gap-2 mb-3">
+              {(formData.tags || []).map((tag) => (
+                <Badge key={tag} variant="secondary" className="gap-1 pr-1">
+                  {tag}
+                  <button
                     type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => removePreference(pref.id)}
+                    onClick={() => removeTag(tag)}
+                    className="ml-1 rounded-full hover:bg-muted p-0.5"
                   >
-                    <X className="w-4 h-4" />
-                  </Button>
-                </div>
+                    <X className="w-3 h-3" />
+                  </button>
+                </Badge>
               ))}
+            </div>
+            <div className="flex gap-2">
+              <Input
+                placeholder="Type a tag and press Enter..."
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={handleTagKeyDown}
+                className="flex-1"
+              />
+              <Button type="button" variant="outline" size="sm" onClick={addTag}>
+                <Plus className="w-4 h-4 mr-1" />
+                Add
+              </Button>
             </div>
           </div>
 
@@ -280,7 +287,9 @@ export function CustomerDialog({ open, onOpenChange, customer, onSave }: Custome
               id="notes"
               placeholder="Add any additional notes about this customer..."
               value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, notes: e.target.value })
+              }
               className="min-h-[100px] mt-2"
             />
           </div>
@@ -304,8 +313,3 @@ export function CustomerDialog({ open, onOpenChange, customer, onSave }: Custome
     </Dialog>
   );
 }
-
-
-
-
-

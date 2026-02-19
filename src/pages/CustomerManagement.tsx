@@ -5,35 +5,74 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { mockCustomers, Customer } from '@/data/customerData';
-import { Search, Plus, Edit, Trash2, Eye, Star, Award } from 'lucide-react';
+import {
+  useCustomers,
+  Customer,
+  CreateCustomerParams,
+} from '@/hooks/useCustomers';
+import {
+  Search,
+  Plus,
+  Edit,
+  Trash2,
+  Eye,
+  Star,
+  Award,
+  CreditCard,
+  Loader2,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CustomerDialog } from '@/components/customer/CustomerDialog';
 import { CustomerDetailDialog } from '@/components/customer/CustomerDetailDialog';
-import { format } from 'date-fns';
+import { toast } from 'sonner';
 
 interface CustomerManagementProps {
   onNavigate: (tab: string) => void;
 }
 
-export default function CustomerManagement({ onNavigate }: CustomerManagementProps) {
-  const [customers, setCustomers] = useState<Customer[]>(mockCustomers);
+const statusColors: Record<string, string> = {
+  active: 'bg-success/10 text-success',
+  vip: 'bg-warning/10 text-warning',
+  inactive: 'bg-muted text-muted-foreground',
+  suspended: 'bg-destructive/10 text-destructive',
+};
+
+export default function CustomerManagement({
+  onNavigate,
+}: CustomerManagementProps) {
+  const {
+    customers,
+    loading,
+    error,
+    createCustomer,
+    updateCustomer,
+    totalOutstanding,
+    getCustomerDisplayName,
+  } = useCustomers();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'vip' | 'inactive'>('all');
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
+    null,
+  );
+  const [filterStatus, setFilterStatus] = useState<string>('all');
 
   const filteredCustomers = useMemo(() => {
     return customers.filter((customer) => {
       const matchesSearch =
-        customer.firstName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        customer.lastName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        customer.first_name
+          .toLowerCase()
+          .includes(searchQuery.toLowerCase()) ||
+        customer.last_name
+          .toLowerCase()
+          .includes(searchQuery.toLowerCase()) ||
         customer.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         customer.phone?.toLowerCase().includes(searchQuery.toLowerCase());
 
-      const matchesStatus = filterStatus === 'all' || customer.status === filterStatus;
+      const matchesStatus =
+        filterStatus === 'all' || customer.status === filterStatus;
 
       return matchesSearch && matchesStatus;
     });
@@ -54,55 +93,34 @@ export default function CustomerManagement({ onNavigate }: CustomerManagementPro
     setIsDetailDialogOpen(true);
   };
 
-  const handleDeleteCustomer = (customerId: string) => {
+  const handleDeleteCustomer = async (customerId: string) => {
     if (confirm('Are you sure you want to delete this customer?')) {
-      setCustomers(customers.filter((c) => c.id !== customerId));
+      // useCustomers doesn't expose delete yet — for now we just show a toast
+      toast.info('Customer deletion will be available when connected to Supabase');
     }
   };
 
-  const handleSaveCustomer = (customerData: Partial<Customer>) => {
+  const handleSaveCustomer = async (customerData: CreateCustomerParams) => {
     if (selectedCustomer) {
-      // Update existing customer
-      setCustomers(
-        customers.map((c) =>
-          c.id === selectedCustomer.id
-            ? { ...c, ...customerData, updatedAt: new Date() }
-            : c
-        )
+      // Update existing
+      await updateCustomer(selectedCustomer.id, customerData);
+      toast.success(
+        `${customerData.first_name} ${customerData.last_name} updated`,
       );
       setIsEditDialogOpen(false);
     } else {
-      // Create new customer
-      const newCustomer: Customer = {
-        id: Date.now().toString(),
-        firstName: customerData.firstName || '',
-        lastName: customerData.lastName || '',
-        email: customerData.email,
-        phone: customerData.phone,
-        address: customerData.address,
-        city: customerData.city,
-        postalCode: customerData.postalCode,
-        country: customerData.country,
-        loyaltyPoints: 0,
-        totalSpent: 0,
-        totalOrders: 0,
-        notes: customerData.notes,
-        preferences: customerData.preferences || [],
-        tags: customerData.tags || [],
-        status: customerData.status || 'active',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-      setCustomers([...customers, newCustomer]);
+      // Create new
+      const result = await createCustomer(customerData);
+      if (result) {
+        toast.success(
+          `${customerData.first_name} ${customerData.last_name} created`,
+        );
+      } else {
+        toast.error('Failed to create customer');
+      }
       setIsCreateDialogOpen(false);
     }
     setSelectedCustomer(null);
-  };
-
-  const statusColors = {
-    active: 'bg-success/10 text-success',
-    vip: 'bg-warning/10 text-warning',
-    inactive: 'bg-muted text-muted-foreground',
   };
 
   return (
@@ -116,8 +134,12 @@ export default function CustomerManagement({ onNavigate }: CustomerManagementPro
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h1 className="text-3xl font-bold text-foreground mb-2">Customer Management</h1>
-              <p className="text-muted-foreground">Manage your customer database and loyalty program</p>
+              <h1 className="text-3xl font-bold text-foreground mb-2">
+                Customer Management
+              </h1>
+              <p className="text-muted-foreground">
+                Manage your customer database and loyalty program
+              </p>
             </div>
             <Button onClick={handleCreateCustomer} className="gap-2">
               <Plus className="w-4 h-4" />
@@ -137,39 +159,51 @@ export default function CustomerManagement({ onNavigate }: CustomerManagementPro
               />
             </div>
             <div className="flex gap-2">
-              {(['all', 'active', 'vip', 'inactive'] as const).map((status) => (
-                <Button
-                  key={status}
-                  variant={filterStatus === status ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setFilterStatus(status)}
-                  className="capitalize"
-                >
-                  {status}
-                </Button>
-              ))}
+              {(['all', 'active', 'vip', 'inactive', 'suspended'] as const).map(
+                (status) => (
+                  <Button
+                    key={status}
+                    variant={filterStatus === status ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setFilterStatus(status)}
+                    className="capitalize"
+                  >
+                    {status}
+                  </Button>
+                ),
+              )}
             </div>
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
             <Card>
               <CardContent className="p-4">
-                <p className="text-sm text-muted-foreground mb-1">Total Customers</p>
+                <p className="text-sm text-muted-foreground mb-1">
+                  Total Customers
+                </p>
                 <p className="text-2xl font-bold">{customers.length}</p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="p-4">
-                <p className="text-sm text-muted-foreground mb-1">Active Customers</p>
+                <p className="text-sm text-muted-foreground mb-1">
+                  Active Customers
+                </p>
                 <p className="text-2xl font-bold text-success">
-                  {customers.filter((c) => c.status === 'active' || c.status === 'vip').length}
+                  {
+                    customers.filter(
+                      (c) => c.status === 'active' || c.status === 'vip',
+                    ).length
+                  }
                 </p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="p-4">
-                <p className="text-sm text-muted-foreground mb-1">VIP Members</p>
+                <p className="text-sm text-muted-foreground mb-1">
+                  VIP Members
+                </p>
                 <p className="text-2xl font-bold text-warning">
                   {customers.filter((c) => c.status === 'vip').length}
                 </p>
@@ -177,109 +211,177 @@ export default function CustomerManagement({ onNavigate }: CustomerManagementPro
             </Card>
             <Card>
               <CardContent className="p-4">
-                <p className="text-sm text-muted-foreground mb-1">Total Loyalty Points</p>
+                <p className="text-sm text-muted-foreground mb-1">
+                  Total Loyalty Points
+                </p>
                 <p className="text-2xl font-bold text-primary">
-                  {customers.reduce((sum, c) => sum + c.loyaltyPoints, 0)}
+                  {customers.reduce((sum, c) => sum + c.loyalty_points, 0)}
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <CreditCard className="w-4 h-4 text-warning" />
+                  <p className="text-sm text-muted-foreground">
+                    Credit Outstanding
+                  </p>
+                </div>
+                <p className="text-2xl font-bold text-warning">
+                  ${totalOutstanding.toFixed(2)}
                 </p>
               </CardContent>
             </Card>
           </div>
 
+          {/* Loading */}
+          {loading && (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            </div>
+          )}
+
+          {/* Error */}
+          {error && (
+            <div className="text-center py-8 text-destructive">
+              <p>Failed to load customers: {error}</p>
+            </div>
+          )}
+
           {/* Customers List */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredCustomers.map((customer) => (
-              <Card key={customer.id} className="hover:shadow-md transition-shadow">
-                <CardContent className="p-5">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-bold text-lg">
-                          {customer.firstName} {customer.lastName}
-                        </h3>
-                        {customer.status === 'vip' && (
-                          <Star className="w-4 h-4 text-warning fill-warning" />
+          {!loading && !error && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredCustomers.map((customer) => (
+                <Card
+                  key={customer.id}
+                  className={cn(
+                    'hover:shadow-md transition-shadow',
+                    customer.credit_balance > 0 &&
+                      'border-l-4 border-l-warning',
+                  )}
+                >
+                  <CardContent className="p-5">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="font-bold text-lg">
+                            {getCustomerDisplayName(customer)}
+                          </h3>
+                          {customer.status === 'vip' && (
+                            <Star className="w-4 h-4 text-warning fill-warning" />
+                          )}
+                        </div>
+                        <div className="space-y-1 text-sm text-muted-foreground">
+                          {customer.email && <p>{customer.email}</p>}
+                          {customer.phone && <p>{customer.phone}</p>}
+                        </div>
+                      </div>
+                      <Badge
+                        className={cn(
+                          'text-xs',
+                          statusColors[customer.status] || '',
                         )}
+                      >
+                        {customer.status}
+                      </Badge>
+                    </div>
+
+                    {/* Tags */}
+                    {customer.tags && customer.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mb-4">
+                        {customer.tags.map((tag) => (
+                          <Badge
+                            key={tag}
+                            variant="outline"
+                            className="text-xs"
+                          >
+                            {tag}
+                          </Badge>
+                        ))}
                       </div>
-                      <div className="space-y-1 text-sm text-muted-foreground">
-                        {customer.email && <p>{customer.email}</p>}
-                        {customer.phone && <p>{customer.phone}</p>}
+                    )}
+
+                    {/* Stats */}
+                    <div className="grid grid-cols-2 gap-3 mb-4 p-3 bg-muted/50 rounded-lg">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Orders</p>
+                        <p className="font-semibold">
+                          {customer.total_orders}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Spent</p>
+                        <p className="font-semibold">
+                          ${customer.total_spent.toFixed(2)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Points</p>
+                        <p className="font-semibold text-primary">
+                          {customer.loyalty_points}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">
+                          Credit Balance
+                        </p>
+                        <p
+                          className={cn(
+                            'font-semibold',
+                            customer.credit_balance > 0
+                              ? 'text-warning'
+                              : 'text-muted-foreground',
+                          )}
+                        >
+                          ${customer.credit_balance.toFixed(2)}
+                        </p>
                       </div>
                     </div>
-                    <Badge className={cn('text-xs', statusColors[customer.status])}>
-                      {customer.status}
-                    </Badge>
-                  </div>
 
-                  {/* Tags */}
-                  {customer.tags && customer.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mb-4">
-                      {customer.tags.map((tag) => (
-                        <Badge key={tag} variant="outline" className="text-xs">
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
+                    {/* Loyalty Points */}
+                    {customer.loyalty_points > 0 && (
+                      <div className="flex items-center gap-2 mb-4 p-2 bg-primary/10 rounded-lg">
+                        <Award className="w-4 h-4 text-primary" />
+                        <span className="text-sm font-medium text-primary">
+                          {customer.loyalty_points} loyalty points
+                        </span>
+                      </div>
+                    )}
 
-                  {/* Stats */}
-                  <div className="grid grid-cols-3 gap-3 mb-4 p-3 bg-muted/50 rounded-lg">
-                    <div>
-                      <p className="text-xs text-muted-foreground">Orders</p>
-                      <p className="font-semibold">{customer.totalOrders}</p>
+                    {/* Actions */}
+                    <div className="flex gap-2 pt-4 border-t">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => handleViewCustomer(customer)}
+                      >
+                        <Eye className="w-4 h-4 mr-1" />
+                        View
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleEditCustomer(customer)}
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDeleteCustomer(customer.id)}
+                        className="text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
                     </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Spent</p>
-                      <p className="font-semibold">${customer.totalSpent.toFixed(2)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Points</p>
-                      <p className="font-semibold text-primary">{customer.loyaltyPoints}</p>
-                    </div>
-                  </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
 
-                  {/* Loyalty Points */}
-                  {customer.loyaltyPoints > 0 && (
-                    <div className="flex items-center gap-2 mb-4 p-2 bg-primary/10 rounded-lg">
-                      <Award className="w-4 h-4 text-primary" />
-                      <span className="text-sm font-medium text-primary">
-                        {customer.loyaltyPoints} loyalty points
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Actions */}
-                  <div className="flex gap-2 pt-4 border-t">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex-1"
-                      onClick={() => handleViewCustomer(customer)}
-                    >
-                      <Eye className="w-4 h-4 mr-1" />
-                      View
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleEditCustomer(customer)}
-                    >
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDeleteCustomer(customer.id)}
-                      className="text-destructive hover:text-destructive"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          {filteredCustomers.length === 0 && (
+          {!loading && !error && filteredCustomers.length === 0 && (
             <div className="text-center py-12">
               <p className="text-muted-foreground">No customers found</p>
             </div>
@@ -316,8 +418,3 @@ export default function CustomerManagement({ onNavigate }: CustomerManagementPro
     </div>
   );
 }
-
-
-
-
-

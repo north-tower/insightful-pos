@@ -31,12 +31,8 @@ import { Label } from '@/components/ui/label';
 import { Sidebar } from '@/components/pos/Sidebar';
 import { Header } from '@/components/pos/Header';
 import { cn } from '@/lib/utils';
-import {
-  retailProducts,
-  retailCategories,
-  Product,
-  ProductCategory,
-} from '@/data/productData';
+import { useProducts } from '@/hooks/useProducts';
+import type { Product, ProductCategory } from '@/hooks/useProducts';
 import { toast } from 'sonner';
 
 interface RetailProductsProps {
@@ -47,6 +43,7 @@ type SortField = 'name' | 'price' | 'stock' | 'sku';
 type SortDir = 'asc' | 'desc';
 
 export default function RetailProducts({ onNavigate }: RetailProductsProps) {
+  const { retailProducts, retailCategories, loading } = useProducts();
   const [activeCategory, setActiveCategory] = useState('all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
   const [searchQuery, setSearchQuery] = useState('');
@@ -93,7 +90,7 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
     });
 
     return products;
-  }, [activeCategory, searchQuery, sortField, sortDir]);
+  }, [activeCategory, searchQuery, sortField, sortDir, retailProducts]);
 
   const toggleSort = (field: SortField) => {
     if (sortField === field) {
@@ -120,7 +117,7 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
     ).length;
     const outOfStock = retailProducts.filter((p) => p.stock <= 0).length;
     return { total, active, lowStock, outOfStock };
-  }, []);
+  }, [retailProducts]);
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">

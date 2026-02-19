@@ -6,7 +6,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Sidebar } from '@/components/pos/Sidebar';
 import { Header } from '@/components/pos/Header';
 import { cn } from '@/lib/utils';
-import { categories, menuItems, MenuItem } from '@/data/menuData';
+import { useProducts } from '@/hooks/useProducts';
+import type { MenuItem } from '@/hooks/useProducts';
 
 interface ManageDishesProps {
   onNavigate: (tab: string) => void;
@@ -30,6 +31,7 @@ const dishCategories = [
 ];
 
 export default function ManageDishes({ onNavigate }: ManageDishesProps) {
+  const { menuItems, loading } = useProducts();
   const [activeCategory, setActiveCategory] = useState('desserts');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [selectedDishes, setSelectedDishes] = useState<string[]>([]);

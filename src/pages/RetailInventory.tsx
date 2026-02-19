@@ -31,12 +31,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Sidebar } from '@/components/pos/Sidebar';
 import { Header } from '@/components/pos/Header';
 import { cn } from '@/lib/utils';
-import {
-  retailProducts,
-  recentStockAdjustments,
-  Product,
-  StockAdjustment,
-} from '@/data/productData';
+import { useProducts } from '@/hooks/useProducts';
+import type { Product } from '@/hooks/useProducts';
+import { recentStockAdjustments, StockAdjustment } from '@/data/productData';
 import { toast } from 'sonner';
 import { format, formatDistanceToNow } from 'date-fns';
 
@@ -62,6 +59,7 @@ const adjustmentTypeStyles: Record<
 };
 
 export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
+  const { retailProducts, loading } = useProducts();
   const [searchQuery, setSearchQuery] = useState('');
   const [stockFilter, setStockFilter] = useState<StockFilter>('all');
   const [showAdjustDialog, setShowAdjustDialog] = useState(false);
@@ -87,7 +85,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
     );
 
     return { totalProducts, totalUnits, totalValue, lowStock, outOfStock, healthy };
-  }, []);
+  }, [retailProducts]);
 
   // Filtered products
   const filteredProducts = useMemo(() => {
@@ -137,7 +135,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
     });
 
     return products;
-  }, [stockFilter, searchQuery]);
+  }, [stockFilter, searchQuery, retailProducts]);
 
   const openAdjustDialog = (product: Product) => {
     setAdjustProduct(product);
