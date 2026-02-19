@@ -2,7 +2,21 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap');
+@font-face {
+  font-family: 'Geist';
+  src: url('/fonts/GeistVF.woff') format('woff');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Geist Mono';
+  src: url('/fonts/GeistMonoVF.woff') format('woff');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
 
 @layer base {
   :root {
@@ -15,90 +29,113 @@
     --popover: 0 0% 100%;
     --popover-foreground: 220 20% 15%;
 
-    --primary: 168 76% 42%;
+    /* Primary changed from purple to functional blue (for delivery/neutral actions) */
+    --primary: 217 91% 60%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 168 40% 95%;
-    --secondary-foreground: 168 76% 32%;
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 220 20% 15%;
 
     --muted: 220 14% 96%;
     --muted-foreground: 220 10% 46%;
 
-    --accent: 168 40% 95%;
-    --accent-foreground: 168 76% 32%;
+    /* Accent - purple only for selected states */
+    --accent: 250 84% 54%;
+    --accent-foreground: 0 0% 100%;
 
+    /* Destructive - red for urgent/critical */
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
+    /* Success - green for completed/ready */
     --success: 142 76% 36%;
     --success-foreground: 0 0% 100%;
 
+    /* Warning - amber for in-progress */
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
 
+    /* Info - blue for delivery */
     --info: 217 91% 60%;
     --info-foreground: 0 0% 100%;
 
     --border: 220 13% 91%;
     --input: 220 13% 91%;
-    --ring: 168 76% 42%;
+    --ring: 217 91% 60%;
 
-    --radius: 0.75rem;
+    --radius: 0.25rem; /* Reduced from 0.75rem (12px) to 4px */
 
-    --sidebar-background: 168 76% 42%;
-    --sidebar-foreground: 0 0% 100%;
-    --sidebar-primary: 0 0% 100%;
-    --sidebar-primary-foreground: 168 76% 42%;
-    --sidebar-accent: 168 70% 38%;
-    --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 168 70% 38%;
-    --sidebar-ring: 0 0% 100%;
+    /* Sidebar - light mode colors */
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 220 20% 15%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 14% 96%;
+    --sidebar-accent-foreground: 220 20% 15%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217 91% 60%;
 
     /* Custom tokens */
-    --gradient-primary: linear-gradient(135deg, hsl(168 76% 42%), hsl(168 76% 32%));
-    --gradient-sidebar: linear-gradient(180deg, hsl(168 76% 45%), hsl(168 76% 38%));
+    --gradient-primary: linear-gradient(135deg, hsl(217 91% 60%), hsl(217 91% 50%));
+    --gradient-sidebar: linear-gradient(180deg, hsl(0 0% 98%), hsl(0 0% 95%));
     --shadow-card: 0 2px 8px -2px hsl(220 20% 15% / 0.08);
     --shadow-card-hover: 0 8px 24px -4px hsl(220 20% 15% / 0.12);
-    --shadow-sidebar: 4px 0 24px -4px hsl(168 76% 20% / 0.2);
+    --shadow-sidebar: 4px 0 24px -4px hsl(220 20% 15% / 0.2);
   }
 
   .dark {
-    --background: 220 20% 10%;
+    /* Warmer dark background - less cold blue-gray */
+    --background: 220 20% 11%; /* Changed from 10% to 11% for warmer tone */
     --foreground: 0 0% 95%;
 
-    --card: 220 20% 13%;
+    --card: 220 20% 14%; /* Slightly lighter for better contrast */
     --card-foreground: 0 0% 95%;
 
-    --popover: 220 20% 13%;
+    --popover: 220 20% 14%;
     --popover-foreground: 0 0% 95%;
 
-    --primary: 168 76% 50%;
+    /* Primary - blue instead of purple */
+    --primary: 217 91% 65%;
     --primary-foreground: 220 20% 10%;
 
     --secondary: 220 20% 18%;
-    --secondary-foreground: 168 76% 60%;
+    --secondary-foreground: 0 0% 90%;
 
     --muted: 220 20% 18%;
     --muted-foreground: 220 10% 60%;
 
-    --accent: 220 20% 18%;
-    --accent-foreground: 168 76% 60%;
+    /* Accent - purple only for selected states */
+    --accent: 250 84% 60%;
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 62% 50%;
+    /* Destructive - red for urgent orders */
+    --destructive: 0 72% 55%; /* Slightly brighter for dark mode */
     --destructive-foreground: 0 0% 100%;
+
+    /* Success - green for completed */
+    --success: 142 71% 45%; /* Adjusted for dark mode */
+    --success-foreground: 0 0% 100%;
+
+    /* Warning - amber for in-progress */
+    --warning: 38 92% 55%; /* Adjusted for dark mode */
+    --warning-foreground: 0 0% 100%;
+
+    /* Info - blue for delivery */
+    --info: 217 91% 65%;
+    --info-foreground: 0 0% 100%;
 
     --border: 220 20% 20%;
     --input: 220 20% 20%;
-    --ring: 168 76% 50%;
+    --ring: 217 91% 65%;
 
     --sidebar-background: 220 20% 8%;
     --sidebar-foreground: 0 0% 95%;
-    --sidebar-primary: 168 76% 50%;
+    --sidebar-primary: 217 91% 65%;
     --sidebar-primary-foreground: 220 20% 10%;
     --sidebar-accent: 220 20% 15%;
     --sidebar-accent-foreground: 0 0% 95%;
     --sidebar-border: 220 20% 18%;
-    --sidebar-ring: 168 76% 50%;
+    --sidebar-ring: 217 91% 65%;
   }
 }
 
@@ -109,7 +146,6 @@
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
-    font-family: 'DM Sans', sans-serif;
   }
 }
 
@@ -123,7 +159,7 @@
   }
 
   .status-kitchen {
-    @apply bg-primary/10 text-primary;
+    @apply bg-warning/10 text-warning; /* Changed from primary to warning (amber) */
   }
 
   .status-ready {
@@ -131,7 +167,53 @@
   }
 
   .status-waiting {
-    @apply bg-warning/10 text-warning;
+    @apply bg-destructive/10 text-destructive; /* Changed from warning to destructive (red) */
+  }
+
+  /* Restaurant operational colors */
+  .order-urgent {
+    @apply border-l-4 border-destructive bg-destructive/5;
+    box-shadow: 0 0 0 1px hsl(var(--destructive) / 0.2);
+  }
+
+  .order-in-progress {
+    @apply border-l-4 border-warning bg-warning/5;
+  }
+
+  .order-ready {
+    @apply border-l-4 border-success bg-success/5;
+  }
+
+  .order-delivery {
+    @apply border-l-4 border-info bg-info/5;
+  }
+
+  /* Urgency pulse animation */
+  @keyframes pulse-border {
+    0%, 100% {
+      border-left-color: hsl(var(--destructive));
+    }
+    50% {
+      border-left-color: hsl(0 72% 45%);
+    }
+  }
+
+  .order-urgent-pulse {
+    animation: pulse-border 2s ease-in-out infinite;
+  }
+
+  /* Timer pulse for critical orders */
+  @keyframes pulse-text {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.7;
+    }
+  }
+
+  .timer-critical {
+    animation: pulse-text 1s ease-in-out infinite;
   }
 }
 

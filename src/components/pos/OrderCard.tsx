@@ -21,7 +21,7 @@ export function OrderCard({ order, isActive, onClick }: OrderCardProps) {
     <button
       onClick={onClick}
       className={cn(
-        'w-48 p-4 rounded-xl border-2 transition-all duration-200 text-left animate-fade-in',
+        'w-48 p-4 rounded border-2 transition-all duration-200 text-left animate-fade-in',
         isActive
           ? 'border-primary bg-primary/5'
           : 'border-border bg-card hover:border-primary/50'
@@ -29,8 +29,8 @@ export function OrderCard({ order, isActive, onClick }: OrderCardProps) {
     >
       <div className="flex items-start justify-between mb-2">
         <div>
-          <p className="font-semibold text-foreground">Order #{order.id}</p>
-          <p className="text-sm text-muted-foreground">Table {order.tableNumber}</p>
+          <p className="font-semibold text-foreground">Ticket #{order.id}</p>
+          <p className="text-sm text-muted-foreground">Table #{order.tableNumber}</p>
         </div>
       </div>
       

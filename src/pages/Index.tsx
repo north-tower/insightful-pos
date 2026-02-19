@@ -1,27 +1,68 @@
 import { useState } from 'react';
 import { CartProvider } from '@/context/CartContext';
+import { useBusinessMode } from '@/context/BusinessModeContext';
+import ModeSelector from '@/pages/ModeSelector';
+import Dashboard from '@/pages/Dashboard';
 import OrderLine from '@/pages/OrderLine';
+import OrderHistory from '@/pages/OrderHistory';
+import CustomerManagement from '@/pages/CustomerManagement';
 import ManageTable from '@/pages/ManageTable';
 import ManageDishes from '@/pages/ManageDishes';
+import RetailDashboard from '@/pages/RetailDashboard';
+import RetailPOS from '@/pages/RetailPOS';
+import RetailProducts from '@/pages/RetailProducts';
+import RetailInventory from '@/pages/RetailInventory';
 
 function POSApp() {
-  const [currentPage, setCurrentPage] = useState('order-line');
+  const { isSetup, isRestaurant } = useBusinessMode();
+  const [currentPage, setCurrentPage] = useState('dashboard');
+
+  // Edge case: user authenticated but has no business_mode on their profile
+  // (e.g. migrated user). Show mode selector so they can pick.
+  if (isSetup) {
+    return <ModeSelector />;
+  }
 
   const handleNavigate = (tab: string) => {
     setCurrentPage(tab);
   };
 
-  // Render current page
+  // ─── Restaurant mode pages ────────────────────────────────────────────────
+  if (isRestaurant) {
+    switch (currentPage) {
+      case 'dashboard':
+        return <Dashboard onNavigate={handleNavigate} />;
+      case 'order-line':
+        return <OrderLine onNavigate={handleNavigate} />;
+      case 'order-history':
+        return <OrderHistory onNavigate={handleNavigate} />;
+      case 'customers':
+        return <CustomerManagement onNavigate={handleNavigate} />;
+      case 'manage-table':
+        return <ManageTable onNavigate={handleNavigate} />;
+      case 'manage-dishes':
+        return <ManageDishes onNavigate={handleNavigate} />;
+      default:
+        return <Dashboard onNavigate={handleNavigate} />;
+    }
+  }
+
+  // ─── Retail mode pages ────────────────────────────────────────────────────
   switch (currentPage) {
-    case 'order-line':
-      return <OrderLine onNavigate={handleNavigate} />;
-    case 'manage-table':
-      return <ManageTable onNavigate={handleNavigate} />;
-    case 'manage-dishes':
-      return <ManageDishes onNavigate={handleNavigate} />;
+    case 'dashboard':
+      return <RetailDashboard onNavigate={handleNavigate} />;
+    case 'pos':
+      return <RetailPOS onNavigate={handleNavigate} />;
+    case 'products':
+      return <RetailProducts onNavigate={handleNavigate} />;
+    case 'inventory':
+      return <RetailInventory onNavigate={handleNavigate} />;
+    case 'order-history':
+      return <OrderHistory onNavigate={handleNavigate} />;
+    case 'customers':
+      return <CustomerManagement onNavigate={handleNavigate} />;
     default:
-      // For unimplemented pages, show OrderLine with the correct active tab
-      return <OrderLine onNavigate={handleNavigate} />;
+      return <RetailDashboard onNavigate={handleNavigate} />;
   }
 }
 

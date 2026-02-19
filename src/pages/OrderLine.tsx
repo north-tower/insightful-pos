@@ -4,9 +4,10 @@ import { Header } from '@/components/pos/Header';
 import { OrderCard } from '@/components/pos/OrderCard';
 import { CategoryTabs } from '@/components/pos/CategoryTabs';
 import { MenuCard } from '@/components/pos/MenuCard';
-import { CartPanel } from '@/components/pos/CartPanel';
+import { CartPanelEnhanced as CartPanel } from '@/components/pos/CartPanelEnhanced';
 import { OrderStatusTabs } from '@/components/pos/OrderStatusTabs';
-import { CartProvider } from '@/context/CartContext';
+import { IncomingOrdersQueue } from '@/components/order/IncomingOrdersQueue';
+import { OrderQueueProvider } from '@/context/OrderQueueContext';
 import { categories, menuItems, activeOrders } from '@/data/menuData';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -22,10 +23,11 @@ interface OrderLineProps {
   onNavigate: (tab: string) => void;
 }
 
-export default function OrderLine({ onNavigate }: OrderLineProps) {
+function OrderLineContent({ onNavigate }: OrderLineProps) {
   const [activeStatus, setActiveStatus] = useState('all');
   const [activeCategory, setActiveCategory] = useState('all');
   const [activeOrderId, setActiveOrderId] = useState(activeOrders[0]?.id);
+  const [showIncomingQueue, setShowIncomingQueue] = useState(true);
 
   const filteredItems = useMemo(() => {
     if (activeCategory === 'all') return menuItems;
@@ -34,16 +36,23 @@ export default function OrderLine({ onNavigate }: OrderLineProps) {
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
-      {/* Sidebar */}
-      <Sidebar activeTab="order-line" onTabChange={onNavigate} />
+        {/* Sidebar */}
+        <Sidebar activeTab="order-line" onTabChange={onNavigate} />
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <Header />
+        {/* Main Content */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <Header />
 
-        <div className="flex-1 flex overflow-hidden">
-          {/* Menu Area */}
-          <div className="flex-1 p-6 overflow-y-auto">
+          <div className="flex-1 flex overflow-hidden">
+            {/* Incoming Orders Queue */}
+            {showIncomingQueue && (
+              <div className="w-80 border-r border-border overflow-y-auto">
+                <IncomingOrdersQueue className="h-full rounded-none border-0" />
+              </div>
+            )}
+
+            {/* Menu Area */}
+            <div className="flex-1 p-6 overflow-y-auto">
             {/* Order Status */}
             <div className="mb-6">
               <h1 className="text-2xl font-bold text-foreground mb-4">Order Line</h1>
@@ -112,5 +121,13 @@ export default function OrderLine({ onNavigate }: OrderLineProps) {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function OrderLine({ onNavigate }: OrderLineProps) {
+  return (
+    <OrderQueueProvider>
+      <OrderLineContent onNavigate={onNavigate} />
+    </OrderQueueProvider>
   );
 }
