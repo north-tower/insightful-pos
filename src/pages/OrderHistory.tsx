@@ -1,6 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Sidebar } from '@/components/pos/Sidebar';
-import { Header } from '@/components/pos/Header';
+import { PageLayout } from '@/components/pos/PageLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -202,7 +201,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
     try {
       const ok = await deletePayment(paymentId);
       if (ok) {
-        // Adjust customer balance in demo mode (DB trigger handles Supabase)
+        // Adjust customer balance (DB trigger also handles this server-side)
         if (order?.sale_type === 'credit' && order?.customer_id && payment) {
           await adjustCustomerBalance(order.customer_id, payment.amount);
         }
@@ -219,21 +218,15 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
   };
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
-      <Sidebar activeTab="order-history" onTabChange={onNavigate} />
-
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <Header />
-
-        <div className="flex-1 overflow-y-auto p-6">
+    <PageLayout activeTab="order-history" onNavigate={onNavigate}>
           {/* Page Header with Stats */}
           <div className="mb-6">
-            <h1 className="text-3xl font-bold text-foreground mb-2">Order History</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">Order History</h1>
             <p className="text-muted-foreground">View and manage past orders</p>
           </div>
 
           {/* Quick Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-6">
             <Card>
               <CardContent className="p-4 flex items-center gap-3">
                 <div className="h-10 w-10 rounded bg-primary/10 flex items-center justify-center">
@@ -282,24 +275,24 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
 
           {/* Search & Filters */}
           <div className="mb-6 space-y-3">
-            <div className="flex gap-3 items-center">
-              <div className="relative flex-1 max-w-md">
+            <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+              <div className="relative flex-1 sm:max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
-                  placeholder="Search by order #, invoice #, customer, or table..."
+                  placeholder="Search orders..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10"
               />
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
                 {['all', 'completed', 'pending', 'preparing', 'cancelled', 'voided'].map((s) => (
                   <Button
                     key={s}
                     variant={statusFilter === s ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setStatusFilter(s)}
-                    className="capitalize"
+                    className="capitalize shrink-0"
                   >
                     {s}
                   </Button>
@@ -307,8 +300,8 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
               </div>
             </div>
             {/* Sale Type Filter */}
-            <div className="flex gap-2 items-center">
-              <span className="text-sm text-muted-foreground font-medium">Sale Type:</span>
+            <div className="flex gap-2 items-center overflow-x-auto pb-1 scrollbar-hide">
+              <span className="text-sm text-muted-foreground font-medium shrink-0">Sale Type:</span>
               {[
                 { key: 'all', label: 'All Sales' },
                 { key: 'cash', label: 'Cash Sales', icon: Banknote },
@@ -367,11 +360,11 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                       order.sale_type === 'credit' && order.payment_status === 'unpaid' && 'border-l-4 border-l-warning',
                     )}
                   >
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-3 flex-wrap">
-                            <h3 className="font-bold text-lg text-foreground">
+                <CardContent className="p-3 sm:p-4 lg:p-6">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 sm:gap-3 mb-3 flex-wrap">
+                            <h3 className="font-bold text-base sm:text-lg text-foreground">
                               Order #{order.order_number}
                             </h3>
                             {order.invoice_number && (
@@ -467,7 +460,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                       </div>
                     </div>
 
-                    <div className="flex flex-col gap-2 ml-4">
+                    <div className="flex sm:flex-col gap-2 sm:ml-4 overflow-x-auto scrollbar-hide shrink-0">
                       <Button
                         variant="outline"
                         size="sm"
@@ -533,8 +526,6 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
               })}
           </div>
           )}
-        </div>
-      </div>
 
       {/* Order Detail Dialog */}
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
@@ -874,6 +865,6 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
           onUpdateComplete={handleEditPaymentComplete}
         />
       )}
-    </div>
+    </PageLayout>
   );
 }

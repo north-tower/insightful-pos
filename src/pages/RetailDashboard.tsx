@@ -1,5 +1,4 @@
-import { Sidebar } from '@/components/pos/Sidebar';
-import { Header } from '@/components/pos/Header';
+import { PageLayout } from '@/components/pos/PageLayout';
 import { StatsCard } from '@/components/dashboard/StatsCard';
 import { SalesChart } from '@/components/dashboard/SalesChart';
 import { TopSellingChart } from '@/components/dashboard/TopSellingChart';
@@ -67,16 +66,10 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
   );
   const outOfStockProducts = retailProducts.filter((p) => p.stock === 0);
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
-      <Sidebar activeTab="dashboard" onTabChange={onNavigate} />
-
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <Header />
-
-        <div className="flex-1 overflow-y-auto p-6">
+    <PageLayout activeTab="dashboard" onNavigate={onNavigate}>
           {/* Header */}
           <div className="mb-6">
-            <h1 className="text-3xl font-bold text-foreground mb-2">Store Overview</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">Store Overview</h1>
             <p className="text-muted-foreground">
               {retailDashboardStats.todaySales} sales today
               {(lowStockProducts.length > 0 || outOfStockProducts.length > 0) && (
@@ -247,8 +240,6 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
             />
             <TopSellingChart data={topSellingChartData} />
           </div>
-        </div>
-      </div>
-    </div>
+    </PageLayout>
   );
 }

@@ -1,6 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Sidebar } from '@/components/pos/Sidebar';
-import { Header } from '@/components/pos/Header';
+import { PageLayout } from '@/components/pos/PageLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -250,27 +249,21 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
   };
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
-      <Sidebar activeTab="pos" onTabChange={onNavigate} />
-
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <Header />
-
-        <div className="flex-1 flex overflow-hidden">
+    <PageLayout activeTab="pos" onNavigate={onNavigate} flexContent>
           {/* Product Grid Area */}
-          <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex-1 flex flex-col overflow-hidden min-w-0">
             {/* Search & Barcode */}
-            <div className="p-4 pb-2 flex gap-3">
+            <div className="p-3 sm:p-4 pb-2 flex flex-col sm:flex-row gap-2 sm:gap-3">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search products by name or SKU..."
+                  placeholder="Search products..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10"
                 />
               </div>
-              <div className="relative w-64">
+              <div className="relative sm:w-48 lg:w-64">
                 <Barcode className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
                   placeholder="Scan barcode..."
@@ -283,7 +276,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
             </div>
 
             {/* Category Tabs */}
-            <div className="px-4 py-2 flex gap-2 overflow-x-auto scrollbar-hide">
+            <div className="px-3 sm:px-4 py-2 flex gap-2 overflow-x-auto scrollbar-hide">
               {retailCategories.map((cat) => (
                 <button
                   key={cat.id}
@@ -303,8 +296,8 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
             </div>
 
             {/* Product Grid */}
-            <div className="flex-1 overflow-y-auto p-4">
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+            <div className="flex-1 overflow-y-auto p-3 sm:p-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2 sm:gap-3">
                 {filteredProducts.map((product) => {
                   const cartItem = cart.find(
                     (c) => c.product.id === product.id
@@ -400,8 +393,8 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
             </div>
           </div>
 
-          {/* Cart Panel */}
-          <div className="w-80 bg-card border-l border-border flex flex-col h-full">
+          {/* Cart Panel — bottom on mobile, right sidebar on lg+ */}
+          <div className="w-full lg:w-80 bg-card border-t lg:border-t-0 lg:border-l border-border flex flex-col h-auto max-h-[50vh] lg:max-h-none lg:h-full shrink-0">
             {/* Cart Header */}
             <div className="p-4 border-b border-border">
               <div className="flex items-center justify-between mb-1">
@@ -740,8 +733,6 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
               </div>
             )}
           </div>
-        </div>
-      </div>
 
       {/* Invoice/Receipt Dialog */}
       {isInvoiceOpen && lastOrder && (
@@ -760,6 +751,6 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
           defaultView={lastOrder.sale_type === 'credit' ? 'invoice' : 'receipt'}
         />
       )}
-    </div>
+    </PageLayout>
   );
 }

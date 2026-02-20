@@ -1,6 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Sidebar } from '@/components/pos/Sidebar';
-import { Header } from '@/components/pos/Header';
+import { PageLayout } from '@/components/pos/PageLayout';
 import { OrderCard } from '@/components/pos/OrderCard';
 import { CategoryTabs } from '@/components/pos/CategoryTabs';
 import { MenuCard } from '@/components/pos/MenuCard';
@@ -37,38 +36,32 @@ function OrderLineContent({ onNavigate }: OrderLineProps) {
   }, [activeCategory, menuItems]);
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
-        {/* Sidebar */}
-        <Sidebar activeTab="order-line" onTabChange={onNavigate} />
+    <PageLayout activeTab="order-line" onNavigate={onNavigate} flexContent>
+          {/* Incoming Orders Queue — hidden on mobile, visible on lg+ */}
+          {showIncomingQueue && (
+            <div className="hidden lg:block w-80 border-r border-border overflow-y-auto shrink-0">
+              <IncomingOrdersQueue className="h-full rounded-none border-0" />
+            </div>
+          )}
 
-        {/* Main Content */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <Header />
-
-          <div className="flex-1 flex overflow-hidden">
-            {/* Incoming Orders Queue */}
-            {showIncomingQueue && (
-              <div className="w-80 border-r border-border overflow-y-auto">
-                <IncomingOrdersQueue className="h-full rounded-none border-0" />
-              </div>
-            )}
-
-            {/* Menu Area */}
-            <div className="flex-1 p-6 overflow-y-auto">
+          {/* Menu Area */}
+          <div className="flex-1 p-3 sm:p-4 lg:p-6 overflow-y-auto min-w-0">
             {/* Order Status */}
-            <div className="mb-6">
-              <h1 className="text-2xl font-bold text-foreground mb-4">Order Line</h1>
-              <OrderStatusTabs
-                tabs={orderStatusTabs}
-                activeTab={activeStatus}
-                onTabChange={setActiveStatus}
-              />
+            <div className="mb-4 lg:mb-6">
+              <h1 className="text-xl sm:text-2xl font-bold text-foreground mb-3 sm:mb-4">Order Line</h1>
+              <div className="overflow-x-auto scrollbar-hide">
+                <OrderStatusTabs
+                  tabs={orderStatusTabs}
+                  activeTab={activeStatus}
+                  onTabChange={setActiveStatus}
+                />
+              </div>
             </div>
 
             {/* Active Orders */}
-            <div className="mb-8">
+            <div className="mb-6 lg:mb-8">
               <div className="flex items-center justify-between mb-4">
-                <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
+                <div className="flex gap-2 sm:gap-3 overflow-x-auto scrollbar-hide pb-2 flex-1">
                   {activeOrders.map((order) => (
                     <OrderCard
                       key={order.id}
@@ -78,7 +71,7 @@ function OrderLineContent({ onNavigate }: OrderLineProps) {
                     />
                   ))}
                 </div>
-                <div className="flex gap-2 ml-4">
+                <div className="hidden sm:flex gap-2 ml-4 shrink-0">
                   <button className="p-2 rounded-full bg-card border border-border hover:bg-muted transition-colors">
                     <ChevronLeft className="w-4 h-4 text-muted-foreground" />
                   </button>
@@ -92,8 +85,8 @@ function OrderLineContent({ onNavigate }: OrderLineProps) {
             {/* Menu Section */}
             <div>
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold text-foreground">Foodies Menu</h2>
-                <div className="flex gap-2">
+                <h2 className="text-lg sm:text-xl font-bold text-foreground">Foodies Menu</h2>
+                <div className="hidden sm:flex gap-2">
                   <button className="p-2 rounded-full bg-card border border-border hover:bg-muted transition-colors">
                     <ChevronLeft className="w-4 h-4 text-muted-foreground" />
                   </button>
@@ -103,14 +96,16 @@ function OrderLineContent({ onNavigate }: OrderLineProps) {
                 </div>
               </div>
 
-              <CategoryTabs
-                categories={categories}
-                activeCategory={activeCategory}
-                onCategoryChange={setActiveCategory}
-              />
+              <div className="overflow-x-auto scrollbar-hide">
+                <CategoryTabs
+                  categories={categories}
+                  activeCategory={activeCategory}
+                  onCategoryChange={setActiveCategory}
+                />
+              </div>
 
               {/* Menu Grid */}
-              <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mt-6">
+              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 mt-4 sm:mt-6">
                 {filteredItems.map((item) => (
                   <MenuCard key={item.id} item={item} />
                 ))}
@@ -120,9 +115,7 @@ function OrderLineContent({ onNavigate }: OrderLineProps) {
 
           {/* Cart Panel */}
           <CartPanel />
-        </div>
-      </div>
-    </div>
+    </PageLayout>
   );
 }
 

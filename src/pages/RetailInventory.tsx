@@ -28,8 +28,7 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Sidebar } from '@/components/pos/Sidebar';
-import { Header } from '@/components/pos/Header';
+import { PageLayout } from '@/components/pos/PageLayout';
 import { cn } from '@/lib/utils';
 import { useProducts } from '@/hooks/useProducts';
 import type { Product } from '@/hooks/useProducts';
@@ -172,17 +171,11 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
   };
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
-      <Sidebar activeTab="inventory" onTabChange={onNavigate} />
-
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <Header />
-
-        <div className="flex-1 overflow-y-auto p-6">
+    <PageLayout activeTab="inventory" onNavigate={onNavigate}>
           {/* Header */}
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
             <div>
-              <h1 className="text-3xl font-bold text-foreground mb-2">
+              <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">
                 Inventory
               </h1>
               <p className="text-muted-foreground">
@@ -193,7 +186,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
           </div>
 
           {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
             <Card
               className={cn(
                 'cursor-pointer transition-all',
@@ -300,7 +293,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <CardTitle>Stock Levels</CardTitle>
-                    <div className="relative w-64">
+                    <div className="relative w-full sm:w-48 lg:w-64">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <Input
                         placeholder="Search products..."
@@ -311,8 +304,8 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent>
-                  <div className="space-y-1">
+                <CardContent className="overflow-x-auto">
+                  <div className="space-y-1 min-w-[600px]">
                     {/* Header */}
                     <div className="grid grid-cols-12 gap-3 px-3 py-2 text-xs font-medium text-muted-foreground uppercase">
                       <div className="col-span-4">Product</div>
@@ -486,8 +479,6 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
               </Card>
             </div>
           </div>
-        </div>
-      </div>
 
       {/* Stock Adjustment Dialog */}
       <Dialog open={showAdjustDialog} onOpenChange={setShowAdjustDialog}>
@@ -613,6 +604,6 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+    </PageLayout>
   );
 }

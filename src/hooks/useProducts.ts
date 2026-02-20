@@ -1,21 +1,11 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { useBusinessMode } from '@/context/BusinessModeContext';
 
 // ── Re-export types consumers already rely on ────────────────────────────────
 import type { MenuItem, Category } from '@/data/menuData';
 import type { Product, ProductCategory, ProductVariant } from '@/data/productData';
 export type { MenuItem, Category, Product, ProductCategory, ProductVariant };
-
-// ── Mock data (used in demo mode) ────────────────────────────────────────────
-import {
-  categories as mockCategories,
-  menuItems as mockMenuItems,
-} from '@/data/menuData';
-import {
-  retailProducts as mockRetailProducts,
-  retailCategories as mockRetailCategories,
-} from '@/data/productData';
 
 // ─── Supabase row types ──────────────────────────────────────────────────────
 
@@ -116,9 +106,8 @@ function toProduct(
 
 export function useProducts() {
   const { mode } = useBusinessMode();
-  const isDemoMode = !isSupabaseConfigured();
 
-  const [loading, setLoading] = useState(!isDemoMode);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // Raw Supabase rows
@@ -129,8 +118,6 @@ export function useProducts() {
   // ── Fetch ──────────────────────────────────────────────────────────────
 
   const fetchData = useCallback(async () => {
-    if (isDemoMode) return;
-
     setLoading(true);
     setError(null);
 
@@ -178,7 +165,7 @@ export function useProducts() {
     } finally {
       setLoading(false);
     }
-  }, [mode, isDemoMode]);
+  }, [mode]);
 
   useEffect(() => {
     fetchData();
@@ -195,15 +182,12 @@ export function useProducts() {
   // ── Restaurant data ────────────────────────────────────────────────────
 
   const menuItems: MenuItem[] = useMemo(() => {
-    if (isDemoMode) return mockMenuItems;
     return supaProducts.map((p) =>
       toMenuItem(p, categoryMap.get(p.category_id || '') || 'uncategorized'),
     );
-  }, [isDemoMode, supaProducts, categoryMap]);
+  }, [supaProducts, categoryMap]);
 
   const categories: Category[] = useMemo(() => {
-    if (isDemoMode) return mockCategories;
-
     // Count products per slug
     const counts = new Map<string, number>();
     supaProducts.forEach((p) => {
@@ -223,13 +207,11 @@ export function useProducts() {
         };
       }),
     ];
-  }, [isDemoMode, supaCategories, supaProducts, categoryMap]);
+  }, [supaCategories, supaProducts, categoryMap]);
 
   // ── Retail data ────────────────────────────────────────────────────────
 
   const retailProducts: Product[] = useMemo(() => {
-    if (isDemoMode) return mockRetailProducts;
-
     // Group variants
     const variantsByProduct = new Map<string, SupabaseVariant[]>();
     supaVariants.forEach((v) => {
@@ -245,11 +227,9 @@ export function useProducts() {
         variantsByProduct.get(p.id),
       ),
     );
-  }, [isDemoMode, supaProducts, supaVariants, categoryMap]);
+  }, [supaProducts, supaVariants, categoryMap]);
 
   const retailCategories: ProductCategory[] = useMemo(() => {
-    if (isDemoMode) return mockRetailCategories;
-
     const counts = new Map<string, number>();
     supaProducts.forEach((p) => {
       const slug = categoryMap.get(p.category_id || '') || 'uncategorized';
@@ -268,25 +248,23 @@ export function useProducts() {
         };
       }),
     ];
-  }, [isDemoMode, supaCategories, supaProducts, categoryMap]);
+  }, [supaCategories, supaProducts, categoryMap]);
 
   // ── CRUD ───────────────────────────────────────────────────────────────
 
   const addProduct = useCallback(
     async (product: Record<string, unknown>) => {
-      if (isDemoMode) return;
       const { error: err } = await supabase
         .from('products')
         .insert({ ...product, business_mode: mode });
       if (err) throw err;
       await fetchData();
     },
-    [isDemoMode, mode, fetchData],
+    [mode, fetchData],
   );
 
   const updateProduct = useCallback(
     async (id: string, updates: Record<string, unknown>) => {
-      if (isDemoMode) return;
       const { error: err } = await supabase
         .from('products')
         .update(updates)
@@ -294,12 +272,11 @@ export function useProducts() {
       if (err) throw err;
       await fetchData();
     },
-    [isDemoMode, fetchData],
+    [fetchData],
   );
 
   const deleteProduct = useCallback(
     async (id: string) => {
-      if (isDemoMode) return;
       const { error: err } = await supabase
         .from('products')
         .delete()
@@ -307,7 +284,7 @@ export function useProducts() {
       if (err) throw err;
       await fetchData();
     },
-    [isDemoMode, fetchData],
+    [fetchData],
   );
 
   // ── Return ─────────────────────────────────────────────────────────────
@@ -316,7 +293,6 @@ export function useProducts() {
     loading,
     error,
     refetch: fetchData,
-    isDemoMode,
 
     // Restaurant
     menuItems,

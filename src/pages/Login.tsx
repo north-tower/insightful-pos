@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useAuth, UserRole } from '@/context/AuthContext';
+import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,9 +11,6 @@ import {
   Eye,
   EyeOff,
   Store,
-  Shield,
-  UserCheck,
-  ShoppingCart,
   AlertCircle,
   Loader2,
   UtensilsCrossed,
@@ -22,28 +19,13 @@ import {
 
 type AuthTab = 'login' | 'signup';
 
-interface DemoOption {
-  role: UserRole;
-  mode: BusinessMode;
-  label: string;
-  icon: typeof Shield;
-  desc: string;
-}
-
-const demoOptions: DemoOption[] = [
-  { role: 'admin', mode: 'restaurant', label: 'Restaurant Admin', icon: UtensilsCrossed, desc: 'Full restaurant access' },
-  { role: 'admin', mode: 'retail', label: 'Retail Admin', icon: Store, desc: 'Full retail access' },
-  { role: 'manager', mode: 'restaurant', label: 'Manager', icon: UserCheck, desc: 'All except settings' },
-  { role: 'cashier', mode: 'restaurant', label: 'Cashier', icon: ShoppingCart, desc: 'POS only' },
-];
-
 const businessModes: { value: BusinessMode; label: string; icon: typeof Store; desc: string }[] = [
   { value: 'restaurant', label: 'Restaurant', icon: UtensilsCrossed, desc: 'Café, bar, food truck' },
   { value: 'retail', label: 'Retail Shop', icon: Store, desc: 'Store, boutique, electronics' },
 ];
 
 export default function Login() {
-  const { signIn, signUp, signInDemo, isDemoMode } = useAuth();
+  const { signIn, signUp } = useAuth();
 
   const [tab, setTab] = useState<AuthTab>('login');
   const [email, setEmail] = useState('');
@@ -72,7 +54,7 @@ export default function Login() {
       const result = await signUp({ email, password, fullName, businessMode });
       if (result.error) {
         setError(result.error);
-      } else if (!isDemoMode) {
+      } else {
         setSignupSuccess(true);
       }
     }
@@ -111,47 +93,6 @@ export default function Login() {
           <h1 className="text-3xl font-bold text-foreground">Nexus POS</h1>
           <p className="text-muted-foreground mt-1">Sign in to your account</p>
         </div>
-
-        {/* Demo mode banner */}
-        {isDemoMode && (
-          <div className="mb-6 p-4 rounded border border-info/30 bg-info/5">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-info mt-0.5 shrink-0" />
-              <div>
-                <p className="text-sm font-medium text-foreground mb-1">Demo Mode</p>
-                <p className="text-xs text-muted-foreground">
-                  Supabase not configured. Pick a role to jump in instantly.
-                </p>
-              </div>
-            </div>
-
-            {/* Quick demo login buttons */}
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              {demoOptions.map((opt) => {
-                const Icon = opt.icon;
-                return (
-                  <button
-                    key={`${opt.role}-${opt.mode}`}
-                    onClick={() => signInDemo(opt.role, opt.mode)}
-                    className="flex items-center gap-2.5 p-3 rounded border border-border bg-card hover:bg-muted transition-colors text-left"
-                  >
-                    <Icon className="w-5 h-5 text-primary shrink-0" />
-                    <div className="min-w-0">
-                      <span className="text-xs font-semibold block truncate">{opt.label}</span>
-                      <span className="text-[10px] text-muted-foreground block truncate">{opt.desc}</span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="mt-3 flex items-center gap-3">
-              <div className="flex-1 h-px bg-border" />
-              <span className="text-xs text-muted-foreground">or use form</span>
-              <div className="flex-1 h-px bg-border" />
-            </div>
-          </div>
-        )}
 
         {/* Tab Switcher */}
         <div className="flex gap-1 bg-muted p-1 rounded mb-6">

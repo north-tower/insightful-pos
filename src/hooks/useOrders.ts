@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { useBusinessMode } from '@/context/BusinessModeContext';
 import { useAuth } from '@/context/AuthContext';
-import { mockOrderHistory, Order as LegacyOrder } from '@/data/orderData';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -118,14 +117,11 @@ export interface CreateOrderParams {
   }>;
 }
 
-// ─── Demo counter ───────────────────────────────────────────────────────────
-let demoOrderCounter = 100;
-
 // ─── Hook ───────────────────────────────────────────────────────────────────
 
 export function useOrders() {
   const { mode, isRestaurant } = useBusinessMode();
-  const { user, isDemoMode } = useAuth();
+  const { user } = useAuth();
 
   const [orders, setOrders] = useState<SaleOrder[]>([]);
   const [loading, setLoading] = useState(false);
@@ -137,67 +133,6 @@ export function useOrders() {
     setLoading(true);
     setError(null);
 
-    if (isDemoMode) {
-      // Convert legacy mock data to SaleOrder shape
-      const demoOrders: SaleOrder[] = mockOrderHistory.map((o: LegacyOrder) => ({
-        id: o.id,
-        order_number: o.orderNumber,
-        business_mode: mode,
-        order_type: o.type,
-        source: 'pos',
-        sale_type: 'cash' as SaleType,
-        customer_name: o.customerName,
-        table_number: o.tableNumber,
-        subtotal: o.subtotal,
-        tax_rate: 0.05,
-        tax_amount: o.tax,
-        discount_amount: o.discount || 0,
-        total: o.total,
-        status: o.status as OrderStatus,
-        payment_status: o.paymentStatus as PaymentStatus,
-        notes: o.notes,
-        staff_id: o.staffId,
-        created_at: o.createdAt.toISOString(),
-        completed_at: o.completedAt?.toISOString(),
-        items: o.items.map((item, idx) => ({
-          id: `${o.id}-item-${idx}`,
-          order_id: o.id,
-          product_id: item.id,
-          product_name: item.name,
-          product_image: item.image,
-          unit_price: item.price,
-          quantity: item.quantity,
-          line_total: item.price * item.quantity,
-          discount: 0,
-          modifiers: item.modifiers || [],
-          notes: item.notes,
-        })),
-        payments: o.splitPayments
-          ? o.splitPayments.map((sp) => ({
-              id: sp.id,
-              order_id: o.id,
-              method: sp.method as PaymentMethod,
-              amount: sp.amount,
-              paid_at: sp.paidAt.toISOString(),
-            }))
-          : o.paymentMethod && o.paymentStatus === 'paid'
-          ? [
-              {
-                id: `${o.id}-pay`,
-                order_id: o.id,
-                method: o.paymentMethod as PaymentMethod,
-                amount: o.total,
-                paid_at: o.createdAt.toISOString(),
-              },
-            ]
-          : [],
-      }));
-      setOrders(demoOrders);
-      setLoading(false);
-      return;
-    }
-
-    // Supabase fetch
     try {
       const { data: orderData, error: orderErr } = await supabase
         .from('orders')
@@ -305,7 +240,7 @@ export function useOrders() {
     } finally {
       setLoading(false);
     }
-  }, [mode, isDemoMode]);
+  }, [mode]);
 
   useEffect(() => {
     fetchOrders();
@@ -345,74 +280,6 @@ export function useOrders() {
           ? 'partial'
           : 'unpaid';
 
-      // ── Demo mode ─────────────────────────────────────────────────────
-      if (isDemoMode) {
-        demoOrderCounter++;
-        const prefix = isRestaurant ? 'F' : 'R';
-        const orderNumber = `${prefix}${String(demoOrderCounter).padStart(4, '0')}`;
-        const invoiceNumber = `INV-${new Date().getFullYear()}-${String(demoOrderCounter).padStart(4, '0')}`;
-
-        const newOrder: SaleOrder = {
-          id: `demo-${Date.now()}`,
-          order_number: orderNumber,
-          business_mode: mode,
-          order_type: params.order_type,
-          source: 'pos',
-          sale_type: saleType,
-          customer_id: params.customer_id,
-          customer_name: params.customer_name,
-          customer_email: params.customer_email,
-          customer_phone: params.customer_phone,
-          table_number: params.table_number,
-          invoice_number: invoiceNumber,
-          due_date: params.due_date,
-          subtotal,
-          tax_rate: taxRate,
-          tax_amount: taxAmount,
-          discount_amount: discountAmount,
-          total,
-          status: saleType === 'credit' && paymentStatus !== 'paid' ? 'completed' : 'completed',
-          payment_status: paymentStatus,
-          notes: params.notes,
-          staff_id: user?.id,
-          staff_name: user?.full_name,
-          created_at: new Date().toISOString(),
-          completed_at: new Date().toISOString(),
-          items: params.items.map((item, idx) => ({
-            id: `demo-item-${Date.now()}-${idx}`,
-            order_id: `demo-${Date.now()}`,
-            product_id: item.product_id,
-            product_name: item.product_name,
-            product_image: item.product_image,
-            unit_price: item.unit_price,
-            quantity: item.quantity,
-            line_total:
-              item.unit_price * item.quantity +
-              (item.modifiers || []).reduce(
-                (s, m) => s + (m.price || 0) * item.quantity,
-                0,
-              ),
-            discount: 0,
-            modifiers: item.modifiers || [],
-            notes: item.notes,
-            sku: item.sku,
-            barcode: item.barcode,
-          })),
-          payments: params.payments.map((p, idx) => ({
-            id: `demo-pay-${Date.now()}-${idx}`,
-            order_id: `demo-${Date.now()}`,
-            method: p.method,
-            amount: p.amount,
-            reference: p.reference,
-            paid_at: new Date().toISOString(),
-          })),
-        };
-
-        setOrders((prev) => [newOrder, ...prev]);
-        return newOrder;
-      }
-
-      // ── Supabase mode ─────────────────────────────────────────────────
       try {
         // 1. Get next order number via RPC
         const { data: orderNumData, error: orderNumErr } = await supabase.rpc(
@@ -569,31 +436,13 @@ export function useOrders() {
         return null;
       }
     },
-    [isDemoMode, isRestaurant, mode, user],
+    [isRestaurant, mode, user],
   );
 
   // ── Update order status ───────────────────────────────────────────────
 
   const updateOrderStatus = useCallback(
     async (orderId: string, status: OrderStatus) => {
-      if (isDemoMode) {
-        setOrders((prev) =>
-          prev.map((o) =>
-            o.id === orderId
-              ? {
-                  ...o,
-                  status,
-                  completed_at:
-                    status === 'completed'
-                      ? new Date().toISOString()
-                      : o.completed_at,
-                }
-              : o,
-          ),
-        );
-        return;
-      }
-
       const updates: Record<string, unknown> = { status };
       if (status === 'completed') {
         updates.completed_at = new Date().toISOString();
@@ -607,24 +456,13 @@ export function useOrders() {
       if (err) throw err;
       await fetchOrders();
     },
-    [isDemoMode, fetchOrders],
+    [fetchOrders],
   );
 
   // ── Void / refund ─────────────────────────────────────────────────────
 
   const voidOrder = useCallback(
     async (orderId: string) => {
-      if (isDemoMode) {
-        setOrders((prev) =>
-          prev.map((o) =>
-            o.id === orderId
-              ? { ...o, status: 'voided' as OrderStatus, payment_status: 'voided' as PaymentStatus }
-              : o,
-          ),
-        );
-        return;
-      }
-
       const { error: err } = await supabase
         .from('orders')
         .update({ status: 'voided', payment_status: 'voided' })
@@ -633,22 +471,11 @@ export function useOrders() {
       if (err) throw err;
       await fetchOrders();
     },
-    [isDemoMode, fetchOrders],
+    [fetchOrders],
   );
 
   const refundOrder = useCallback(
     async (orderId: string) => {
-      if (isDemoMode) {
-        setOrders((prev) =>
-          prev.map((o) =>
-            o.id === orderId
-              ? { ...o, payment_status: 'refunded' as PaymentStatus, status: 'cancelled' as OrderStatus }
-              : o,
-          ),
-        );
-        return;
-      }
-
       const { error: err } = await supabase
         .from('orders')
         .update({ payment_status: 'refunded', status: 'cancelled' })
@@ -657,7 +484,7 @@ export function useOrders() {
       if (err) throw err;
       await fetchOrders();
     },
-    [isDemoMode, fetchOrders],
+    [fetchOrders],
   );
 
   // ── Record payment against an order ───────────────────────────────────
@@ -671,35 +498,6 @@ export function useOrders() {
       if (!order) {
         setError('Order not found');
         return null;
-      }
-
-      const existingPaid = order.payments.reduce((s, p) => s + p.amount, 0);
-      const newTotalPaid = existingPaid + payment.amount;
-      const newPaymentStatus: PaymentStatus =
-        newTotalPaid >= order.total ? 'paid' : newTotalPaid > 0 ? 'partial' : 'unpaid';
-
-      if (isDemoMode) {
-        const newPayment: Payment = {
-          id: `demo-pay-${Date.now()}`,
-          order_id: orderId,
-          method: payment.method,
-          amount: payment.amount,
-          reference: payment.reference,
-          paid_at: new Date().toISOString(),
-        };
-
-        setOrders((prev) =>
-          prev.map((o) =>
-            o.id === orderId
-              ? {
-                  ...o,
-                  payments: [...o.payments, newPayment],
-                  payment_status: newPaymentStatus,
-                }
-              : o,
-          ),
-        );
-        return newPayment;
       }
 
       // Supabase: insert payment row — the DB trigger handles customer balance + order status
@@ -734,7 +532,7 @@ export function useOrders() {
         return null;
       }
     },
-    [isDemoMode, orders, fetchOrders],
+    [orders, fetchOrders],
   );
 
   // ── Update payment ─────────────────────────────────────────────────────
@@ -757,42 +555,6 @@ export function useOrders() {
         return null;
       }
 
-      const updatedAmount = updates.amount ?? existingPayment.amount;
-      const amountDiff = updatedAmount - existingPayment.amount;
-
-      // Recalculate order payment status
-      const otherPaid = order.payments
-        .filter((p) => p.id !== paymentId)
-        .reduce((s, p) => s + p.amount, 0);
-      const newTotalPaid = otherPaid + updatedAmount;
-      const newPaymentStatus: PaymentStatus =
-        newTotalPaid >= order.total ? 'paid' : newTotalPaid > 0 ? 'partial' : 'unpaid';
-
-      if (isDemoMode) {
-        const updatedPayment: Payment = {
-          ...existingPayment,
-          method: updates.method ?? existingPayment.method,
-          amount: updatedAmount,
-          reference: updates.reference !== undefined ? updates.reference : existingPayment.reference,
-        };
-
-        setOrders((prev) =>
-          prev.map((o) =>
-            o.id === order.id
-              ? {
-                  ...o,
-                  payments: o.payments.map((p) =>
-                    p.id === paymentId ? updatedPayment : p,
-                  ),
-                  payment_status: newPaymentStatus,
-                }
-              : o,
-          ),
-        );
-        return updatedPayment;
-      }
-
-      // Supabase
       try {
         const updateData: Record<string, unknown> = {};
         if (updates.method !== undefined) updateData.method = updates.method;
@@ -825,7 +587,7 @@ export function useOrders() {
         return null;
       }
     },
-    [isDemoMode, orders, fetchOrders],
+    [orders, fetchOrders],
   );
 
   // ── Delete payment ─────────────────────────────────────────────────────
@@ -838,35 +600,6 @@ export function useOrders() {
         return false;
       }
 
-      const existingPayment = order.payments.find((p) => p.id === paymentId);
-      if (!existingPayment) {
-        setError('Payment not found');
-        return false;
-      }
-
-      // Recalculate order payment status after removal
-      const remainingPaid = order.payments
-        .filter((p) => p.id !== paymentId)
-        .reduce((s, p) => s + p.amount, 0);
-      const newPaymentStatus: PaymentStatus =
-        remainingPaid >= order.total ? 'paid' : remainingPaid > 0 ? 'partial' : 'unpaid';
-
-      if (isDemoMode) {
-        setOrders((prev) =>
-          prev.map((o) =>
-            o.id === order.id
-              ? {
-                  ...o,
-                  payments: o.payments.filter((p) => p.id !== paymentId),
-                  payment_status: newPaymentStatus,
-                }
-              : o,
-          ),
-        );
-        return true;
-      }
-
-      // Supabase
       try {
         const { error: delErr } = await supabase
           .from('payments')
@@ -884,7 +617,7 @@ export function useOrders() {
         return false;
       }
     },
-    [isDemoMode, orders, fetchOrders],
+    [orders, fetchOrders],
   );
 
   // ── Stats helpers ─────────────────────────────────────────────────────

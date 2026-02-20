@@ -1,6 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Sidebar } from '@/components/pos/Sidebar';
-import { Header } from '@/components/pos/Header';
+import { PageLayout } from '@/components/pos/PageLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -124,32 +123,26 @@ export default function CustomerManagement({
   };
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
-      <Sidebar activeTab="customers" onTabChange={onNavigate} />
-
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <Header />
-
-        <div className="flex-1 overflow-y-auto p-6">
+    <PageLayout activeTab="customers" onNavigate={onNavigate}>
           {/* Header */}
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
             <div>
-              <h1 className="text-3xl font-bold text-foreground mb-2">
+              <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-1 sm:mb-2">
                 Customer Management
               </h1>
-              <p className="text-muted-foreground">
+              <p className="text-sm sm:text-base text-muted-foreground">
                 Manage your customer database and loyalty program
               </p>
             </div>
-            <Button onClick={handleCreateCustomer} className="gap-2">
+            <Button onClick={handleCreateCustomer} className="gap-2 self-start sm:self-auto">
               <Plus className="w-4 h-4" />
               Add Customer
             </Button>
           </div>
 
           {/* Search and Filters */}
-          <div className="flex items-center gap-4 mb-6">
-            <div className="relative flex-1 max-w-md">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-6">
+            <div className="relative flex-1 sm:max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 placeholder="Search by name, email, or phone..."
@@ -158,7 +151,7 @@ export default function CustomerManagement({
                 className="pl-10"
               />
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
               {(['all', 'active', 'vip', 'inactive', 'suspended'] as const).map(
                 (status) => (
                   <Button
@@ -166,7 +159,7 @@ export default function CustomerManagement({
                     variant={filterStatus === status ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setFilterStatus(status)}
-                    className="capitalize"
+                    className="capitalize shrink-0"
                   >
                     {status}
                   </Button>
@@ -176,7 +169,7 @@ export default function CustomerManagement({
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 sm:gap-4 mb-6">
             <Card>
               <CardContent className="p-4">
                 <p className="text-sm text-muted-foreground mb-1">
@@ -386,9 +379,6 @@ export default function CustomerManagement({
               <p className="text-muted-foreground">No customers found</p>
             </div>
           )}
-        </div>
-      </div>
-
       {/* Dialogs */}
       <CustomerDialog
         open={isCreateDialogOpen}
@@ -415,6 +405,6 @@ export default function CustomerManagement({
           />
         </>
       )}
-    </div>
+    </PageLayout>
   );
 }

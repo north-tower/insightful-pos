@@ -279,7 +279,7 @@ export function CartPanelEnhanced() {
 
   return (
     <>
-      <div className="w-80 bg-card border-l border-border flex flex-col h-full">
+      <div className="w-full lg:w-80 bg-card border-t lg:border-t-0 lg:border-l border-border flex flex-col h-auto max-h-[50vh] lg:max-h-none lg:h-full shrink-0">
         {/* Header */}
         <div className="p-4 border-b border-border">
           <div className="flex items-center justify-between mb-3">

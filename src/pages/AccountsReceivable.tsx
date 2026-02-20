@@ -1,6 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Sidebar } from '@/components/pos/Sidebar';
-import { Header } from '@/components/pos/Header';
+import { PageLayout } from '@/components/pos/PageLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -204,16 +203,10 @@ export default function AccountsReceivable({
   };
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
-      <Sidebar activeTab="accounts" onTabChange={onNavigate} />
-
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <Header />
-
-        <div className="flex-1 overflow-y-auto p-6">
+    <PageLayout activeTab="accounts" onNavigate={onNavigate}>
           {/* Page Header */}
           <div className="mb-6">
-            <h1 className="text-3xl font-bold text-foreground mb-2">
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">
               Accounts Receivable
             </h1>
             <p className="text-muted-foreground">
@@ -222,7 +215,7 @@ export default function AccountsReceivable({
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-6">
             <Card>
               <CardContent className="p-4 flex items-center gap-3">
                 <div className="h-10 w-10 rounded bg-warning/10 flex items-center justify-center">
@@ -282,8 +275,8 @@ export default function AccountsReceivable({
           </div>
 
           {/* Search & Filters */}
-          <div className="mb-6 flex gap-3 items-center">
-            <div className="relative flex-1 max-w-md">
+          <div className="mb-6 flex flex-col sm:flex-row gap-3 sm:items-center">
+            <div className="relative flex-1 sm:max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 placeholder="Search by customer, invoice #, or order #..."
@@ -549,8 +542,6 @@ export default function AccountsReceivable({
               })}
             </div>
           )}
-        </div>
-      </div>
 
       {/* Payment Dialog */}
       {paymentOrder && (
@@ -588,6 +579,6 @@ export default function AccountsReceivable({
           defaultView="invoice"
         />
       )}
-    </div>
+    </PageLayout>
   );
 }

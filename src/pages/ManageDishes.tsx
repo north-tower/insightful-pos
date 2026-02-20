@@ -3,8 +3,7 @@ import { Plus, Search, LayoutGrid, List, SlidersHorizontal, MoreVertical } from 
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Sidebar } from '@/components/pos/Sidebar';
-import { Header } from '@/components/pos/Header';
+import { PageLayout } from '@/components/pos/PageLayout';
 import { cn } from '@/lib/utils';
 import { useProducts } from '@/hooks/useProducts';
 import type { MenuItem } from '@/hooks/useProducts';
@@ -46,22 +45,14 @@ export default function ManageDishes({ onNavigate }: ManageDishesProps) {
   };
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
-      {/* Sidebar */}
-      <Sidebar activeTab="manage-dishes" onTabChange={onNavigate} />
-
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <Header />
-
-        <div className="flex-1 flex overflow-hidden">
-          {/* Category List */}
-          <div className="w-72 bg-card border-r border-border flex flex-col">
-            <div className="p-4 border-b border-border">
+    <PageLayout activeTab="manage-dishes" onNavigate={onNavigate} flexContent>
+          {/* Category List — sidebar on lg+, horizontal scroll on mobile */}
+          <div className="lg:w-72 bg-card border-b lg:border-b-0 lg:border-r border-border flex lg:flex-col shrink-0">
+            <div className="hidden lg:block p-4 border-b border-border">
               <h2 className="text-lg font-bold text-foreground">Dishes Category</h2>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-3 space-y-1">
+            <div className="flex lg:flex-1 overflow-x-auto lg:overflow-y-auto p-2 lg:p-3 gap-1 lg:gap-0 lg:space-y-1 scrollbar-hide">
               {dishCategories.map((category) => {
                 const isActive = activeCategory === category.id;
                 return (
@@ -69,7 +60,7 @@ export default function ManageDishes({ onNavigate }: ManageDishesProps) {
                     key={category.id}
                     onClick={() => setActiveCategory(category.id)}
                     className={cn(
-                      'w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all',
+                      'w-full flex items-center justify-between px-3 lg:px-4 py-2 lg:py-3 rounded-xl text-sm font-medium transition-all whitespace-nowrap shrink-0',
                       isActive
                         ? 'bg-primary text-primary-foreground shadow-md'
                         : 'text-foreground hover:bg-muted'
@@ -90,7 +81,7 @@ export default function ManageDishes({ onNavigate }: ManageDishesProps) {
               })}
             </div>
 
-            <div className="p-4 border-t border-border">
+            <div className="hidden lg:block p-4 border-t border-border">
               <Button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground gap-2">
                 <Plus className="w-4 h-4" />
                 Add New Category
@@ -99,16 +90,16 @@ export default function ManageDishes({ onNavigate }: ManageDishesProps) {
           </div>
 
           {/* Dishes Grid */}
-          <div className="flex-1 p-6 overflow-y-auto">
+          <div className="flex-1 p-3 sm:p-4 lg:p-6 overflow-y-auto">
             {/* Header */}
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-foreground">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+              <h2 className="text-lg sm:text-xl font-bold text-foreground">
                 {activeCategoryData?.name} ({activeCategoryData?.count})
               </h2>
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
                 {/* Search */}
-                <div className="relative w-64">
+                <div className="relative w-full sm:w-48 lg:w-64">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
                     placeholder="Search dishes"
@@ -118,9 +109,10 @@ export default function ManageDishes({ onNavigate }: ManageDishesProps) {
                   />
                 </div>
 
-                <Button className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2">
+                <Button className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2" size="sm">
                   <Plus className="w-4 h-4" />
-                  Add New Dishes
+                  <span className="hidden sm:inline">Add New Dishes</span>
+                  <span className="sm:hidden">Add</span>
                 </Button>
 
                 {/* View Toggle */}
@@ -178,9 +170,7 @@ export default function ManageDishes({ onNavigate }: ManageDishesProps) {
               ))}
             </div>
           </div>
-        </div>
-      </div>
-    </div>
+    </PageLayout>
   );
 }
 

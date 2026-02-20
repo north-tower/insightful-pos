@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { useBusinessMode } from '@/context/BusinessModeContext';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -42,148 +42,10 @@ export interface CreateCustomerParams {
   tags?: string[];
 }
 
-// ─── Demo data ──────────────────────────────────────────────────────────────
-
-const demoCustomers: Customer[] = [
-  {
-    id: 'demo-cust-1',
-    business_mode: 'restaurant',
-    first_name: 'John',
-    last_name: 'Doe',
-    email: 'john.doe@example.com',
-    phone: '+1 (555) 123-4567',
-    address: '123 Main Street',
-    city: 'New York',
-    postal_code: '10001',
-    country: 'USA',
-    credit_balance: 0,
-    credit_limit: 5000,
-    total_spent: 3420.50,
-    total_orders: 28,
-    loyalty_points: 1250,
-    status: 'vip',
-    notes: 'Prefers window seating. Regular customer.',
-    tags: ['regular', 'vip', 'preferred'],
-    created_at: '2023-01-15T00:00:00Z',
-    updated_at: '2024-01-10T00:00:00Z',
-  },
-  {
-    id: 'demo-cust-2',
-    business_mode: 'restaurant',
-    first_name: 'Jane',
-    last_name: 'Smith',
-    email: 'jane.smith@example.com',
-    phone: '+1 (555) 234-5678',
-    address: '456 Oak Avenue',
-    city: 'Los Angeles',
-    postal_code: '90001',
-    country: 'USA',
-    credit_balance: 250.00,
-    credit_limit: 2000,
-    total_spent: 1890.25,
-    total_orders: 15,
-    loyalty_points: 850,
-    status: 'active',
-    notes: 'Vegetarian. Orders frequently for delivery.',
-    tags: ['vegetarian', 'delivery'],
-    created_at: '2023-03-20T00:00:00Z',
-    updated_at: '2024-01-08T00:00:00Z',
-  },
-  {
-    id: 'demo-cust-3',
-    business_mode: 'restaurant',
-    first_name: 'Sarah',
-    last_name: 'Williams',
-    email: 'sarah.w@example.com',
-    phone: '+1 (555) 456-7890',
-    address: '321 Elm Street',
-    city: 'Houston',
-    postal_code: '77001',
-    country: 'USA',
-    credit_balance: 150.75,
-    credit_limit: 3000,
-    total_spent: 5420.00,
-    total_orders: 45,
-    loyalty_points: 2100,
-    status: 'vip',
-    notes: 'VIP member. Prefers table 12.',
-    tags: ['vip', 'wine', 'preferred'],
-    created_at: '2022-11-05T00:00:00Z',
-    updated_at: '2024-01-12T00:00:00Z',
-  },
-  {
-    id: 'demo-cust-4',
-    business_mode: 'retail',
-    first_name: 'Acme Corp',
-    last_name: 'Ltd',
-    email: 'procurement@acmecorp.com',
-    phone: '+1 (555) 111-2222',
-    address: '100 Business Blvd',
-    city: 'San Francisco',
-    postal_code: '94101',
-    country: 'USA',
-    credit_balance: 1250.00,
-    credit_limit: 10000,
-    total_spent: 15800.00,
-    total_orders: 42,
-    loyalty_points: 0,
-    status: 'vip',
-    notes: 'Regular bulk orders. Net-30 terms.',
-    tags: ['corporate', 'bulk', 'net-30'],
-    created_at: '2022-06-15T00:00:00Z',
-    updated_at: '2024-01-10T00:00:00Z',
-  },
-  {
-    id: 'demo-cust-5',
-    business_mode: 'retail',
-    first_name: 'Tech Solutions',
-    last_name: 'Inc',
-    email: 'orders@techsolutions.com',
-    phone: '+1 (555) 555-6666',
-    address: '200 Innovation Dr',
-    city: 'Austin',
-    postal_code: '78701',
-    country: 'USA',
-    credit_balance: 3200.00,
-    credit_limit: 15000,
-    total_spent: 28500.75,
-    total_orders: 65,
-    loyalty_points: 0,
-    status: 'vip',
-    notes: 'IT supplies. Weekly orders.',
-    tags: ['corporate', 'weekly', 'net-15'],
-    created_at: '2022-03-10T00:00:00Z',
-    updated_at: '2024-01-11T00:00:00Z',
-  },
-  {
-    id: 'demo-cust-6',
-    business_mode: 'retail',
-    first_name: 'Maria',
-    last_name: 'Garcia',
-    email: 'maria.g@example.com',
-    phone: '+1 (555) 333-4444',
-    address: '52 Central Ave',
-    city: 'Miami',
-    postal_code: '33101',
-    country: 'USA',
-    credit_balance: 0,
-    credit_limit: 500,
-    total_spent: 890.50,
-    total_orders: 8,
-    loyalty_points: 200,
-    status: 'active',
-    notes: '',
-    tags: ['regular'],
-    created_at: '2023-08-20T00:00:00Z',
-    updated_at: '2024-01-05T00:00:00Z',
-  },
-];
-
 // ─── Hook ───────────────────────────────────────────────────────────────────
 
 export function useCustomers() {
   const { mode } = useBusinessMode();
-  const isDemoMode = !isSupabaseConfigured();
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(false);
@@ -192,12 +54,6 @@ export function useCustomers() {
   const fetchCustomers = useCallback(async () => {
     setLoading(true);
     setError(null);
-
-    if (isDemoMode) {
-      setCustomers(demoCustomers.filter((c) => c.business_mode === mode));
-      setLoading(false);
-      return;
-    }
 
     try {
       const { data, error: fetchErr } = await supabase
@@ -223,7 +79,7 @@ export function useCustomers() {
     } finally {
       setLoading(false);
     }
-  }, [mode, isDemoMode]);
+  }, [mode]);
 
   useEffect(() => {
     fetchCustomers();
@@ -233,33 +89,6 @@ export function useCustomers() {
 
   const createCustomer = useCallback(
     async (params: CreateCustomerParams): Promise<Customer | null> => {
-      if (isDemoMode) {
-        const newCustomer: Customer = {
-          id: `demo-cust-${Date.now()}`,
-          business_mode: mode,
-          first_name: params.first_name,
-          last_name: params.last_name,
-          email: params.email,
-          phone: params.phone,
-          address: params.address,
-          city: params.city,
-          postal_code: params.postal_code,
-          country: params.country || 'USA',
-          credit_balance: 0,
-          credit_limit: params.credit_limit || 0,
-          total_spent: 0,
-          total_orders: 0,
-          loyalty_points: 0,
-          status: (params.status as Customer['status']) || 'active',
-          notes: params.notes,
-          tags: params.tags || [],
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-        setCustomers((prev) => [...prev, newCustomer]);
-        return newCustomer;
-      }
-
       try {
         const { data, error: err } = await supabase
           .from('customers')
@@ -279,24 +108,13 @@ export function useCustomers() {
         return null;
       }
     },
-    [isDemoMode, mode, fetchCustomers],
+    [mode, fetchCustomers],
   );
 
   // ── Update ──────────────────────────────────────────────────────────────
 
   const updateCustomer = useCallback(
     async (id: string, updates: Partial<CreateCustomerParams>) => {
-      if (isDemoMode) {
-        setCustomers((prev) =>
-          prev.map((c) =>
-            c.id === id
-              ? { ...c, ...updates, updated_at: new Date().toISOString() }
-              : c,
-          ),
-        );
-        return;
-      }
-
       try {
         const { error: err } = await supabase
           .from('customers')
@@ -309,7 +127,7 @@ export function useCustomers() {
         setError(err.message);
       }
     },
-    [isDemoMode, fetchCustomers],
+    [fetchCustomers],
   );
 
   // ── Make payment against customer balance ───────────────────────────────
@@ -320,21 +138,6 @@ export function useCustomers() {
       amount: number,
       method: 'cash' | 'card' | 'qr',
     ) => {
-      if (isDemoMode) {
-        setCustomers((prev) =>
-          prev.map((c) =>
-            c.id === customerId
-              ? {
-                  ...c,
-                  credit_balance: Math.max(c.credit_balance - amount, 0),
-                  updated_at: new Date().toISOString(),
-                }
-              : c,
-          ),
-        );
-        return { success: true };
-      }
-
       try {
         // Reduce customer balance directly
         const customer = customers.find((c) => c.id === customerId);
@@ -355,7 +158,7 @@ export function useCustomers() {
         return { success: false, error: err.message };
       }
     },
-    [isDemoMode, customers, fetchCustomers],
+    [customers, fetchCustomers],
   );
 
   // ── Adjust customer balance (positive = increase, negative = decrease) ──
@@ -363,21 +166,6 @@ export function useCustomers() {
   const adjustCustomerBalance = useCallback(
     async (customerId: string, delta: number) => {
       if (delta === 0) return { success: true };
-
-      if (isDemoMode) {
-        setCustomers((prev) =>
-          prev.map((c) =>
-            c.id === customerId
-              ? {
-                  ...c,
-                  credit_balance: Math.max(c.credit_balance + delta, 0),
-                  updated_at: new Date().toISOString(),
-                }
-              : c,
-          ),
-        );
-        return { success: true };
-      }
 
       try {
         const customer = customers.find((c) => c.id === customerId);
@@ -398,7 +186,7 @@ export function useCustomers() {
         return { success: false, error: err.message };
       }
     },
-    [isDemoMode, customers, fetchCustomers],
+    [customers, fetchCustomers],
   );
 
   // ── Helpers ──────────────────────────────────────────────────────────────

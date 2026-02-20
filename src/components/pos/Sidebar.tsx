@@ -15,6 +15,7 @@ import {
   Receipt,
   Store,
   CircleDollarSign,
+  X,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -26,6 +27,10 @@ import { useAuth, UserRole } from '@/context/AuthContext';
 interface SidebarProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
+  /** Mobile: whether the sidebar drawer is open */
+  mobileOpen?: boolean;
+  /** Mobile: callback to close the drawer */
+  onMobileClose?: () => void;
 }
 
 interface NavItem {
@@ -61,7 +66,7 @@ const bottomNavItems: NavItem[] = [
   { id: 'help', label: 'Help Center', icon: HelpCircle },
 ];
 
-export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
+export function Sidebar({ activeTab, onTabChange, mobileOpen, onMobileClose }: SidebarProps) {
   const { isRestaurant, config } = useBusinessMode();
   const { user, signOut } = useAuth();
   const allNavItems = isRestaurant ? restaurantNavItems : retailNavItems;
@@ -92,21 +97,36 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
     await signOut();
   };
 
-  return (
-    <aside className="w-64 bg-sidebar text-sidebar-foreground flex flex-col shadow-sidebar">
+  const handleNavClick = (tab: string) => {
+    onTabChange(tab);
+    // Close mobile drawer on navigation
+    onMobileClose?.();
+  };
+
+  const sidebarContent = (
+    <aside className="w-64 bg-sidebar text-sidebar-foreground flex flex-col shadow-sidebar h-full">
       {/* Logo Section */}
       <div className="p-6 pb-8 border-b border-sidebar-border/50">
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <div className="w-12 h-12 bg-gradient-to-br from-sidebar-primary to-sidebar-accent rounded-2xl flex items-center justify-center shadow-lg">
-              <LogoIcon className="w-6 h-6 text-sidebar-primary-foreground" />
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <div className="w-12 h-12 bg-gradient-to-br from-sidebar-primary to-sidebar-accent rounded-2xl flex items-center justify-center shadow-lg">
+                <LogoIcon className="w-6 h-6 text-sidebar-primary-foreground" />
+              </div>
+              <div className="absolute -top-1 -right-1 w-4 h-4 bg-success rounded-full border-2 border-sidebar"></div>
             </div>
-            <div className="absolute -top-1 -right-1 w-4 h-4 bg-success rounded-full border-2 border-sidebar"></div>
+            <div>
+              <h1 className="font-bold text-xl leading-tight tracking-tight">Nexus</h1>
+              <p className="text-xs text-sidebar-foreground/60 font-medium">{config.label} POS</p>
+            </div>
           </div>
-          <div>
-            <h1 className="font-bold text-xl leading-tight tracking-tight">Nexus</h1>
-            <p className="text-xs text-sidebar-foreground/60 font-medium">{config.label} POS</p>
-          </div>
+          {/* Close button – mobile only */}
+          <button
+            onClick={onMobileClose}
+            className="lg:hidden p-2 -mr-2 rounded-lg hover:bg-sidebar-accent transition-colors"
+          >
+            <X className="w-5 h-5 text-sidebar-foreground/70" />
+          </button>
         </div>
       </div>
 
@@ -122,7 +142,7 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
             return (
               <button
                 key={item.id}
-                onClick={() => onTabChange(item.id)}
+                onClick={() => handleNavClick(item.id)}
                 className={cn(
                   'w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 group relative',
                   isActive
@@ -182,7 +202,7 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
             return (
               <button
                 key={item.id}
-                onClick={() => onTabChange(item.id)}
+                onClick={() => handleNavClick(item.id)}
                 className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-all duration-200"
               >
                 <Icon className="w-4 h-4" />
@@ -200,5 +220,29 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
         </div>
       </div>
     </aside>
+  );
+
+  return (
+    <>
+      {/* Desktop sidebar – always visible */}
+      <div className="hidden lg:block shrink-0">
+        {sidebarContent}
+      </div>
+
+      {/* Mobile sidebar – slide-over drawer */}
+      {mobileOpen && (
+        <div className="lg:hidden fixed inset-0 z-50 flex">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={onMobileClose}
+          />
+          {/* Drawer */}
+          <div className="relative z-10 animate-in slide-in-from-left duration-300">
+            {sidebarContent}
+          </div>
+        </div>
+      )}
+    </>
   );
 }

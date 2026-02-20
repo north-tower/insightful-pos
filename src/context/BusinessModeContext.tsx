@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { BUSINESS_CONFIGS } from '@/types/business';
 import type { BusinessMode, BusinessConfig } from '@/types/business';
 
@@ -38,7 +38,7 @@ export function BusinessModeProvider({ children }: BusinessModeProviderProps) {
 
   // Resolve the active mode:
   // 1. Local override (set during signup flow before profile exists)
-  // 2. User's profile business_mode (from Supabase or demo)
+  // 2. User's profile business_mode (from Supabase)
   // 3. null → means we need the mode selector (isSetup)
   const resolvedMode: BusinessMode | null = localOverride ?? user?.business_mode ?? null;
 
@@ -54,27 +54,12 @@ export function BusinessModeProvider({ children }: BusinessModeProviderProps) {
     async (newMode: BusinessMode) => {
       setLocalOverride(newMode);
 
-      // If the user is authenticated and we have a real Supabase connection,
-      // persist the mode change to the profile.
-      if (isAuthenticated && user && isSupabaseConfigured()) {
+      // If the user is authenticated, persist the mode change to the profile.
+      if (isAuthenticated && user) {
         await supabase
           .from('profiles')
           .update({ business_mode: newMode })
           .eq('id', user.id);
-      }
-
-      // For demo mode, update the stored demo user in localStorage
-      if (isAuthenticated && user && !isSupabaseConfigured()) {
-        try {
-          const stored = localStorage.getItem('nexus-pos-demo-user');
-          if (stored) {
-            const demoUser = JSON.parse(stored);
-            demoUser.business_mode = newMode;
-            localStorage.setItem('nexus-pos-demo-user', JSON.stringify(demoUser));
-          }
-        } catch {
-          // ignore
-        }
       }
     },
     [isAuthenticated, user]

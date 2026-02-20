@@ -28,8 +28,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Sidebar } from '@/components/pos/Sidebar';
-import { Header } from '@/components/pos/Header';
+import { PageLayout } from '@/components/pos/PageLayout';
 import { cn } from '@/lib/utils';
 import { useProducts } from '@/hooks/useProducts';
 import type { Product, ProductCategory } from '@/hooks/useProducts';
@@ -120,16 +119,10 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
   }, [retailProducts]);
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
-      <Sidebar activeTab="products" onTabChange={onNavigate} />
-
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <Header />
-
-        <div className="flex-1 flex overflow-hidden">
-          {/* Category Sidebar */}
-          <div className="w-64 bg-card border-r border-border flex flex-col">
-            <div className="p-4 border-b border-border">
+    <PageLayout activeTab="products" onNavigate={onNavigate} flexContent>
+          {/* Category Sidebar — horizontal on mobile, vertical on lg+ */}
+          <div className="lg:w-64 bg-card border-b lg:border-b-0 lg:border-r border-border flex lg:flex-col shrink-0">
+            <div className="hidden lg:block p-4 border-b border-border">
               <h2 className="text-lg font-bold text-foreground">Categories</h2>
               <p className="text-xs text-muted-foreground mt-1">
                 {categoryStats.total} products • {categoryStats.lowStock} low
@@ -137,7 +130,7 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
               </p>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-3 space-y-1">
+            <div className="flex lg:flex-1 overflow-x-auto lg:overflow-y-auto p-2 lg:p-3 gap-1 lg:gap-0 lg:space-y-1 scrollbar-hide">
               {retailCategories.map((category) => {
                 const isActive = activeCategory === category.id;
                 return (
@@ -145,19 +138,19 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
                     key={category.id}
                     onClick={() => setActiveCategory(category.id)}
                     className={cn(
-                      'w-full flex items-center justify-between px-4 py-3 rounded text-sm font-medium transition-all',
+                      'flex items-center justify-between px-3 lg:px-4 py-2 lg:py-3 rounded text-sm font-medium transition-all whitespace-nowrap shrink-0 lg:w-full',
                       isActive
                         ? 'bg-primary text-primary-foreground'
                         : 'text-foreground hover:bg-muted'
                     )}
                   >
-                    <div className="flex items-center gap-3">
-                      <span className="text-lg">{category.icon}</span>
+                    <div className="flex items-center gap-2 lg:gap-3">
+                      <span className="text-base lg:text-lg">{category.icon}</span>
                       <span>{category.name}</span>
                     </div>
                     <span
                       className={cn(
-                        'text-xs px-2 py-0.5 rounded-full',
+                        'text-xs px-2 py-0.5 rounded-full ml-2',
                         isActive
                           ? 'bg-primary-foreground/20 text-primary-foreground'
                           : 'bg-muted text-muted-foreground'
@@ -170,8 +163,8 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
               })}
             </div>
 
-            {/* Quick stats at bottom */}
-            <div className="p-4 border-t border-border space-y-2 text-xs">
+            {/* Quick stats at bottom — hidden on mobile */}
+            <div className="hidden lg:block p-4 border-t border-border space-y-2 text-xs">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Active</span>
                 <span className="font-medium text-foreground">
@@ -194,49 +187,52 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
           </div>
 
           {/* Product List Area */}
-          <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex-1 flex flex-col overflow-hidden min-w-0">
             {/* Toolbar */}
-            <div className="p-4 border-b border-border">
-              <div className="flex items-center gap-4">
+            <div className="p-3 sm:p-4 border-b border-border">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4">
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
-                    placeholder="Search by name, SKU, brand, or barcode..."
+                    placeholder="Search products..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-10"
                   />
                 </div>
 
-                <div className="flex items-center gap-1 bg-muted p-1 rounded">
-                  <button
-                    onClick={() => setViewMode('list')}
-                    className={cn(
-                      'p-2 rounded transition-colors',
-                      viewMode === 'list'
-                        ? 'bg-background text-foreground shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground'
-                    )}
-                  >
-                    <List className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => setViewMode('grid')}
-                    className={cn(
-                      'p-2 rounded transition-colors',
-                      viewMode === 'grid'
-                        ? 'bg-background text-foreground shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground'
-                    )}
-                  >
-                    <LayoutGrid className="w-4 h-4" />
-                  </button>
-                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1 bg-muted p-1 rounded">
+                    <button
+                      onClick={() => setViewMode('list')}
+                      className={cn(
+                        'p-2 rounded transition-colors',
+                        viewMode === 'list'
+                          ? 'bg-background text-foreground shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground'
+                      )}
+                    >
+                      <List className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setViewMode('grid')}
+                      className={cn(
+                        'p-2 rounded transition-colors',
+                        viewMode === 'grid'
+                          ? 'bg-background text-foreground shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground'
+                      )}
+                    >
+                      <LayoutGrid className="w-4 h-4" />
+                    </button>
+                  </div>
 
-                <Button onClick={() => setShowAddDialog(true)}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Product
-                </Button>
+                  <Button onClick={() => setShowAddDialog(true)} size="sm">
+                    <Plus className="w-4 h-4 mr-1 sm:mr-2" />
+                    <span className="hidden sm:inline">Add Product</span>
+                    <span className="sm:hidden">Add</span>
+                  </Button>
+                </div>
               </div>
             </div>
 
@@ -250,9 +246,9 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
 
             {/* List View */}
             {viewMode === 'list' && (
-              <div className="flex-1 overflow-y-auto">
+              <div className="flex-1 overflow-y-auto overflow-x-auto">
                 {/* Table Header */}
-                <div className="sticky top-0 bg-muted/50 backdrop-blur-sm px-4 py-2 grid grid-cols-12 gap-4 text-xs font-medium text-muted-foreground uppercase">
+                <div className="sticky top-0 bg-muted/50 backdrop-blur-sm px-4 py-2 grid grid-cols-12 gap-4 text-xs font-medium text-muted-foreground uppercase min-w-[700px]">
                   <div className="col-span-4 flex items-center gap-1">
                     <button
                       onClick={() => toggleSort('name')}
@@ -485,8 +481,6 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
               </div>
             )}
           </div>
-        </div>
-      </div>
 
       {/* Product Detail Dialog */}
       <Dialog
@@ -685,7 +679,7 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
             </Button>
             <Button
               onClick={() => {
-                toast.success('Product added (demo)');
+                toast.success('Product added');
                 setShowAddDialog(false);
               }}
             >
@@ -694,6 +688,6 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageLayout>
   );
 }

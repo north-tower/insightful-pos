@@ -1,5 +1,4 @@
-import { Sidebar } from '@/components/pos/Sidebar';
-import { Header } from '@/components/pos/Header';
+import { PageLayout } from '@/components/pos/PageLayout';
 import { StatsCard } from '@/components/dashboard/StatsCard';
 import { SalesChart } from '@/components/dashboard/SalesChart';
 import { TopSellingChart } from '@/components/dashboard/TopSellingChart';
@@ -29,18 +28,10 @@ interface DashboardProps {
 
 function DashboardContent({ onNavigate }: DashboardProps) {
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
-      {/* Sidebar */}
-      <Sidebar activeTab="dashboard" onTabChange={onNavigate} />
-
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <Header />
-
-        <div className="flex-1 overflow-y-auto p-6">
+    <PageLayout activeTab="dashboard" onNavigate={onNavigate}>
           {/* Header */}
           <div className="mb-6">
-            <h1 className="text-3xl font-bold text-foreground mb-2">Service Overview</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">Service Overview</h1>
             <p className="text-muted-foreground">{dashboardStats.activeTables} tables active</p>
           </div>
 
@@ -104,9 +95,7 @@ function DashboardContent({ onNavigate }: DashboardProps) {
             <TopSellingChart data={topSellingItems} />
             <RecentOrders orders={recentOrders} />
           </div>
-        </div>
-      </div>
-    </div>
+    </PageLayout>
   );
 }
 

@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { Sidebar } from '@/components/pos/Sidebar';
-import { Header } from '@/components/pos/Header';
+import { PageLayout } from '@/components/pos/PageLayout';
 import { ReservationList } from '@/components/pos/ReservationList';
 import { TableFloorPlan } from '@/components/pos/TableFloorPlan';
 import { OrderStatusTabs } from '@/components/pos/OrderStatusTabs';
@@ -26,63 +25,55 @@ export default function ManageTable({ onNavigate }: ManageTableProps) {
   const [selectedDate, setSelectedDate] = useState('Thu, 11 January 2024');
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
-      {/* Sidebar */}
-      <Sidebar activeTab="manage-table" onTabChange={onNavigate} />
+    <PageLayout activeTab="manage-table" onNavigate={onNavigate} flexContent>
+      {/* Reservation List — hidden on mobile, visible on lg+ */}
+      <div className="hidden lg:block">
+        <ReservationList
+          reservations={reservations}
+          selectedDate={selectedDate}
+          onDateChange={setSelectedDate}
+        />
+      </div>
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <Header />
-
-        <div className="flex-1 flex overflow-hidden">
-          {/* Reservation List */}
-          <ReservationList
-            reservations={reservations}
-            selectedDate={selectedDate}
-            onDateChange={setSelectedDate}
+      {/* Floor Plan Area */}
+      <div className="flex-1 p-3 sm:p-4 lg:p-6 overflow-y-auto">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+          <OrderStatusTabs
+            tabs={viewTabs}
+            activeTab={activeView}
+            onTabChange={setActiveView}
           />
 
-          {/* Floor Plan Area */}
-          <div className="flex-1 p-6 overflow-y-auto">
-            {/* Header */}
-            <div className="flex items-center justify-between mb-6">
-              <OrderStatusTabs
-                tabs={viewTabs}
-                activeTab={activeView}
-                onTabChange={setActiveView}
-              />
-
-              <div className="flex items-center gap-4">
-                <h2 className="text-xl font-bold text-foreground">Manage Tables</h2>
-                <div className="flex bg-muted rounded-xl p-1">
-                  {areaTabs.map((area) => (
-                    <button
-                      key={area}
-                      onClick={() => setActiveArea(area)}
-                      className={cn(
-                        'px-4 py-2 rounded-lg text-sm font-medium capitalize transition-all',
-                        activeArea === area
-                          ? 'bg-primary text-primary-foreground shadow-sm'
-                          : 'text-muted-foreground hover:text-foreground'
-                      )}
-                    >
-                      {area === 'main' ? 'Main Dining' : area}
-                    </button>
-                  ))}
-                </div>
-              </div>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
+            <h2 className="text-lg sm:text-xl font-bold text-foreground">Manage Tables</h2>
+            <div className="flex bg-muted rounded-xl p-1">
+              {areaTabs.map((area) => (
+                <button
+                  key={area}
+                  onClick={() => setActiveArea(area)}
+                  className={cn(
+                    'px-3 sm:px-4 py-2 rounded-lg text-sm font-medium capitalize transition-all',
+                    activeArea === area
+                      ? 'bg-primary text-primary-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  {area === 'main' ? 'Main Dining' : area}
+                </button>
+              ))}
             </div>
-
-            {/* Floor Plan */}
-            <TableFloorPlan
-              tables={tables}
-              selectedArea={activeArea}
-              selectedTable={selectedTable}
-              onTableSelect={setSelectedTable}
-            />
           </div>
         </div>
+
+        {/* Floor Plan */}
+        <TableFloorPlan
+          tables={tables}
+          selectedArea={activeArea}
+          selectedTable={selectedTable}
+          onTableSelect={setSelectedTable}
+        />
       </div>
-    </div>
+    </PageLayout>
   );
 }
