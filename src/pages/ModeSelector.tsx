@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useBusinessMode, BUSINESS_CONFIGS, BusinessMode } from '@/context/BusinessModeContext';
 import { cn } from '@/lib/utils';
-import { ArrowRight, Check } from 'lucide-react';
+import { ArrowRight, Check, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const modes = Object.values(BUSINESS_CONFIGS);
@@ -9,10 +9,13 @@ const modes = Object.values(BUSINESS_CONFIGS);
 export default function ModeSelector() {
   const { setMode } = useBusinessMode();
   const [selected, setSelected] = useState<BusinessMode | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (selected) {
-      setMode(selected);
+      setIsSaving(true);
+      await setMode(selected);
+      setIsSaving(false);
     }
   };
 
@@ -119,12 +122,21 @@ export default function ModeSelector() {
         <div className="text-center">
           <Button
             size="lg"
-            disabled={!selected}
+            disabled={!selected || isSaving}
             onClick={handleContinue}
             className="px-8 h-12 text-base font-semibold"
           >
-            Continue
-            <ArrowRight className="w-5 h-5 ml-2" />
+            {isSaving ? (
+              <>
+                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                Setting up...
+              </>
+            ) : (
+              <>
+                Continue
+                <ArrowRight className="w-5 h-5 ml-2" />
+              </>
+            )}
           </Button>
         </div>
 

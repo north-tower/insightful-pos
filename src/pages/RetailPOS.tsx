@@ -46,7 +46,7 @@ type PaymentMethod = 'cash' | 'card' | 'qr';
 export default function RetailPOS({ onNavigate }: RetailPOSProps) {
   const { retailProducts, retailCategories, loading, refetch: refetchProducts } = useProducts();
   const { createOrder } = useOrders();
-  const { customers, getCustomerDisplayName } = useCustomers();
+  const { customers, getCustomerDisplayName, refetch: refetchCustomers } = useCustomers();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -221,7 +221,16 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
 
       if (order) {
         setLastOrder(order);
-        setLastOrderCustomer(selectedCustomer);
+
+        // Refetch customers so credit_balance reflects the DB trigger update,
+        // then grab the fresh customer object from the returned array
+        let freshCustomer: Customer | null = null;
+        if (selectedCustomer) {
+          const freshList = await refetchCustomers();
+          freshCustomer = freshList.find((c) => c.id === selectedCustomer.id) ?? selectedCustomer;
+        }
+        setLastOrderCustomer(freshCustomer);
+
         const label = saleType === 'credit' ? 'Credit invoice' : 'Sale';
         toast.success(`${label} #${order.invoice_number || order.order_number} — $${order.total.toFixed(2)}`);
         setIsInvoiceOpen(true);
@@ -311,6 +320,15 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
 
             {/* Product Grid */}
             <div className="flex-1 overflow-y-auto p-2 sm:p-3 lg:p-4">
+              {loading ? (
+                <div className="flex items-center justify-center py-20">
+                  <div className="text-center">
+                    <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-3" />
+                    <p className="text-sm text-muted-foreground">Loading products...</p>
+                  </div>
+                </div>
+              ) : (
+              <>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2 sm:gap-3">
                 {filteredProducts.map((product) => {
                   const cartItem = cart.find(
@@ -399,6 +417,8 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                   <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />
                   <p>No products found</p>
                 </div>
+              )}
+              </>
               )}
             </div>
           </div>

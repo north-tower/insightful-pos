@@ -18,14 +18,15 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Customer, CreateCustomerParams } from '@/hooks/useCustomers';
-import { X, Plus } from 'lucide-react';
+import { X, Plus, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 interface CustomerDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   customer?: Customer | null;
-  onSave: (customerData: CreateCustomerParams) => void;
+  onSave: (customerData: CreateCustomerParams) => Promise<void> | void;
+  isSaving?: boolean;
 }
 
 const emptyForm: CreateCustomerParams = {
@@ -48,6 +49,7 @@ export function CustomerDialog({
   onOpenChange,
   customer,
   onSave,
+  isSaving = false,
 }: CustomerDialogProps) {
   const [formData, setFormData] = useState<CreateCustomerParams>({ ...emptyForm });
   const [tagInput, setTagInput] = useState('');
@@ -301,10 +303,12 @@ export function CustomerDialog({
               variant="outline"
               onClick={() => onOpenChange(false)}
               className="flex-1"
+              disabled={isSaving}
             >
               Cancel
             </Button>
-            <Button type="submit" className="flex-1">
+            <Button type="submit" className="flex-1" disabled={isSaving}>
+              {isSaving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               {customer ? 'Update Customer' : 'Create Customer'}
             </Button>
           </div>

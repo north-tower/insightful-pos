@@ -57,6 +57,7 @@ export default function CustomerManagement({
     null,
   );
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [isSaving, setIsSaving] = useState(false);
 
   const filteredCustomers = useMemo(() => {
     return customers.filter((customer) => {
@@ -100,26 +101,33 @@ export default function CustomerManagement({
   };
 
   const handleSaveCustomer = async (customerData: CreateCustomerParams) => {
-    if (selectedCustomer) {
-      // Update existing
-      await updateCustomer(selectedCustomer.id, customerData);
-      toast.success(
-        `${customerData.first_name} ${customerData.last_name} updated`,
-      );
-      setIsEditDialogOpen(false);
-    } else {
-      // Create new
-      const result = await createCustomer(customerData);
-      if (result) {
+    setIsSaving(true);
+    try {
+      if (selectedCustomer) {
+        // Update existing
+        await updateCustomer(selectedCustomer.id, customerData);
         toast.success(
-          `${customerData.first_name} ${customerData.last_name} created`,
+          `${customerData.first_name} ${customerData.last_name} updated`,
         );
+        setIsEditDialogOpen(false);
       } else {
-        toast.error('Failed to create customer');
+        // Create new
+        const result = await createCustomer(customerData);
+        if (result) {
+          toast.success(
+            `${customerData.first_name} ${customerData.last_name} created`,
+          );
+        } else {
+          toast.error('Failed to create customer');
+        }
+        setIsCreateDialogOpen(false);
       }
-      setIsCreateDialogOpen(false);
+      setSelectedCustomer(null);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to save customer');
+    } finally {
+      setIsSaving(false);
     }
-    setSelectedCustomer(null);
   };
 
   return (
@@ -384,6 +392,7 @@ export default function CustomerManagement({
         open={isCreateDialogOpen}
         onOpenChange={setIsCreateDialogOpen}
         onSave={handleSaveCustomer}
+        isSaving={isSaving}
       />
 
       {selectedCustomer && (
@@ -393,6 +402,7 @@ export default function CustomerManagement({
             onOpenChange={setIsEditDialogOpen}
             customer={selectedCustomer}
             onSave={handleSaveCustomer}
+            isSaving={isSaving}
           />
           <CustomerDetailDialog
             open={isDetailDialogOpen}

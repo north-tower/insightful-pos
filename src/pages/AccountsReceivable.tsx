@@ -302,7 +302,10 @@ export default function AccountsReceivable({
           {/* Loading */}
           {ordersLoading && (
             <div className="flex items-center justify-center py-16">
-              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              <div className="text-center">
+                <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-3" />
+                <p className="text-sm text-muted-foreground">Loading accounts...</p>
+              </div>
             </div>
           )}
 

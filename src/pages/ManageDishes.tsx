@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Search, LayoutGrid, List, SlidersHorizontal, MoreVertical } from 'lucide-react';
+import { Plus, Search, LayoutGrid, List, SlidersHorizontal, MoreVertical, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -143,7 +143,18 @@ export default function ManageDishes({ onNavigate }: ManageDishesProps) {
               </div>
             </div>
 
+            {/* Loading */}
+            {loading && (
+              <div className="flex items-center justify-center py-16">
+                <div className="text-center">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-3" />
+                  <p className="text-sm text-muted-foreground">Loading dishes...</p>
+                </div>
+              </div>
+            )}
+
             {/* Dishes Grid */}
+            {!loading && (
             <div className={cn(
               'grid gap-4',
               viewMode === 'grid' ? 'grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' : 'grid-cols-1'
@@ -169,6 +180,7 @@ export default function ManageDishes({ onNavigate }: ManageDishesProps) {
                 />
               ))}
             </div>
+            )}
           </div>
     </PageLayout>
   );

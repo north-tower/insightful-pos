@@ -22,11 +22,13 @@ export function InvoicePreview({ order, customer }: InvoicePreviewProps) {
     ? `${customer.first_name} ${customer.last_name}`.trim()
     : order.customer_name || '';
 
-  // Account balance breakdown for credit sales
+  // Account balance breakdown for credit sales.
   // The DB trigger already added this order's total to credit_balance on insert,
-  // so: previous balance = current credit_balance − this invoice's unpaid portion
+  // and we refetch the customer after order creation, so credit_balance is current.
+  // overall = customer.credit_balance (includes this invoice)
+  // previous = overall − (this invoice's unpaid balance)
   const overallBalance = customer?.credit_balance ?? 0;
-  const previousBalance = Math.max(overallBalance - balanceDue, 0);
+  const previousBalance = overallBalance - balanceDue;
 
   return (
     <div className="invoice-content bg-white text-black p-8 max-w-[210mm] mx-auto font-sans text-sm leading-relaxed print:p-6">

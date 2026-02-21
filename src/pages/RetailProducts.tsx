@@ -14,6 +14,7 @@ import {
   ArrowUpDown,
   Eye,
   Copy,
+  Loader2,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -239,13 +240,22 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
             {/* Results count */}
             <div className="px-4 py-2 flex items-center justify-between text-sm text-muted-foreground">
               <span>
-                Showing {filteredProducts.length} of {retailProducts.length}{' '}
-                products
+                {loading ? 'Loading products...' : `Showing ${filteredProducts.length} of ${retailProducts.length} products`}
               </span>
             </div>
 
+            {/* Loading */}
+            {loading && (
+              <div className="flex-1 flex items-center justify-center py-16">
+                <div className="text-center">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-3" />
+                  <p className="text-sm text-muted-foreground">Loading products...</p>
+                </div>
+              </div>
+            )}
+
             {/* List View */}
-            {viewMode === 'list' && (
+            {!loading && viewMode === 'list' && (
               <div className="flex-1 overflow-y-auto overflow-x-auto">
                 {/* Table Header */}
                 <div className="sticky top-0 bg-muted/50 backdrop-blur-sm px-4 py-2 grid grid-cols-12 gap-4 text-xs font-medium text-muted-foreground uppercase min-w-[700px]">
@@ -409,7 +419,7 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
             )}
 
             {/* Grid View */}
-            {viewMode === 'grid' && (
+            {!loading && viewMode === 'grid' && (
               <div className="flex-1 overflow-y-auto p-4">
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                   {filteredProducts.map((product) => {
@@ -469,7 +479,7 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
               </div>
             )}
 
-            {filteredProducts.length === 0 && (
+            {!loading && filteredProducts.length === 0 && (
               <div className="flex-1 flex items-center justify-center text-muted-foreground">
                 <div className="text-center">
                   <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />

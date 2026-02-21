@@ -51,7 +51,7 @@ export function useCustomers() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchCustomers = useCallback(async () => {
+  const fetchCustomers = useCallback(async (): Promise<Customer[]> => {
     setLoading(true);
     setError(null);
 
@@ -64,18 +64,19 @@ export function useCustomers() {
 
       if (fetchErr) throw fetchErr;
 
-      setCustomers(
-        (data || []).map((c: any) => ({
-          ...c,
-          credit_balance: Number(c.credit_balance),
-          credit_limit: Number(c.credit_limit),
-          total_spent: Number(c.total_spent),
-          tags: c.tags || [],
-        })),
-      );
+      const mapped: Customer[] = (data || []).map((c: any) => ({
+        ...c,
+        credit_balance: Number(c.credit_balance),
+        credit_limit: Number(c.credit_limit),
+        total_spent: Number(c.total_spent),
+        tags: c.tags || [],
+      }));
+      setCustomers(mapped);
+      return mapped;
     } catch (err: any) {
       console.error('Failed to fetch customers:', err);
       setError(err.message || 'Failed to load customers');
+      return [];
     } finally {
       setLoading(false);
     }

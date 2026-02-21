@@ -23,6 +23,7 @@ import {
   Banknote,
   QrCode,
   XCircle,
+  Loader2,
 } from 'lucide-react';
 
 interface RetailDashboardProps {
@@ -65,6 +66,19 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
     (p) => p.stock > 0 && p.stock <= p.lowStockThreshold
   );
   const outOfStockProducts = retailProducts.filter((p) => p.stock === 0);
+  if (loading) {
+    return (
+      <PageLayout activeTab="dashboard" onNavigate={onNavigate}>
+        <div className="flex items-center justify-center py-32">
+          <div className="text-center">
+            <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-3" />
+            <p className="text-sm text-muted-foreground">Loading dashboard...</p>
+          </div>
+        </div>
+      </PageLayout>
+    );
+  }
+
   return (
     <PageLayout activeTab="dashboard" onNavigate={onNavigate}>
           {/* Header */}

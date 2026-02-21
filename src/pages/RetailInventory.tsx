@@ -14,6 +14,7 @@ import {
   PackageMinus,
   ClipboardList,
   Filter,
+  Loader2,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -305,6 +306,14 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                   </div>
                 </CardHeader>
                 <CardContent className="overflow-x-auto">
+                  {loading ? (
+                    <div className="flex items-center justify-center py-16">
+                      <div className="text-center">
+                        <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-3" />
+                        <p className="text-sm text-muted-foreground">Loading inventory...</p>
+                      </div>
+                    </div>
+                  ) : (
                   <div className="space-y-1 min-w-[600px]">
                     {/* Header */}
                     <div className="grid grid-cols-12 gap-3 px-3 py-2 text-xs font-medium text-muted-foreground uppercase">
@@ -405,6 +414,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                       </div>
                     )}
                   </div>
+                  )}
                 </CardContent>
               </Card>
             </div>

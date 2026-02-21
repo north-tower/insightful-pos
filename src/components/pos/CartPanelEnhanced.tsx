@@ -43,7 +43,7 @@ export function CartPanelEnhanced() {
   } = useCart();
 
   const { createOrder } = useOrders();
-  const { customers, getCustomerDisplayName } = useCustomers();
+  const { customers, getCustomerDisplayName, refetch: refetchCustomers } = useCustomers();
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card');
   const [orderType, setOrderType] = useState<OrderType>('dine-in');
@@ -182,7 +182,14 @@ export function CartPanelEnhanced() {
 
       if (order) {
         setLastOrder(order);
-        setLastOrderCustomer(selectedCustomer);
+
+        // Refetch customers so credit_balance reflects the DB trigger update
+        let freshCustomer: Customer | null = null;
+        if (selectedCustomer) {
+          const freshList = await refetchCustomers();
+          freshCustomer = freshList.find((c) => c.id === selectedCustomer.id) ?? selectedCustomer;
+        }
+        setLastOrderCustomer(freshCustomer);
         const saleLabel = saleType === 'credit' ? 'Credit invoice' : 'Order';
         toast.success(`${saleLabel} #${order.invoice_number || order.order_number} — $${order.total.toFixed(2)}`);
         setIsInvoiceOpen(true);

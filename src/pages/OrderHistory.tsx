@@ -100,6 +100,8 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
   const [isEditPaymentOpen, setIsEditPaymentOpen] = useState(false);
   const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
   const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
+  const [voidingOrderId, setVoidingOrderId] = useState<string | null>(null);
+  const [refundingOrderId, setRefundingOrderId] = useState<string | null>(null);
 
   const filteredOrders = useMemo(() => {
     let result = orders;
@@ -146,22 +148,28 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
   };
 
   const handleRefund = async (order: SaleOrder) => {
+    setRefundingOrderId(order.id);
     try {
       await refundOrder(order.id);
       toast.success(`Order #${order.order_number} refunded`);
       setIsDetailOpen(false);
     } catch (err: any) {
       toast.error(err.message || 'Failed to refund order');
+    } finally {
+      setRefundingOrderId(null);
     }
   };
 
   const handleVoid = async (order: SaleOrder) => {
+    setVoidingOrderId(order.id);
     try {
       await voidOrder(order.id);
       toast.success(`Order #${order.order_number} voided`);
       setIsDetailOpen(false);
     } catch (err: any) {
       toast.error(err.message || 'Failed to void order');
+    } finally {
+      setVoidingOrderId(null);
     }
   };
 
@@ -500,8 +508,13 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                           size="sm"
                           onClick={() => handleRefund(order)}
                           className="gap-2 text-destructive hover:text-destructive"
+                          disabled={refundingOrderId === order.id}
                         >
-                          <RotateCcw className="w-4 h-4" />
+                          {refundingOrderId === order.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <RotateCcw className="w-4 h-4" />
+                          )}
                           Refund
                         </Button>
                       )}
@@ -513,8 +526,13 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                           size="sm"
                           onClick={() => handleVoid(order)}
                           className="gap-2 text-destructive hover:text-destructive"
+                          disabled={voidingOrderId === order.id}
                         >
-                          <X className="w-4 h-4" />
+                          {voidingOrderId === order.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <X className="w-4 h-4" />
+                          )}
                           Void
                         </Button>
                       )}
@@ -801,8 +819,13 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                     variant="outline"
                       className="flex-1 gap-2 text-destructive hover:text-destructive"
                       onClick={() => handleRefund(selectedOrder)}
+                      disabled={refundingOrderId === selectedOrder.id}
                   >
-                    <RotateCcw className="w-4 h-4" />
+                    {refundingOrderId === selectedOrder.id ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <RotateCcw className="w-4 h-4" />
+                    )}
                       Refund
                   </Button>
                 )}
