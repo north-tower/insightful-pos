@@ -28,11 +28,29 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { PageLayout } from '@/components/pos/PageLayout';
 import { cn } from '@/lib/utils';
 import { useProducts } from '@/hooks/useProducts';
 import type { Product, ProductCategory } from '@/hooks/useProducts';
+import EditProductDialog from '@/components/product/EditProductDialog';
 import { toast } from 'sonner';
 
 interface RetailProductsProps {
@@ -43,7 +61,16 @@ type SortField = 'name' | 'price' | 'stock' | 'sku';
 type SortDir = 'asc' | 'desc';
 
 export default function RetailProducts({ onNavigate }: RetailProductsProps) {
-  const { retailProducts, retailCategories, loading } = useProducts();
+  const {
+    retailProducts,
+    retailCategories,
+    loading,
+    rawCategories,
+    slugToCategoryId,
+    updateProduct,
+    deleteProduct,
+    addProduct,
+  } = useProducts();
   const [activeCategory, setActiveCategory] = useState('all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>(
     typeof window !== 'undefined' && window.innerWidth < 768 ? 'grid' : 'list'
@@ -53,6 +80,103 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+
+  // Edit product state
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+
+  // Delete product state
+  const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Add product state
+  const [isAdding, setIsAdding] = useState(false);
+  const [addForm, setAddForm] = useState({
+    name: '',
+    sku: '',
+    barcode: '',
+    price: '',
+    cost: '',
+    stock: '',
+    lowStockThreshold: '10',
+    unit: 'pcs',
+    brand: '',
+    categoryId: '',
+  });
+
+  const resetAddForm = () => {
+    setAddForm({
+      name: '',
+      sku: '',
+      barcode: '',
+      price: '',
+      cost: '',
+      stock: '',
+      lowStockThreshold: '10',
+      unit: 'pcs',
+      brand: '',
+      categoryId: '',
+    });
+  };
+
+  const handleOpenEdit = (product: Product) => {
+    setEditingProduct(product);
+    setIsEditOpen(true);
+  };
+
+  const handleDeleteProduct = async () => {
+    if (!deletingProduct) return;
+    setIsDeleting(true);
+    try {
+      await deleteProduct(deletingProduct.id);
+      toast.success(`"${deletingProduct.name}" deleted`);
+      setDeletingProduct(null);
+      // If the deleted product was selected in the detail dialog, close it
+      if (selectedProduct?.id === deletingProduct.id) {
+        setSelectedProduct(null);
+      }
+    } catch (err: any) {
+      console.error('Failed to delete product:', err);
+      toast.error(err.message || 'Failed to delete product');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleAddProduct = async () => {
+    if (!addForm.name.trim()) {
+      toast.error('Product name is required');
+      return;
+    }
+    if (!addForm.price || parseFloat(addForm.price) < 0) {
+      toast.error('Valid price is required');
+      return;
+    }
+    setIsAdding(true);
+    try {
+      await addProduct({
+        name: addForm.name.trim(),
+        sku: addForm.sku.trim() || null,
+        barcode: addForm.barcode.trim() || null,
+        price: parseFloat(addForm.price),
+        cost: addForm.cost ? parseFloat(addForm.cost) : 0,
+        stock: addForm.stock ? parseInt(addForm.stock, 10) : 0,
+        low_stock_threshold: addForm.lowStockThreshold ? parseInt(addForm.lowStockThreshold, 10) : 10,
+        unit: addForm.unit.trim() || 'pcs',
+        brand: addForm.brand.trim() || null,
+        category_id: addForm.categoryId || null,
+        is_active: true,
+      });
+      toast.success(`"${addForm.name.trim()}" added successfully`);
+      setShowAddDialog(false);
+      resetAddForm();
+    } catch (err: any) {
+      console.error('Failed to add product:', err);
+      toast.error(err.message || 'Failed to add product');
+    } finally {
+      setIsAdding(false);
+    }
+  };
 
   const filteredProducts = useMemo(() => {
     let products = [...retailProducts];
@@ -345,8 +469,11 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
                           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setSelectedProduct(product)}>
                             <Eye className="w-4 h-4" />
                           </Button>
-                          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => toast.info(`Edit ${product.name}`)}>
+                          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleOpenEdit(product)}>
                             <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeletingProduct(product)}>
+                            <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
                       </div>
@@ -446,7 +573,7 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
                               size="icon"
                               variant="ghost"
                               className="h-7 w-7"
-                              onClick={(e) => { e.stopPropagation(); toast.info(`Edit ${product.name}`); }}
+                              onClick={(e) => { e.stopPropagation(); handleOpenEdit(product); }}
                             >
                               <Edit className="w-3.5 h-3.5" />
                             </Button>
@@ -581,22 +708,35 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
 
               <DialogFooter className="flex-col sm:flex-row gap-2">
                 <Button
-                  variant="outline"
-                  className="w-full sm:w-auto"
-                  onClick={() => setSelectedProduct(null)}
-                >
-                  Close
-                </Button>
-                <Button
+                  variant="destructive"
                   className="w-full sm:w-auto"
                   onClick={() => {
-                    toast.info(`Edit ${selectedProduct.name}`);
+                    setDeletingProduct(selectedProduct);
                     setSelectedProduct(null);
                   }}
                 >
-                  <Edit className="w-4 h-4 mr-2" />
-                  Edit Product
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete
                 </Button>
+                <div className="flex gap-2 w-full sm:w-auto">
+                  <Button
+                    variant="outline"
+                    className="flex-1 sm:flex-initial"
+                    onClick={() => setSelectedProduct(null)}
+                  >
+                    Close
+                  </Button>
+                  <Button
+                    className="flex-1 sm:flex-initial"
+                    onClick={() => {
+                      handleOpenEdit(selectedProduct);
+                      setSelectedProduct(null);
+                    }}
+                  >
+                    <Edit className="w-4 h-4 mr-2" />
+                    Edit
+                  </Button>
+                </div>
               </DialogFooter>
             </>
           )}
@@ -604,7 +744,7 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
       </Dialog>
 
       {/* Add Product Dialog */}
-      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+      <Dialog open={showAddDialog} onOpenChange={(v) => { if (!isAdding) { setShowAddDialog(v); if (!v) resetAddForm(); } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add New Product</DialogTitle>
@@ -616,71 +756,198 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
           <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div className="sm:col-span-2">
-                <Label>Product Name</Label>
-                <Input placeholder="e.g. Wireless Earbuds Pro" className="mt-1" />
+                <Label>Product Name *</Label>
+                <Input
+                  placeholder="e.g. Wireless Earbuds Pro"
+                  className="mt-1"
+                  value={addForm.name}
+                  onChange={(e) => setAddForm((f) => ({ ...f, name: e.target.value }))}
+                  disabled={isAdding}
+                />
               </div>
               <div>
                 <Label>SKU</Label>
-                <Input placeholder="e.g. ELC-005" className="mt-1 font-mono" />
+                <Input
+                  placeholder="e.g. ELC-005"
+                  className="mt-1 font-mono"
+                  value={addForm.sku}
+                  onChange={(e) => setAddForm((f) => ({ ...f, sku: e.target.value }))}
+                  disabled={isAdding}
+                />
               </div>
               <div>
                 <Label>Barcode</Label>
                 <Input
                   placeholder="Scan or enter"
                   className="mt-1 font-mono"
+                  value={addForm.barcode}
+                  onChange={(e) => setAddForm((f) => ({ ...f, barcode: e.target.value }))}
+                  disabled={isAdding}
                 />
               </div>
               <div>
-                <Label>Selling Price</Label>
+                <Label>Selling Price *</Label>
                 <Input
                   type="number"
+                  step="0.01"
+                  min="0"
                   placeholder="0.00"
                   className="mt-1"
+                  value={addForm.price}
+                  onChange={(e) => setAddForm((f) => ({ ...f, price: e.target.value }))}
+                  disabled={isAdding}
                 />
               </div>
               <div>
                 <Label>Cost Price</Label>
                 <Input
                   type="number"
+                  step="0.01"
+                  min="0"
                   placeholder="0.00"
                   className="mt-1"
+                  value={addForm.cost}
+                  onChange={(e) => setAddForm((f) => ({ ...f, cost: e.target.value }))}
+                  disabled={isAdding}
                 />
               </div>
               <div>
                 <Label>Stock Quantity</Label>
                 <Input
                   type="number"
+                  min="0"
                   placeholder="0"
                   className="mt-1"
+                  value={addForm.stock}
+                  onChange={(e) => setAddForm((f) => ({ ...f, stock: e.target.value }))}
+                  disabled={isAdding}
                 />
               </div>
               <div>
                 <Label>Low Stock Alert</Label>
                 <Input
                   type="number"
+                  min="0"
                   placeholder="10"
                   className="mt-1"
+                  value={addForm.lowStockThreshold}
+                  onChange={(e) => setAddForm((f) => ({ ...f, lowStockThreshold: e.target.value }))}
+                  disabled={isAdding}
                 />
+              </div>
+              <div>
+                <Label>Unit</Label>
+                <Input
+                  placeholder="pcs, kg, ltr..."
+                  className="mt-1"
+                  value={addForm.unit}
+                  onChange={(e) => setAddForm((f) => ({ ...f, unit: e.target.value }))}
+                  disabled={isAdding}
+                />
+              </div>
+              <div>
+                <Label>Brand</Label>
+                <Input
+                  placeholder="Brand name"
+                  className="mt-1"
+                  value={addForm.brand}
+                  onChange={(e) => setAddForm((f) => ({ ...f, brand: e.target.value }))}
+                  disabled={isAdding}
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <Label>Category</Label>
+                <Select
+                  value={addForm.categoryId}
+                  onValueChange={(v) => setAddForm((f) => ({ ...f, categoryId: v }))}
+                  disabled={isAdding}
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Select a category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {rawCategories.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.id}>
+                        {cat.icon ? `${cat.icon} ` : ''}{cat.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </div>
 
           <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button variant="outline" className="w-full sm:w-auto" onClick={() => setShowAddDialog(false)}>
+            <Button
+              variant="outline"
+              className="w-full sm:w-auto"
+              onClick={() => { setShowAddDialog(false); resetAddForm(); }}
+              disabled={isAdding}
+            >
               Cancel
             </Button>
             <Button
               className="w-full sm:w-auto"
-              onClick={() => {
-                toast.success('Product added');
-                setShowAddDialog(false);
-              }}
+              onClick={handleAddProduct}
+              disabled={isAdding}
             >
-              Add Product
+              {isAdding ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  Adding…
+                </>
+              ) : (
+                'Add Product'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Edit Product Dialog */}
+      <EditProductDialog
+        product={editingProduct}
+        open={isEditOpen}
+        onOpenChange={(v) => {
+          setIsEditOpen(v);
+          if (!v) setEditingProduct(null);
+        }}
+        rawCategories={rawCategories}
+        slugToCategoryId={slugToCategoryId}
+        onUpdate={updateProduct}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deletingProduct} onOpenChange={(v) => { if (!v && !isDeleting) setDeletingProduct(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Product</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <strong>"{deletingProduct?.name}"</strong>?
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting} onClick={() => setDeletingProduct(null)}>
+              Cancel
+            </AlertDialogCancel>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteProduct}
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  Deleting…
+                </>
+              ) : (
+                'Delete'
+              )}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </PageLayout>
   );
 }
