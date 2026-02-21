@@ -12,6 +12,7 @@ import RetailDashboard from '@/pages/RetailDashboard';
 import RetailPOS from '@/pages/RetailPOS';
 import RetailProducts from '@/pages/RetailProducts';
 import RetailInventory from '@/pages/RetailInventory';
+import Purchases from '@/pages/Purchases';
 import AccountsReceivable from '@/pages/AccountsReceivable';
 
 function POSApp() {
@@ -30,23 +31,25 @@ function POSApp() {
 
   // ─── Restaurant mode pages ────────────────────────────────────────────────
   if (isRestaurant) {
-    switch (currentPage) {
-      case 'dashboard':
-        return <Dashboard onNavigate={handleNavigate} />;
-      case 'order-line':
-        return <OrderLine onNavigate={handleNavigate} />;
-      case 'order-history':
-        return <OrderHistory onNavigate={handleNavigate} />;
-      case 'customers':
-        return <CustomerManagement onNavigate={handleNavigate} />;
+  switch (currentPage) {
+    case 'dashboard':
+      return <Dashboard onNavigate={handleNavigate} />;
+    case 'order-line':
+      return <OrderLine onNavigate={handleNavigate} />;
+    case 'order-history':
+      return <OrderHistory onNavigate={handleNavigate} />;
+    case 'customers':
+      return <CustomerManagement onNavigate={handleNavigate} />;
       case 'accounts':
         return <AccountsReceivable onNavigate={handleNavigate} />;
-      case 'manage-table':
-        return <ManageTable onNavigate={handleNavigate} />;
-      case 'manage-dishes':
-        return <ManageDishes onNavigate={handleNavigate} />;
-      default:
-        return <Dashboard onNavigate={handleNavigate} />;
+    case 'purchases':
+      return <Purchases onNavigate={handleNavigate} />;
+    case 'manage-table':
+      return <ManageTable onNavigate={handleNavigate} />;
+    case 'manage-dishes':
+      return <ManageDishes onNavigate={handleNavigate} />;
+    default:
+      return <Dashboard onNavigate={handleNavigate} />;
     }
   }
 
@@ -60,6 +63,8 @@ function POSApp() {
       return <RetailProducts onNavigate={handleNavigate} />;
     case 'inventory':
       return <RetailInventory onNavigate={handleNavigate} />;
+    case 'purchases':
+      return <Purchases onNavigate={handleNavigate} />;
     case 'order-history':
       return <OrderHistory onNavigate={handleNavigate} />;
     case 'accounts':

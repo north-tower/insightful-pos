@@ -39,7 +39,7 @@ function DashboardContent({ onNavigate }: DashboardProps) {
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
             {/* Active Tables - BIGGEST, spans 2 columns on large screens */}
             <div className="md:col-span-2 lg:col-span-2">
-              <StatsCard
+            <StatsCard
                 title="Tables Active"
                 value={dashboardStats.activeTables}
                 icon={<Table2 className="w-6 h-6" />}

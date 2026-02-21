@@ -46,11 +46,11 @@ export function Header({ onMenuToggle }: HeaderProps) {
 
         {/* Search — hide on very small screens, show on sm+ */}
         <div className="relative hidden sm:block sm:w-48 md:w-64 lg:w-96">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Input
             placeholder={searchPlaceholder}
-            className="pl-10 bg-muted/50 border-0 focus-visible:ring-1 focus-visible:ring-primary"
-          />
+          className="pl-10 bg-muted/50 border-0 focus-visible:ring-1 focus-visible:ring-primary"
+        />
         </div>
 
         {/* Mode badge — hidden on xs, visible on md+ */}

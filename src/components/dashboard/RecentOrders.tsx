@@ -32,10 +32,10 @@ export function RecentOrders({ orders }: RecentOrdersProps) {
           {orders.map((order) => {
             const status = statusStyles[order.status];
             return (
-                <div
-                  key={order.id}
+              <div
+                key={order.id}
                   className="flex items-center justify-between p-4 rounded border border-border hover:bg-muted/50 transition-colors"
-                >
+              >
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
                     <div>

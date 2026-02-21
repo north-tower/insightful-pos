@@ -165,7 +165,7 @@ export function IncomingOrdersQueue({ className }: IncomingOrdersQueueProps) {
                         {isUrgent && (
                           <Badge className="bg-destructive text-destructive-foreground text-xs font-bold px-2 py-1">
                             LATE
-                          </Badge>
+                        </Badge>
                         )}
                       </div>
                       
@@ -206,13 +206,13 @@ export function IncomingOrdersQueue({ className }: IncomingOrdersQueueProps) {
                           <span className="text-sm font-normal text-warning ml-2">• {item.notes}</span>
                         )}
                       </div>
-                    ))}
+                      ))}
                     {order.orderNotes && (
                       <div className="text-sm text-muted-foreground italic mt-1">
                         Note: {order.orderNotes}
                       </div>
-                    )}
-                  </div>
+                      )}
+                    </div>
 
                   {/* Total and item count */}
                   <div className="text-sm text-muted-foreground mb-3">

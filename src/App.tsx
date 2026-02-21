@@ -20,12 +20,12 @@ const App = () => (
   <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
     <AuthProvider>
       <BusinessModeProvider>
-        <QueryClientProvider client={queryClient}>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
-              <Routes>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
                 {/* Protected POS app – requires authentication */}
                 <Route
                   path="/"
@@ -37,30 +37,30 @@ const App = () => (
                 />
 
                 {/* Public customer-facing routes – no auth needed */}
-                <Route
-                  path="/order"
-                  element={
-                    <CartProvider>
-                      <OrderQueueProvider>
-                        <CustomerOrder />
-                      </OrderQueueProvider>
-                    </CartProvider>
-                  }
-                />
-                <Route
-                  path="/track/:trackingCode"
-                  element={
-                    <OrderQueueProvider>
-                      <CustomerOrderTracking />
-                    </OrderQueueProvider>
-                  }
-                />
-                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </BrowserRouter>
-          </TooltipProvider>
-        </QueryClientProvider>
+            <Route
+              path="/order"
+              element={
+                <CartProvider>
+                  <OrderQueueProvider>
+                    <CustomerOrder />
+                  </OrderQueueProvider>
+                </CartProvider>
+              }
+            />
+            <Route
+              path="/track/:trackingCode"
+              element={
+                <OrderQueueProvider>
+                  <CustomerOrderTracking />
+                </OrderQueueProvider>
+              }
+            />
+            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
       </BusinessModeProvider>
     </AuthProvider>
   </ThemeProvider>

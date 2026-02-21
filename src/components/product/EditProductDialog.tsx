@@ -19,6 +19,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
+import ImageUploader from '@/components/product/ImageUploader';
 import type { Product } from '@/data/productData';
 import { toast } from 'sonner';
 
@@ -63,6 +70,7 @@ export default function EditProductDialog({
   const [categoryId, setCategoryId] = useState('');
   const [isActive, setIsActive] = useState(true);
   const [discount, setDiscount] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
 
   // Reset form when product changes
   useEffect(() => {
@@ -78,6 +86,7 @@ export default function EditProductDialog({
       setBrand(product.brand || '');
       setIsActive(product.isActive);
       setDiscount(product.discount?.toString() || '');
+      setImageUrl(product.image || '');
       // Resolve slug → category UUID
       const catId = slugToCategoryId.get(product.category) || '';
       setCategoryId(catId);
@@ -110,6 +119,7 @@ export default function EditProductDialog({
         category_id: categoryId || null,
         is_active: isActive,
         discount: discount ? parseFloat(discount) : null,
+        image_url: imageUrl || null,
       });
       toast.success(`"${name.trim()}" updated successfully`);
       onOpenChange(false);
@@ -300,6 +310,31 @@ export default function EditProductDialog({
               disabled={isSaving}
             />
           </div>
+
+          {/* Image uploader in collapsible accordion */}
+          <Accordion type="single" collapsible defaultValue={imageUrl ? 'image' : undefined} className="w-full">
+            <AccordionItem value="image" className="border rounded-lg">
+              <AccordionTrigger className="px-3 py-2.5 text-sm font-medium hover:no-underline">
+                <div className="flex items-center gap-2">
+                  <span>📷</span>
+                  <span>Product Image</span>
+                  {imageUrl && (
+                    <span className="text-[10px] text-success font-normal bg-success/10 px-1.5 py-0.5 rounded-full">
+                      Set
+                    </span>
+                  )}
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="px-3 pb-3 pt-0">
+                <ImageUploader
+                  value={imageUrl}
+                  onChange={setImageUrl}
+                  productName={name}
+                  disabled={isSaving}
+                />
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
 
           {/* Active toggle */}
           <div className="flex items-center justify-between p-3 rounded-lg border border-border">

@@ -28,6 +28,7 @@ import {
   UserPlus,
   ChevronDown,
 } from 'lucide-react';
+import { generatePlaceholderUrl } from '@/lib/product-images';
 import { toast } from 'sonner';
 
 interface RetailPOSProps {
@@ -356,7 +357,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                       {/* Image */}
                       <div className="relative aspect-square rounded overflow-hidden bg-muted mb-2">
                         <img
-                          src={product.image}
+                          src={product.image || generatePlaceholderUrl(product.name)}
                           alt={product.name}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                         />
@@ -623,7 +624,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                         className="flex gap-2.5 p-2.5 rounded-lg border border-border"
                       >
                         <img
-                          src={item.product.image}
+                          src={item.product.image || generatePlaceholderUrl(item.product.name)}
                           alt={item.product.name}
                           className="w-11 h-11 rounded object-cover"
                         />
@@ -946,7 +947,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                     className="flex gap-3 p-3 rounded border border-border"
                   >
                     <img
-                      src={item.product.image}
+                      src={item.product.image || generatePlaceholderUrl(item.product.name)}
                       alt={item.product.name}
                       className="w-12 h-12 rounded object-cover"
                     />

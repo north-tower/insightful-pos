@@ -46,11 +46,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
 import { PageLayout } from '@/components/pos/PageLayout';
 import { cn } from '@/lib/utils';
 import { useProducts } from '@/hooks/useProducts';
 import type { Product, ProductCategory } from '@/hooks/useProducts';
 import EditProductDialog from '@/components/product/EditProductDialog';
+import ImageUploader from '@/components/product/ImageUploader';
+import { generatePlaceholderUrl } from '@/lib/product-images';
 import { toast } from 'sonner';
 
 interface RetailProductsProps {
@@ -102,6 +110,7 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
     unit: 'pcs',
     brand: '',
     categoryId: '',
+    imageUrl: '',
   });
 
   const resetAddForm = () => {
@@ -116,8 +125,13 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
       unit: 'pcs',
       brand: '',
       categoryId: '',
+      imageUrl: '',
     });
   };
+
+  /** Get the product image URL, falling back to a generated placeholder */
+  const getProductImage = (product: Product) =>
+    product.image || generatePlaceholderUrl(product.name);
 
   const handleOpenEdit = (product: Product) => {
     setEditingProduct(product);
@@ -165,6 +179,7 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
         unit: addForm.unit.trim() || 'pcs',
         brand: addForm.brand.trim() || null,
         category_id: addForm.categoryId || null,
+        image_url: addForm.imageUrl || null,
         is_active: true,
       });
       toast.success(`"${addForm.name.trim()}" added successfully`);
@@ -257,7 +272,7 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
               </p>
             </div>
 
-            <div className="flex lg:flex-1 overflow-x-auto lg:overflow-y-auto px-2 py-1.5 lg:p-3 gap-1 lg:gap-0 lg:space-y-1 scrollbar-hide">
+            <div className="flex lg:flex-col lg:flex-1 overflow-x-auto lg:overflow-y-auto px-2 py-1.5 lg:p-3 gap-1 lg:gap-0 lg:space-y-1 scrollbar-hide">
               {retailCategories.map((category) => {
                 const isActive = activeCategory === category.id;
                 return (
@@ -438,7 +453,7 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
                         className="px-4 py-3 grid grid-cols-12 gap-4 items-center hover:bg-muted/30 transition-colors"
                       >
                         <div className="col-span-4 flex items-center gap-3">
-                          <img src={product.image} alt={product.name} className="w-10 h-10 rounded object-cover" />
+                          <img src={getProductImage(product)} alt={product.name} className="w-10 h-10 rounded object-cover" />
                           <div className="min-w-0">
                             <p className="text-sm font-semibold text-foreground truncate">{product.name}</p>
                             <p className="text-xs text-muted-foreground">{product.brand || product.category}</p>
@@ -492,7 +507,7 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
                         onClick={() => setSelectedProduct(product)}
                       >
                         <img
-                          src={product.image}
+                          src={getProductImage(product)}
                           alt={product.name}
                           className="w-12 h-12 rounded-lg object-cover shrink-0"
                         />
@@ -540,7 +555,7 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
                       >
                         <div className="relative aspect-square rounded-md overflow-hidden bg-muted mb-2 sm:mb-3">
                           <img
-                            src={product.image}
+                            src={getProductImage(product)}
                             alt={product.name}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                           />
@@ -618,7 +633,7 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
 
               <div className="space-y-3 sm:space-y-4">
                 <img
-                  src={selectedProduct.image}
+                  src={selectedProduct.image || generatePlaceholderUrl(selectedProduct.name)}
                   alt={selectedProduct.name}
                   className="w-full h-36 sm:h-48 object-cover rounded"
                 />
@@ -875,6 +890,31 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
                 </Select>
               </div>
             </div>
+
+            {/* Image uploader in collapsible accordion */}
+            <Accordion type="single" collapsible className="w-full">
+              <AccordionItem value="image" className="border rounded-lg">
+                <AccordionTrigger className="px-3 py-2.5 text-sm font-medium hover:no-underline">
+                  <div className="flex items-center gap-2">
+                    <span>📷</span>
+                    <span>Product Image</span>
+                    {addForm.imageUrl && (
+                      <span className="text-[10px] text-success font-normal bg-success/10 px-1.5 py-0.5 rounded-full">
+                        Uploaded
+                      </span>
+                    )}
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="px-3 pb-3 pt-0">
+                  <ImageUploader
+                    value={addForm.imageUrl}
+                    onChange={(url) => setAddForm((f) => ({ ...f, imageUrl: url }))}
+                    productName={addForm.name}
+                    disabled={isAdding}
+                  />
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
           </div>
 
           <DialogFooter className="flex-col sm:flex-row gap-2">

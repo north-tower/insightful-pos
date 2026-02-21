@@ -15,6 +15,7 @@ import {
   Receipt,
   Store,
   CircleDollarSign,
+  Truck,
   X,
   type LucideIcon,
 } from 'lucide-react';
@@ -46,6 +47,7 @@ const restaurantNavItems: NavItem[] = [
   { id: 'order-line', label: 'Order Line', icon: ClipboardList },
   { id: 'order-history', label: 'Order History', icon: History },
   { id: 'accounts', label: 'Accounts', icon: CircleDollarSign, roles: ['admin', 'manager', 'cashier'] },
+  { id: 'purchases', label: 'Purchases', icon: Truck, roles: ['admin', 'manager'] },
   { id: 'manage-table', label: 'Manage Table', icon: Armchair, roles: ['admin', 'manager'] },
   { id: 'manage-dishes', label: 'Manage Dishes', icon: UtensilsCrossed, roles: ['admin', 'manager'] },
   { id: 'customers', label: 'Customers', icon: Users, roles: ['admin', 'manager'] },
@@ -55,6 +57,7 @@ const retailNavItems: NavItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'pos', label: 'Point of Sale', icon: ShoppingCart },
   { id: 'products', label: 'Products', icon: Package, roles: ['admin', 'manager'] },
+  { id: 'purchases', label: 'Purchases', icon: Truck, roles: ['admin', 'manager'] },
   { id: 'inventory', label: 'Inventory', icon: Warehouse, roles: ['admin', 'manager'] },
   { id: 'order-history', label: 'Transactions', icon: Receipt },
   { id: 'accounts', label: 'Accounts', icon: CircleDollarSign, roles: ['admin', 'manager', 'cashier'] },
@@ -108,15 +111,15 @@ export function Sidebar({ activeTab, onTabChange, mobileOpen, onMobileClose }: S
       {/* Logo Section */}
       <div className="p-6 pb-8 border-b border-sidebar-border/50">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <div className="w-12 h-12 bg-gradient-to-br from-sidebar-primary to-sidebar-accent rounded-2xl flex items-center justify-center shadow-lg">
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <div className="w-12 h-12 bg-gradient-to-br from-sidebar-primary to-sidebar-accent rounded-2xl flex items-center justify-center shadow-lg">
                 <LogoIcon className="w-6 h-6 text-sidebar-primary-foreground" />
-              </div>
-              <div className="absolute -top-1 -right-1 w-4 h-4 bg-success rounded-full border-2 border-sidebar"></div>
             </div>
-            <div>
-              <h1 className="font-bold text-xl leading-tight tracking-tight">Nexus</h1>
+            <div className="absolute -top-1 -right-1 w-4 h-4 bg-success rounded-full border-2 border-sidebar"></div>
+          </div>
+          <div>
+            <h1 className="font-bold text-xl leading-tight tracking-tight">Nexus</h1>
               <p className="text-xs text-sidebar-foreground/60 font-medium">{config.label} POS</p>
             </div>
           </div>
