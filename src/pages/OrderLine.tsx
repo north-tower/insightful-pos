@@ -38,23 +38,23 @@ function OrderLineContent({ onNavigate }: OrderLineProps) {
   return (
     <PageLayout activeTab="order-line" onNavigate={onNavigate} flexContent>
           {/* Incoming Orders Queue — hidden on mobile, visible on lg+ */}
-          {showIncomingQueue && (
+            {showIncomingQueue && (
             <div className="hidden lg:block w-80 border-r border-border overflow-y-auto shrink-0">
-              <IncomingOrdersQueue className="h-full rounded-none border-0" />
-            </div>
-          )}
+                <IncomingOrdersQueue className="h-full rounded-none border-0" />
+              </div>
+            )}
 
-          {/* Menu Area */}
+            {/* Menu Area */}
           <div className="flex-1 p-3 sm:p-4 lg:p-6 overflow-y-auto min-w-0">
             {/* Order Status */}
             <div className="mb-4 lg:mb-6">
               <h1 className="text-xl sm:text-2xl font-bold text-foreground mb-3 sm:mb-4">Order Line</h1>
               <div className="overflow-x-auto scrollbar-hide">
-                <OrderStatusTabs
-                  tabs={orderStatusTabs}
-                  activeTab={activeStatus}
-                  onTabChange={setActiveStatus}
-                />
+              <OrderStatusTabs
+                tabs={orderStatusTabs}
+                activeTab={activeStatus}
+                onTabChange={setActiveStatus}
+              />
               </div>
             </div>
 
@@ -97,11 +97,11 @@ function OrderLineContent({ onNavigate }: OrderLineProps) {
               </div>
 
               <div className="overflow-x-auto scrollbar-hide">
-                <CategoryTabs
-                  categories={categories}
-                  activeCategory={activeCategory}
-                  onCategoryChange={setActiveCategory}
-                />
+              <CategoryTabs
+                categories={categories}
+                activeCategory={activeCategory}
+                onCategoryChange={setActiveCategory}
+              />
               </div>
 
               {/* Menu Grid */}

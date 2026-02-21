@@ -193,8 +193,8 @@ export function CartPanelEnhanced() {
         const saleLabel = saleType === 'credit' ? 'Credit invoice' : 'Order';
         toast.success(`${saleLabel} #${order.invoice_number || order.order_number} — $${order.total.toFixed(2)}`);
         setIsInvoiceOpen(true);
-        clearCart();
-        setPartialPayment(null);
+    clearCart();
+    setPartialPayment(null);
         setSplitPaymentMethods([]);
         setSelectedCustomer(null);
         setSaleType('cash');
@@ -609,36 +609,36 @@ export function CartPanelEnhanced() {
 
           {/* Payment Method — hidden for credit sales */}
           {saleType === 'cash' && (
-            <div>
-              <p className="text-sm font-medium text-foreground mb-2">Payment Method</p>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { id: 'cash' as PaymentMethod, icon: Banknote, label: 'Cash' },
-                  { id: 'card' as PaymentMethod, icon: CreditCard, label: 'Card' },
-                  { id: 'qr' as PaymentMethod, icon: QrCode, label: 'Scan' },
-                  { id: 'split' as PaymentMethod, icon: Split, label: 'Split' },
-                ].map(({ id, icon: Icon, label }) => (
-                  <button
-                    key={id}
-                    onClick={() => {
-                      setPaymentMethod(id);
-                      if (id === 'split') {
-                        setIsSplitDialogOpen(true);
-                      }
-                    }}
-                    className={cn(
-                      'flex flex-col items-center gap-1 p-2 rounded-xl text-xs font-medium transition-all',
-                      paymentMethod === id
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                    )}
-                  >
-                    <Icon className="w-4 h-4" />
-                    {label}
-                  </button>
-                ))}
-              </div>
+          <div>
+            <p className="text-sm font-medium text-foreground mb-2">Payment Method</p>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { id: 'cash' as PaymentMethod, icon: Banknote, label: 'Cash' },
+                { id: 'card' as PaymentMethod, icon: CreditCard, label: 'Card' },
+                { id: 'qr' as PaymentMethod, icon: QrCode, label: 'Scan' },
+                { id: 'split' as PaymentMethod, icon: Split, label: 'Split' },
+              ].map(({ id, icon: Icon, label }) => (
+                <button
+                  key={id}
+                  onClick={() => {
+                    setPaymentMethod(id);
+                    if (id === 'split') {
+                      setIsSplitDialogOpen(true);
+                    }
+                  }}
+                  className={cn(
+                    'flex flex-col items-center gap-1 p-2 rounded-xl text-xs font-medium transition-all',
+                    paymentMethod === id
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                  )}
+                >
+                  <Icon className="w-4 h-4" />
+                  {label}
+                </button>
+              ))}
             </div>
+          </div>
           )}
 
           {/* Credit sale info */}
