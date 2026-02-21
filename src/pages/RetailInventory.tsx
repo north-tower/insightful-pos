@@ -2,9 +2,7 @@ import { useState, useMemo } from 'react';
 import {
   Search,
   Package,
-  AlertTriangle,
   XCircle,
-  ArrowUpDown,
   TrendingDown,
   TrendingUp,
   RotateCcw,
@@ -13,7 +11,6 @@ import {
   PackagePlus,
   PackageMinus,
   ClipboardList,
-  Filter,
   Loader2,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -33,18 +30,18 @@ import { PageLayout } from '@/components/pos/PageLayout';
 import { cn } from '@/lib/utils';
 import { useProducts } from '@/hooks/useProducts';
 import type { Product } from '@/hooks/useProducts';
-import { recentStockAdjustments, StockAdjustment } from '@/data/productData';
+import { useStockAdjustments, type StockAdjustmentRow } from '@/hooks/useStockAdjustments';
 import { toast } from 'sonner';
-import { format, formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow } from 'date-fns';
 
 interface RetailInventoryProps {
   onNavigate: (tab: string) => void;
 }
 
-type StockFilter = 'all' | 'low' | 'out' | 'healthy';
+type StockFilter = 'all' | 'in-stock' | 'out';
 
 const adjustmentTypeStyles: Record<
-  StockAdjustment['type'],
+  StockAdjustmentRow['type'],
   { label: string; color: string; icon: typeof TrendingUp }
 > = {
   restock: { label: 'Restocked', color: 'text-success', icon: PackagePlus },
@@ -59,7 +56,13 @@ const adjustmentTypeStyles: Record<
 };
 
 export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
-  const { retailProducts, loading } = useProducts();
+  const { retailProducts, loading, refetch: refetchProducts } = useProducts();
+  const {
+    adjustments,
+    loading: adjustmentsLoading,
+    adjustStock,
+  } = useStockAdjustments(30);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [stockFilter, setStockFilter] = useState<StockFilter>('all');
   const [showAdjustDialog, setShowAdjustDialog] = useState(false);
@@ -67,6 +70,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
   const [adjustType, setAdjustType] = useState<'add' | 'subtract'>('add');
   const [adjustQty, setAdjustQty] = useState('');
   const [adjustNote, setAdjustNote] = useState('');
+  const [isAdjusting, setIsAdjusting] = useState(false);
 
   // Stock summary
   const stockSummary = useMemo(() => {
@@ -76,15 +80,10 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
       (sum, p) => sum + p.cost * p.stock,
       0
     );
-    const lowStock = retailProducts.filter(
-      (p) => p.stock > 0 && p.stock <= p.lowStockThreshold
-    );
+    const inStock = retailProducts.filter((p) => p.stock > 0);
     const outOfStock = retailProducts.filter((p) => p.stock <= 0);
-    const healthy = retailProducts.filter(
-      (p) => p.stock > p.lowStockThreshold
-    );
 
-    return { totalProducts, totalUnits, totalValue, lowStock, outOfStock, healthy };
+    return { totalProducts, totalUnits, totalValue, inStock, outOfStock };
   }, [retailProducts]);
 
   // Filtered products
@@ -93,16 +92,11 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
 
     // Filter by stock status
     switch (stockFilter) {
-      case 'low':
-        products = products.filter(
-          (p) => p.stock > 0 && p.stock <= p.lowStockThreshold
-        );
+      case 'in-stock':
+        products = products.filter((p) => p.stock > 0);
         break;
       case 'out':
         products = products.filter((p) => p.stock <= 0);
-        break;
-      case 'healthy':
-        products = products.filter((p) => p.stock > p.lowStockThreshold);
         break;
     }
 
@@ -117,20 +111,10 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
       );
     }
 
-    // Sort: out of stock first, then low stock, then by stock asc
+    // Sort: out of stock first, then by stock ascending
     products.sort((a, b) => {
       if (a.stock === 0 && b.stock !== 0) return -1;
       if (a.stock !== 0 && b.stock === 0) return 1;
-      if (
-        a.stock <= a.lowStockThreshold &&
-        b.stock > b.lowStockThreshold
-      )
-        return -1;
-      if (
-        a.stock > a.lowStockThreshold &&
-        b.stock <= b.lowStockThreshold
-      )
-        return 1;
       return a.stock - b.stock;
     });
 
@@ -145,30 +129,38 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
     setShowAdjustDialog(true);
   };
 
-  const handleAdjustment = () => {
+  const handleAdjustment = async () => {
     if (!adjustProduct || !adjustQty) return;
     const qty = parseInt(adjustQty, 10);
     if (isNaN(qty) || qty <= 0) {
       toast.error('Enter a valid quantity');
       return;
     }
-    const action = adjustType === 'add' ? 'added to' : 'removed from';
-    toast.success(
-      `${qty} units ${action} ${adjustProduct.name}`
-    );
-    setShowAdjustDialog(false);
-  };
 
-  const getStockBarWidth = (product: Product) => {
-    // Visual stock level relative to threshold * 3 (assumed "good" level)
-    const maxReference = product.lowStockThreshold * 3;
-    return Math.min((product.stock / maxReference) * 100, 100);
-  };
+    setIsAdjusting(true);
+    try {
+      const effectiveQty = adjustType === 'add' ? qty : -qty;
+      const type = adjustType === 'add' ? 'restock' : 'adjustment';
 
-  const getStockBarColor = (product: Product) => {
-    if (product.stock <= 0) return 'bg-destructive';
-    if (product.stock <= product.lowStockThreshold) return 'bg-warning';
-    return 'bg-success';
+      await adjustStock(
+        adjustProduct.id,
+        type,
+        effectiveQty,
+        adjustNote || undefined,
+      );
+
+      // Refresh product list so stock numbers update
+      await refetchProducts();
+
+      const action = adjustType === 'add' ? 'added to' : 'removed from';
+      toast.success(`${qty} units ${action} ${adjustProduct.name}`);
+      setShowAdjustDialog(false);
+    } catch (err: any) {
+      console.error('Stock adjustment failed:', err);
+      toast.error(err.message || 'Failed to adjust stock');
+    } finally {
+      setIsAdjusting(false);
+    }
   };
 
   return (
@@ -187,7 +179,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
           </div>
 
           {/* Summary Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
+          <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-6">
             <Card
               className={cn(
                 'cursor-pointer transition-all',
@@ -205,7 +197,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                       {stockSummary.totalProducts}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      ${stockSummary.totalValue.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} inventory value
+                      ${stockSummary.totalValue.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} value
                     </p>
                   </div>
                   <Package className="w-8 h-8 text-primary opacity-50" />
@@ -216,9 +208,9 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
             <Card
               className={cn(
                 'cursor-pointer transition-all',
-                stockFilter === 'healthy' && 'ring-2 ring-success'
+                stockFilter === 'in-stock' && 'ring-2 ring-success'
               )}
-              onClick={() => setStockFilter('healthy')}
+              onClick={() => setStockFilter('in-stock')}
             >
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
@@ -227,36 +219,11 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                       In Stock
                     </p>
                     <p className="text-2xl font-bold text-success">
-                      {stockSummary.healthy.length}
+                      {stockSummary.inStock.length}
                     </p>
-                    <p className="text-xs text-success mt-1">Stock healthy</p>
+                    <p className="text-xs text-success mt-1">Available</p>
                   </div>
                   <TrendingUp className="w-8 h-8 text-success opacity-50" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card
-              className={cn(
-                'cursor-pointer transition-all',
-                stockFilter === 'low' && 'ring-2 ring-warning'
-              )}
-              onClick={() => setStockFilter('low')}
-            >
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">
-                      Low Stock
-                    </p>
-                    <p className="text-2xl font-bold text-warning">
-                      {stockSummary.lowStock.length}
-                    </p>
-                    <p className="text-xs text-warning mt-1">
-                      Need restocking
-                    </p>
-                  </div>
-                  <AlertTriangle className="w-8 h-8 text-warning opacity-50" />
                 </div>
               </CardContent>
             </Card>
@@ -278,7 +245,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                       {stockSummary.outOfStock.length}
                     </p>
                     <p className="text-xs text-destructive mt-1">
-                      Urgent reorder
+                      Need restock
                     </p>
                   </div>
                   <XCircle className="w-8 h-8 text-destructive opacity-50" />
@@ -314,28 +281,23 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                       </div>
                     </div>
                   ) : (
-                  <div className="space-y-1 min-w-[600px]">
+                  <div className="space-y-1 min-w-[500px]">
                     {/* Header */}
                     <div className="grid grid-cols-12 gap-3 px-3 py-2 text-xs font-medium text-muted-foreground uppercase">
-                      <div className="col-span-4">Product</div>
-                      <div className="col-span-2">SKU</div>
-                      <div className="col-span-1 text-center">Stock</div>
-                      <div className="col-span-3">Level</div>
+                      <div className="col-span-5">Product</div>
+                      <div className="col-span-3">SKU</div>
+                      <div className="col-span-2 text-center">Stock</div>
                       <div className="col-span-2 text-right">Action</div>
                     </div>
 
                     {/* Rows */}
-                    {filteredProducts.map((product) => {
-                      const barWidth = getStockBarWidth(product);
-                      const barColor = getStockBarColor(product);
-
-                      return (
+                    {filteredProducts.map((product) => (
                         <div
                           key={product.id}
                           className="grid grid-cols-12 gap-3 items-center px-3 py-3 rounded hover:bg-muted/30 transition-colors"
                         >
                           {/* Product */}
-                          <div className="col-span-4 flex items-center gap-3">
+                          <div className="col-span-5 flex items-center gap-3">
                             <img
                               src={product.image}
                               alt={product.name}
@@ -352,44 +314,20 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                           </div>
 
                           {/* SKU */}
-                          <div className="col-span-2">
+                          <div className="col-span-3">
                             <span className="text-xs font-mono">
                               {product.sku}
                             </span>
                           </div>
 
                           {/* Stock count */}
-                          <div className="col-span-1 text-center">
-                            <span
-                              className={cn(
-                                'text-sm font-bold',
-                                product.stock <= 0
-                                  ? 'text-destructive'
-                                  : product.stock <= product.lowStockThreshold
-                                  ? 'text-warning'
-                                  : 'text-foreground'
-                              )}
+                          <div className="col-span-2 text-center">
+                            <Badge
+                              variant={product.stock <= 0 ? 'destructive' : 'secondary'}
+                              className="font-bold"
                             >
-                              {product.stock}
-                            </span>
-                          </div>
-
-                          {/* Stock bar */}
-                          <div className="col-span-3">
-                            <div className="flex items-center gap-2">
-                              <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                                <div
-                                  className={cn(
-                                    'h-full rounded-full transition-all',
-                                    barColor
-                                  )}
-                                  style={{ width: `${barWidth}%` }}
-                                />
-                              </div>
-                              <span className="text-xs text-muted-foreground w-12 text-right">
-                                / {product.lowStockThreshold * 3}
-                              </span>
-                            </div>
+                              {product.stock} {product.unit}
+                            </Badge>
                           </div>
 
                           {/* Action */}
@@ -404,8 +342,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                             </Button>
                           </div>
                         </div>
-                      );
-                    })}
+                    ))}
 
                     {filteredProducts.length === 0 && (
                       <div className="text-center py-12 text-muted-foreground">
@@ -426,72 +363,89 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                   <CardTitle>Recent Adjustments</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
-                    {recentStockAdjustments.map((adj) => {
-                      const style = adjustmentTypeStyles[adj.type];
-                      const Icon = style.icon;
-                      return (
-                        <div
-                          key={adj.id}
-                          className="flex items-start gap-3 pb-4 border-b border-border last:border-0 last:pb-0"
-                        >
+                  {adjustmentsLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : adjustments.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <ClipboardList className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">No adjustments yet</p>
+                      <p className="text-xs mt-1">
+                        Stock changes from purchases and manual adjustments will appear here
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4 max-h-[600px] overflow-y-auto">
+                      {adjustments.map((adj) => {
+                        const style = adjustmentTypeStyles[adj.type];
+                        const Icon = style.icon;
+                        return (
                           <div
-                            className={cn(
-                              'p-2 rounded bg-muted',
-                              style.color
-                            )}
+                            key={adj.id}
+                            className="flex items-start gap-3 pb-4 border-b border-border last:border-0 last:pb-0"
                           >
-                            <Icon className="w-4 h-4" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-foreground truncate">
-                              {adj.productName}
-                            </p>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <Badge
-                                variant="outline"
-                                className={cn('text-xs', style.color)}
-                              >
-                                {style.label}
-                              </Badge>
-                              <span
-                                className={cn(
-                                  'text-xs font-mono font-bold',
-                                  adj.quantity > 0
-                                    ? 'text-success'
-                                    : 'text-destructive'
-                                )}
-                              >
-                                {adj.quantity > 0 ? '+' : ''}
-                                {adj.quantity}
-                              </span>
+                            <div
+                              className={cn(
+                                'p-2 rounded bg-muted shrink-0',
+                                style.color
+                              )}
+                            >
+                              <Icon className="w-4 h-4" />
                             </div>
-                            {adj.note && (
-                              <p className="text-xs text-muted-foreground mt-1">
-                                {adj.note}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-foreground truncate">
+                                {adj.product_name}
                               </p>
-                            )}
-                            <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-                              <span>{adj.staffName}</span>
-                              <span>•</span>
-                              <span>
-                                {formatDistanceToNow(adj.date, {
-                                  addSuffix: true,
-                                })}
-                              </span>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <Badge
+                                  variant="outline"
+                                  className={cn('text-xs', style.color)}
+                                >
+                                  {style.label}
+                                </Badge>
+                                <span
+                                  className={cn(
+                                    'text-xs font-mono font-bold',
+                                    adj.quantity > 0
+                                      ? 'text-success'
+                                      : 'text-destructive'
+                                  )}
+                                >
+                                  {adj.quantity > 0 ? '+' : ''}
+                                  {adj.quantity}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  ({adj.previous_stock} → {adj.new_stock})
+                                </span>
+                              </div>
+                              {adj.note && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  {adj.note}
+                                </p>
+                              )}
+                              <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                                <span>{adj.staff_name}</span>
+                                <span>•</span>
+                                <span>
+                                  {formatDistanceToNow(new Date(adj.created_at), {
+                                    addSuffix: true,
+                                  })}
+                                </span>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
           </div>
 
       {/* Stock Adjustment Dialog */}
-      <Dialog open={showAdjustDialog} onOpenChange={setShowAdjustDialog}>
+      <Dialog open={showAdjustDialog} onOpenChange={(open) => !isAdjusting && setShowAdjustDialog(open)}>
         <DialogContent className="max-w-sm">
           {adjustProduct && (
             <>
@@ -508,6 +462,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                 <div className="flex gap-2">
                   <button
                     onClick={() => setAdjustType('add')}
+                    disabled={isAdjusting}
                     className={cn(
                       'flex-1 flex items-center justify-center gap-2 py-3 rounded text-sm font-medium transition-all',
                       adjustType === 'add'
@@ -520,6 +475,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                   </button>
                   <button
                     onClick={() => setAdjustType('subtract')}
+                    disabled={isAdjusting}
                     className={cn(
                       'flex-1 flex items-center justify-center gap-2 py-3 rounded text-sm font-medium transition-all',
                       adjustType === 'subtract'
@@ -541,6 +497,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                     onChange={(e) => setAdjustQty(e.target.value)}
                     className="mt-1 text-lg"
                     min="1"
+                    disabled={isAdjusting}
                   />
                 </div>
 
@@ -551,6 +508,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                     value={adjustNote}
                     onChange={(e) => setAdjustNote(e.target.value)}
                     className="mt-1"
+                    disabled={isAdjusting}
                   />
                 </div>
 
@@ -596,18 +554,29 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                 <Button
                   variant="outline"
                   onClick={() => setShowAdjustDialog(false)}
+                  disabled={isAdjusting}
                 >
                   Cancel
                 </Button>
                 <Button
                   onClick={handleAdjustment}
+                  disabled={isAdjusting || !adjustQty || parseInt(adjustQty) <= 0}
                   className={cn(
                     adjustType === 'add'
                       ? 'bg-success hover:bg-success/90'
                       : 'bg-destructive hover:bg-destructive/90'
                   )}
                 >
-                  {adjustType === 'add' ? 'Add Stock' : 'Remove Stock'}
+                  {isAdjusting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                      Saving...
+                    </>
+                  ) : adjustType === 'add' ? (
+                    'Add Stock'
+                  ) : (
+                    'Remove Stock'
+                  )}
                 </Button>
               </DialogFooter>
             </>
