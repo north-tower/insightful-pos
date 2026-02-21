@@ -45,7 +45,9 @@ type SortDir = 'asc' | 'desc';
 export default function RetailProducts({ onNavigate }: RetailProductsProps) {
   const { retailProducts, retailCategories, loading } = useProducts();
   const [activeCategory, setActiveCategory] = useState('all');
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>(
+    typeof window !== 'undefined' && window.innerWidth < 768 ? 'grid' : 'list'
+  );
   const [searchQuery, setSearchQuery] = useState('');
   const [sortField, setSortField] = useState<SortField>('name');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
@@ -121,7 +123,7 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
 
   return (
     <PageLayout activeTab="products" onNavigate={onNavigate} flexContent>
-          {/* Category Sidebar — horizontal on mobile, vertical on lg+ */}
+          {/* Category Sidebar — compact horizontal strip on mobile, vertical on lg+ */}
           <div className="lg:w-64 bg-card border-b lg:border-b-0 lg:border-r border-border flex lg:flex-col shrink-0">
             <div className="hidden lg:block p-4 border-b border-border">
               <h2 className="text-lg font-bold text-foreground">Categories</h2>
@@ -131,7 +133,7 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
               </p>
             </div>
 
-            <div className="flex lg:flex-1 overflow-x-auto lg:overflow-y-auto p-2 lg:p-3 gap-1 lg:gap-0 lg:space-y-1 scrollbar-hide">
+            <div className="flex lg:flex-1 overflow-x-auto lg:overflow-y-auto px-2 py-1.5 lg:p-3 gap-1 lg:gap-0 lg:space-y-1 scrollbar-hide">
               {retailCategories.map((category) => {
                 const isActive = activeCategory === category.id;
                 return (
@@ -139,19 +141,17 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
                     key={category.id}
                     onClick={() => setActiveCategory(category.id)}
                     className={cn(
-                      'flex items-center justify-between px-3 lg:px-4 py-2 lg:py-3 rounded text-sm font-medium transition-all whitespace-nowrap shrink-0 lg:w-full',
+                      'flex items-center gap-1.5 lg:gap-3 lg:justify-between px-2.5 lg:px-4 py-1.5 lg:py-3 rounded text-xs lg:text-sm font-medium transition-all whitespace-nowrap shrink-0 lg:w-full',
                       isActive
                         ? 'bg-primary text-primary-foreground'
                         : 'text-foreground hover:bg-muted'
                     )}
                   >
-                    <div className="flex items-center gap-2 lg:gap-3">
-                      <span className="text-base lg:text-lg">{category.icon}</span>
-                      <span>{category.name}</span>
-                    </div>
+                    <span className="hidden lg:inline text-lg">{category.icon}</span>
+                    <span>{category.name}</span>
                     <span
                       className={cn(
-                        'text-xs px-2 py-0.5 rounded-full ml-2',
+                        'text-[10px] lg:text-xs px-1.5 lg:px-2 py-0.5 rounded-full',
                         isActive
                           ? 'bg-primary-foreground/20 text-primary-foreground'
                           : 'bg-muted text-muted-foreground'
@@ -238,7 +238,7 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
             </div>
 
             {/* Results count */}
-            <div className="px-4 py-2 flex items-center justify-between text-sm text-muted-foreground">
+            <div className="px-3 sm:px-4 py-1.5 sm:py-2 flex items-center justify-between text-xs sm:text-sm text-muted-foreground">
               <span>
                 {loading ? 'Loading products...' : `Showing ${filteredProducts.length} of ${retailProducts.length} products`}
               </span>
@@ -256,52 +256,56 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
 
             {/* List View */}
             {!loading && viewMode === 'list' && (
-              <div className="flex-1 overflow-y-auto overflow-x-auto">
-                {/* Table Header */}
-                <div className="sticky top-0 bg-muted/50 backdrop-blur-sm px-4 py-2 grid grid-cols-12 gap-4 text-xs font-medium text-muted-foreground uppercase min-w-[700px]">
+              <div className="flex-1 overflow-y-auto">
+                {/* ── Desktop table header (hidden on mobile) ── */}
+                <div className="hidden md:grid sticky top-0 bg-muted/50 backdrop-blur-sm px-4 py-2 grid-cols-12 gap-4 text-xs font-medium text-muted-foreground uppercase">
                   <div className="col-span-4 flex items-center gap-1">
-                    <button
-                      onClick={() => toggleSort('name')}
-                      className="flex items-center gap-1 hover:text-foreground"
-                    >
-                      Product
-                      <ArrowUpDown className="w-3 h-3" />
+                    <button onClick={() => toggleSort('name')} className="flex items-center gap-1 hover:text-foreground">
+                      Product <ArrowUpDown className="w-3 h-3" />
                     </button>
                   </div>
                   <div className="col-span-2 flex items-center gap-1">
-                    <button
-                      onClick={() => toggleSort('sku')}
-                      className="flex items-center gap-1 hover:text-foreground"
-                    >
-                      SKU
-                      <ArrowUpDown className="w-3 h-3" />
+                    <button onClick={() => toggleSort('sku')} className="flex items-center gap-1 hover:text-foreground">
+                      SKU <ArrowUpDown className="w-3 h-3" />
                     </button>
                   </div>
                   <div className="col-span-1 flex items-center gap-1">
-                    <button
-                      onClick={() => toggleSort('price')}
-                      className="flex items-center gap-1 hover:text-foreground"
-                    >
-                      Price
-                      <ArrowUpDown className="w-3 h-3" />
+                    <button onClick={() => toggleSort('price')} className="flex items-center gap-1 hover:text-foreground">
+                      Price <ArrowUpDown className="w-3 h-3" />
                     </button>
                   </div>
                   <div className="col-span-1">Cost</div>
                   <div className="col-span-1 flex items-center gap-1">
-                    <button
-                      onClick={() => toggleSort('stock')}
-                      className="flex items-center gap-1 hover:text-foreground"
-                    >
-                      Stock
-                      <ArrowUpDown className="w-3 h-3" />
+                    <button onClick={() => toggleSort('stock')} className="flex items-center gap-1 hover:text-foreground">
+                      Stock <ArrowUpDown className="w-3 h-3" />
                     </button>
                   </div>
                   <div className="col-span-2">Status</div>
                   <div className="col-span-1 text-right">Actions</div>
                 </div>
 
-                {/* Product Rows */}
-                <div className="divide-y divide-border">
+                {/* ── Mobile sort bar (hidden on desktop) ── */}
+                <div className="flex md:hidden items-center gap-2 px-3 py-2 border-b border-border overflow-x-auto scrollbar-hide">
+                  <span className="text-[10px] text-muted-foreground uppercase shrink-0">Sort:</span>
+                  {([['name', 'Name'], ['price', 'Price'], ['stock', 'Stock'], ['sku', 'SKU']] as [SortField, string][]).map(([field, label]) => (
+                    <button
+                      key={field}
+                      onClick={() => toggleSort(field)}
+                      className={cn(
+                        'text-[11px] font-medium px-2 py-1 rounded-full shrink-0 flex items-center gap-0.5 transition-colors',
+                        sortField === field
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted text-muted-foreground hover:text-foreground'
+                      )}
+                    >
+                      {label}
+                      {sortField === field && <ArrowUpDown className="w-2.5 h-2.5" />}
+                    </button>
+                  ))}
+                </div>
+
+                {/* ── Desktop rows (hidden on mobile) ── */}
+                <div className="hidden md:block divide-y divide-border">
                   {filteredProducts.map((product) => {
                     const status = getStockStatus(product);
                     return (
@@ -309,107 +313,84 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
                         key={product.id}
                         className="px-4 py-3 grid grid-cols-12 gap-4 items-center hover:bg-muted/30 transition-colors"
                       >
-                        {/* Product name + image */}
                         <div className="col-span-4 flex items-center gap-3">
-                          <img
-                            src={product.image}
-                            alt={product.name}
-                            className="w-10 h-10 rounded object-cover"
-                          />
+                          <img src={product.image} alt={product.name} className="w-10 h-10 rounded object-cover" />
                           <div className="min-w-0">
-                            <p className="text-sm font-semibold text-foreground truncate">
-                              {product.name}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {product.brand || product.category}
-                            </p>
+                            <p className="text-sm font-semibold text-foreground truncate">{product.name}</p>
+                            <p className="text-xs text-muted-foreground">{product.brand || product.category}</p>
                           </div>
                         </div>
-
-                        {/* SKU */}
                         <div className="col-span-2">
-                          <span className="text-sm font-mono text-foreground">
-                            {product.sku}
-                          </span>
-                          {product.barcode && (
-                            <p className="text-xs text-muted-foreground font-mono">
-                              {product.barcode}
-                            </p>
-                          )}
+                          <span className="text-sm font-mono text-foreground">{product.sku}</span>
+                          {product.barcode && <p className="text-xs text-muted-foreground font-mono">{product.barcode}</p>}
                         </div>
-
-                        {/* Price */}
                         <div className="col-span-1">
-                          <span className="text-sm font-semibold">
-                            ${product.price.toFixed(2)}
-                          </span>
+                          <span className="text-sm font-semibold">${product.price.toFixed(2)}</span>
                         </div>
-
-                        {/* Cost */}
                         <div className="col-span-1">
-                          <span className="text-sm text-muted-foreground">
-                            ${product.cost.toFixed(2)}
-                          </span>
-                          <p className="text-xs text-success">
-                            {Math.round(
-                              ((product.price - product.cost) / product.price) *
-                                100
-                            )}
-                            % margin
-                          </p>
+                          <span className="text-sm text-muted-foreground">${product.cost.toFixed(2)}</span>
+                          <p className="text-xs text-success">{Math.round(((product.price - product.cost) / product.price) * 100)}% margin</p>
                         </div>
-
-                        {/* Stock */}
                         <div className="col-span-1">
-                          <span
-                            className={cn(
-                              'text-sm font-semibold',
-                              product.stock <= 0
-                                ? 'text-destructive'
-                                : product.stock <= product.lowStockThreshold
-                                ? 'text-warning'
-                                : 'text-foreground'
-                            )}
-                          >
+                          <span className={cn('text-sm font-semibold', product.stock <= 0 ? 'text-destructive' : product.stock <= product.lowStockThreshold ? 'text-warning' : 'text-foreground')}>
                             {product.stock}
                           </span>
-                          <p className="text-xs text-muted-foreground">
-                            {product.unit}
-                          </p>
+                          <p className="text-xs text-muted-foreground">{product.unit}</p>
                         </div>
-
-                        {/* Status */}
                         <div className="col-span-2 flex items-center gap-2">
-                          <Badge className={cn('text-xs', status.color)}>
-                            {status.label}
-                          </Badge>
-                          {product.variants && (
-                            <Badge variant="outline" className="text-xs">
-                              {product.variants.length} variants
-                            </Badge>
-                          )}
+                          <Badge className={cn('text-xs', status.color)}>{status.label}</Badge>
+                          {product.variants && <Badge variant="outline" className="text-xs">{product.variants.length} variants</Badge>}
                         </div>
-
-                        {/* Actions */}
                         <div className="col-span-1 flex items-center justify-end gap-1">
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8"
-                            onClick={() => setSelectedProduct(product)}
-                          >
+                          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setSelectedProduct(product)}>
                             <Eye className="w-4 h-4" />
                           </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8"
-                            onClick={() =>
-                              toast.info(`Edit ${product.name}`)
-                            }
-                          >
+                          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => toast.info(`Edit ${product.name}`)}>
                             <Edit className="w-4 h-4" />
                           </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* ── Mobile card rows (hidden on desktop) ── */}
+                <div className="md:hidden divide-y divide-border">
+                  {filteredProducts.map((product) => {
+                    const status = getStockStatus(product);
+                    return (
+                      <div
+                        key={product.id}
+                        className="flex items-center gap-3 px-3 py-2.5 active:bg-muted/40 transition-colors"
+                        onClick={() => setSelectedProduct(product)}
+                      >
+                        <img
+                          src={product.image}
+                          alt={product.name}
+                          className="w-12 h-12 rounded-lg object-cover shrink-0"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-sm font-semibold text-foreground truncate">{product.name}</p>
+                            <Badge className={cn('text-[10px] px-1.5 py-0 shrink-0', status.color)}>
+                              {product.stock <= 0 ? 'Out' : product.stock <= product.lowStockThreshold ? 'Low' : product.stock}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-xs text-muted-foreground font-mono">{product.sku}</span>
+                            {product.brand && (
+                              <>
+                                <span className="text-muted-foreground">·</span>
+                                <span className="text-xs text-muted-foreground truncate">{product.brand}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-sm font-bold text-foreground">${product.price.toFixed(2)}</p>
+                          <p className="text-[10px] text-success">
+                            {Math.round(((product.price - product.cost) / product.price) * 100)}% margin
+                          </p>
                         </div>
                       </div>
                     );
@@ -420,43 +401,44 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
 
             {/* Grid View */}
             {!loading && viewMode === 'grid' && (
-              <div className="flex-1 overflow-y-auto p-4">
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              <div className="flex-1 overflow-y-auto p-2 sm:p-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-4">
                   {filteredProducts.map((product) => {
                     const status = getStockStatus(product);
                     return (
                       <div
                         key={product.id}
-                        className="bg-card border border-border rounded p-3 group hover:border-primary/40 transition-all"
+                        className="bg-card border border-border rounded-lg p-2 sm:p-3 group hover:border-primary/40 active:bg-muted/30 transition-all cursor-pointer"
+                        onClick={() => setSelectedProduct(product)}
                       >
-                        <div className="relative aspect-square rounded overflow-hidden bg-muted mb-3">
+                        <div className="relative aspect-square rounded-md overflow-hidden bg-muted mb-2 sm:mb-3">
                           <img
                             src={product.image}
                             alt={product.name}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                           />
-                          <div className="absolute top-2 right-2">
-                            <Badge className={cn('text-xs', status.color)}>
+                          <div className="absolute top-1 right-1 sm:top-2 sm:right-2">
+                            <Badge className={cn('text-[10px] sm:text-xs px-1.5 sm:px-2', status.color)}>
                               {product.stock} left
                             </Badge>
                           </div>
                         </div>
-                        <p className="text-sm font-semibold text-foreground line-clamp-2 mb-1">
+                        <p className="text-xs sm:text-sm font-semibold text-foreground line-clamp-1 sm:line-clamp-2 mb-0.5 sm:mb-1">
                           {product.name}
                         </p>
-                        <p className="text-xs text-muted-foreground mb-2">
+                        <p className="text-[10px] sm:text-xs text-muted-foreground mb-1 sm:mb-2 truncate">
                           {product.sku}
                         </p>
                         <div className="flex items-center justify-between">
-                          <span className="text-base font-bold">
+                          <span className="text-sm sm:text-base font-bold">
                             ${product.price.toFixed(2)}
                           </span>
-                          <div className="flex gap-1">
+                          <div className="hidden sm:flex gap-1">
                             <Button
                               size="icon"
                               variant="ghost"
                               className="h-7 w-7"
-                              onClick={() => setSelectedProduct(product)}
+                              onClick={(e) => { e.stopPropagation(); setSelectedProduct(product); }}
                             >
                               <Eye className="w-3.5 h-3.5" />
                             </Button>
@@ -464,9 +446,7 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
                               size="icon"
                               variant="ghost"
                               className="h-7 w-7"
-                              onClick={() =>
-                                toast.info(`Edit ${product.name}`)
-                              }
+                              onClick={(e) => { e.stopPropagation(); toast.info(`Edit ${product.name}`); }}
                             >
                               <Edit className="w-3.5 h-3.5" />
                             </Button>
@@ -497,43 +477,54 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
         open={!!selectedProduct}
         onOpenChange={() => setSelectedProduct(null)}
       >
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           {selectedProduct && (
             <>
               <DialogHeader>
-                <DialogTitle>{selectedProduct.name}</DialogTitle>
-                <DialogDescription>
+                <DialogTitle className="text-base sm:text-lg">{selectedProduct.name}</DialogTitle>
+                <DialogDescription className="text-xs sm:text-sm">
                   SKU: {selectedProduct.sku}
                   {selectedProduct.barcode &&
                     ` • Barcode: ${selectedProduct.barcode}`}
                 </DialogDescription>
               </DialogHeader>
 
-              <div className="space-y-4">
+              <div className="space-y-3 sm:space-y-4">
                 <img
                   src={selectedProduct.image}
                   alt={selectedProduct.name}
-                  className="w-full h-48 object-cover rounded"
+                  className="w-full h-36 sm:h-48 object-cover rounded"
                 />
 
-                <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="grid grid-cols-3 sm:grid-cols-2 gap-3 sm:gap-4 text-sm">
                   <div>
-                    <p className="text-muted-foreground">Price</p>
-                    <p className="font-bold text-lg">
+                    <p className="text-xs text-muted-foreground">Price</p>
+                    <p className="font-bold text-base sm:text-lg">
                       ${selectedProduct.price.toFixed(2)}
                     </p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground">Cost</p>
-                    <p className="font-bold text-lg">
+                    <p className="text-xs text-muted-foreground">Cost</p>
+                    <p className="font-bold text-base sm:text-lg">
                       ${selectedProduct.cost.toFixed(2)}
                     </p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground">Stock</p>
+                    <p className="text-xs text-muted-foreground">Margin</p>
+                    <p className="font-bold text-base sm:text-lg text-success">
+                      {Math.round(
+                        ((selectedProduct.price - selectedProduct.cost) /
+                          selectedProduct.price) *
+                          100
+                      )}
+                      %
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Stock</p>
                     <p
                       className={cn(
-                        'font-bold text-lg',
+                        'font-bold text-base sm:text-lg',
                         selectedProduct.stock <= 0
                           ? 'text-destructive'
                           : selectedProduct.stock <=
@@ -546,25 +537,14 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
                     </p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground">Margin</p>
-                    <p className="font-bold text-lg text-success">
-                      {Math.round(
-                        ((selectedProduct.price - selectedProduct.cost) /
-                          selectedProduct.price) *
-                          100
-                      )}
-                      %
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Category</p>
-                    <p className="font-medium capitalize">
+                    <p className="text-xs text-muted-foreground">Category</p>
+                    <p className="font-medium capitalize text-sm">
                       {selectedProduct.category}
                     </p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground">Brand</p>
-                    <p className="font-medium">
+                    <p className="text-xs text-muted-foreground">Brand</p>
+                    <p className="font-medium text-sm">
                       {selectedProduct.brand || '—'}
                     </p>
                   </div>
@@ -573,18 +553,18 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
                 {selectedProduct.variants &&
                   selectedProduct.variants.length > 0 && (
                     <div>
-                      <p className="text-sm text-muted-foreground mb-2">
+                      <p className="text-xs sm:text-sm text-muted-foreground mb-2">
                         Variants
                       </p>
-                      <div className="space-y-2">
+                      <div className="space-y-1.5 sm:space-y-2">
                         {selectedProduct.variants.map((v) => (
                           <div
                             key={v.id}
-                            className="flex items-center justify-between p-2 rounded border border-border text-sm"
+                            className="flex items-center justify-between p-2 rounded border border-border text-xs sm:text-sm"
                           >
                             <span className="font-medium">{v.name}</span>
-                            <div className="flex items-center gap-4">
-                              <span className="font-mono text-xs">
+                            <div className="flex items-center gap-2 sm:gap-4">
+                              <span className="font-mono text-[10px] sm:text-xs hidden sm:inline">
                                 {v.sku}
                               </span>
                               <span>${v.price.toFixed(2)}</span>
@@ -599,14 +579,16 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
                   )}
               </div>
 
-              <DialogFooter>
+              <DialogFooter className="flex-col sm:flex-row gap-2">
                 <Button
                   variant="outline"
+                  className="w-full sm:w-auto"
                   onClick={() => setSelectedProduct(null)}
                 >
                   Close
                 </Button>
                 <Button
+                  className="w-full sm:w-auto"
                   onClick={() => {
                     toast.info(`Edit ${selectedProduct.name}`);
                     setSelectedProduct(null);
@@ -623,7 +605,7 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
 
       {/* Add Product Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add New Product</DialogTitle>
             <DialogDescription>
@@ -632,8 +614,8 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
           </DialogHeader>
 
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              <div className="sm:col-span-2">
                 <Label>Product Name</Label>
                 <Input placeholder="e.g. Wireless Earbuds Pro" className="mt-1" />
               </div>
@@ -683,11 +665,12 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
             </div>
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddDialog(false)}>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" className="w-full sm:w-auto" onClick={() => setShowAddDialog(false)}>
               Cancel
             </Button>
             <Button
+              className="w-full sm:w-auto"
               onClick={() => {
                 toast.success('Product added');
                 setShowAddDialog(false);

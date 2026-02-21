@@ -287,6 +287,14 @@ export function useProducts() {
     [fetchData],
   );
 
+  // ── Reverse slug → category id map (for edit forms) ─────────────────
+
+  const slugToCategoryId = useMemo(() => {
+    const map = new Map<string, string>();
+    supaCategories.forEach((c) => map.set(slugify(c.name), c.id));
+    return map;
+  }, [supaCategories]);
+
   // ── Return ─────────────────────────────────────────────────────────────
 
   return {
@@ -301,6 +309,10 @@ export function useProducts() {
     // Retail
     retailProducts,
     retailCategories,
+
+    // Raw category data (for edit forms)
+    rawCategories: supaCategories,
+    slugToCategoryId,
 
     // Write ops
     addProduct,

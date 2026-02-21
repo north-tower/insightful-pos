@@ -445,7 +445,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
               {/* Backdrop */}
               <div
                 className="absolute inset-0 bg-black/40"
-                onClick={() => setMobileCartOpen(false)}
+                onClick={() => { if (!isProcessing) setMobileCartOpen(false); }}
               />
               {/* Panel */}
               <div className="relative mt-auto bg-card rounded-t-2xl border-t border-border flex flex-col max-h-[85vh] animate-in slide-in-from-bottom duration-200">
@@ -453,8 +453,9 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                 <div className="flex items-center justify-between p-3 border-b border-border">
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => setMobileCartOpen(false)}
+                      onClick={() => { if (!isProcessing) setMobileCartOpen(false); }}
                       className="p-1 rounded-lg hover:bg-muted text-muted-foreground"
+                      disabled={isProcessing}
                     >
                       <ChevronDown className="w-5 h-5" />
                     </button>
@@ -736,8 +737,8 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                         ? 'bg-warning hover:bg-warning/90 text-warning-foreground'
                         : ''
                     )}
-                    onClick={() => {
-                      handleCompleteSale();
+                    onClick={async () => {
+                      await handleCompleteSale();
                       setMobileCartOpen(false);
                     }}
                     disabled={isProcessing || (saleType === 'credit' && !selectedCustomer)}
