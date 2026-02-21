@@ -11,7 +11,6 @@ import {
   XCircle,
   Trash2,
   Edit,
-  ChevronDown,
   X,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -68,7 +67,7 @@ const statusStyles: Record<string, { label: string; variant: 'default' | 'second
 // ── Main Component ───────────────────────────────────────────────────────────
 
 export default function Purchases({ onNavigate }: PurchasesProps) {
-  const { purchases, loading: purchasesLoading, createPurchase, receivePurchase, cancelPurchase, deletePurchase } = usePurchases();
+  const { purchases, loading: purchasesLoading, createPurchase, updatePurchase, receivePurchase, cancelPurchase, deletePurchase } = usePurchases();
   const { suppliers, loading: suppliersLoading, addSupplier, updateSupplier, deleteSupplier } = useSuppliers();
   const { retailProducts, refetch: refetchProducts } = useProducts();
 
@@ -78,7 +77,8 @@ export default function Purchases({ onNavigate }: PurchasesProps) {
   const [statusFilter, setStatusFilter] = useState('all');
 
   // ── Purchase order state ──────────────────────────────────────────────
-  const [showNewPurchase, setShowNewPurchase] = useState(false);
+  const [showPoDialog, setShowPoDialog] = useState(false);
+  const [editingPurchaseId, setEditingPurchaseId] = useState<string | null>(null); // null = new, id = editing
   const [isCreating, setIsCreating] = useState(false);
   const [poSupplierId, setPoSupplierId] = useState('');
   const [poReference, setPoReference] = useState('');
@@ -190,9 +190,9 @@ export default function Purchases({ onNavigate }: PurchasesProps) {
 
   const poSubtotal = poItems.reduce((s, i) => s + i.quantity * i.unit_cost, 0);
 
-  // ── Handle create purchase ────────────────────────────────────────────
+  // ── Handle create / update purchase ──────────────────────────────────
 
-  const handleCreatePurchase = async () => {
+  const handleSavePurchase = async () => {
     if (poItems.length === 0) {
       toast.error('Add at least one item');
       return;
@@ -205,40 +205,79 @@ export default function Purchases({ onNavigate }: PurchasesProps) {
 
     setIsCreating(true);
     try {
-      await createPurchase(
-        poSupplierId || null,
-        poItems.map(({ _key, ...rest }) => rest),
-        {
-          notes: poNotes || undefined,
-          reference: poReference || undefined,
-          receivedImmediately: poReceiveNow,
-        },
-      );
-      if (poReceiveNow) {
-        await refetchProducts();
+      if (editingPurchaseId) {
+        // ── Update existing purchase ──
+        await updatePurchase(
+          editingPurchaseId,
+          poSupplierId || null,
+          poItems.map(({ _key, ...rest }) => rest),
+          { notes: poNotes || undefined, reference: poReference || undefined },
+        );
+        toast.success('Purchase order updated');
+      } else {
+        // ── Create new ──
+        await createPurchase(
+          poSupplierId || null,
+          poItems.map(({ _key, ...rest }) => rest),
+          {
+            notes: poNotes || undefined,
+            reference: poReference || undefined,
+            receivedImmediately: poReceiveNow,
+          },
+        );
+        if (poReceiveNow) {
+          await refetchProducts();
+        }
+        toast.success(
+          poReceiveNow
+            ? 'Purchase created and stock updated!'
+            : 'Purchase order created',
+        );
       }
-      toast.success(
-        poReceiveNow
-          ? 'Purchase created and stock updated!'
-          : 'Purchase order created',
-      );
       resetPoForm();
-      setShowNewPurchase(false);
+      setShowPoDialog(false);
     } catch (err: any) {
       console.error(err);
-      toast.error(err.message || 'Failed to create purchase');
+      toast.error(err.message || 'Failed to save purchase');
     } finally {
       setIsCreating(false);
     }
   };
 
   const resetPoForm = () => {
+    setEditingPurchaseId(null);
     setPoSupplierId('');
     setPoReference('');
     setPoNotes('');
     setPoReceiveNow(false);
     setPoItems([]);
     setNextKey(1);
+  };
+
+  const openNewPurchase = () => {
+    resetPoForm();
+    setShowPoDialog(true);
+  };
+
+  const openEditPurchase = (po: (typeof purchases)[0]) => {
+    setEditingPurchaseId(po.id);
+    setPoSupplierId(po.supplier_id || '');
+    setPoReference(po.reference || '');
+    setPoNotes(po.notes || '');
+    setPoReceiveNow(false);
+    // Populate items from the existing purchase
+    const items = (po.items || []).map((item, idx) => ({
+      _key: idx + 1,
+      product_id: item.product_id,
+      product_name: item.product_name,
+      product_sku: item.product_sku,
+      quantity: item.quantity,
+      unit_cost: item.unit_cost,
+    }));
+    setPoItems(items);
+    setNextKey(items.length + 1);
+    setViewPurchase(null); // Close detail dialog if open
+    setShowPoDialog(true);
   };
 
   // ── Handle receive purchase ───────────────────────────────────────────
@@ -404,7 +443,7 @@ export default function Purchases({ onNavigate }: PurchasesProps) {
             Manage supplier orders and restock inventory
           </p>
         </div>
-        <Button onClick={() => { resetPoForm(); setShowNewPurchase(true); }}>
+        <Button onClick={openNewPurchase}>
           <Plus className="w-4 h-4 mr-2" />
           New Purchase
         </Button>
@@ -500,7 +539,7 @@ export default function Purchases({ onNavigate }: PurchasesProps) {
               <Button
                 variant="outline"
                 className="mt-4"
-                onClick={() => { resetPoForm(); setShowNewPurchase(true); }}
+                onClick={openNewPurchase}
               >
                 Create your first purchase
               </Button>
@@ -547,16 +586,21 @@ export default function Purchases({ onNavigate }: PurchasesProps) {
                             >
                               <Eye className="w-4 h-4" />
                             </Button>
-                            {po.status === 'draft' && (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="text-destructive"
-                                onClick={() => setDeletingPurchaseId(po.id)}
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            )}
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => openEditPurchase(po)}
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-destructive"
+                              onClick={() => setDeletingPurchaseId(po.id)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
                           </div>
                         </div>
                       </div>
@@ -639,13 +683,15 @@ export default function Purchases({ onNavigate }: PurchasesProps) {
         </TabsContent>
       </Tabs>
 
-      {/* ════════════════════ New Purchase Dialog ══════════════════════════════ */}
-      <Dialog open={showNewPurchase} onOpenChange={(open) => { if (!open) { setShowNewPurchase(false); } }}>
+      {/* ════════════════════ New / Edit Purchase Dialog ═══════════════════════ */}
+      <Dialog open={showPoDialog} onOpenChange={(open) => { if (!open) { setShowPoDialog(false); } }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>New Purchase Order</DialogTitle>
+            <DialogTitle>{editingPurchaseId ? 'Edit Purchase Order' : 'New Purchase Order'}</DialogTitle>
             <DialogDescription>
-              Record a purchase from a supplier to restock inventory
+              {editingPurchaseId
+                ? 'Update the purchase order details and items'
+                : 'Record a purchase from a supplier to restock inventory'}
             </DialogDescription>
           </DialogHeader>
 
@@ -802,42 +848,46 @@ export default function Purchases({ onNavigate }: PurchasesProps) {
               )}
             </div>
 
-            {/* Receive immediately toggle */}
-            <label className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/30 transition-colors">
-              <input
-                type="checkbox"
-                checked={poReceiveNow}
-                onChange={(e) => setPoReceiveNow(e.target.checked)}
-                className="w-4 h-4 rounded border-border"
-              />
-              <div>
-                <p className="text-sm font-medium">Receive immediately</p>
-                <p className="text-xs text-muted-foreground">
-                  Stock will be updated right away
-                </p>
-              </div>
-            </label>
+            {/* Receive immediately toggle (only for new purchases) */}
+            {!editingPurchaseId && (
+              <label className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/30 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={poReceiveNow}
+                  onChange={(e) => setPoReceiveNow(e.target.checked)}
+                  className="w-4 h-4 rounded border-border"
+                />
+                <div>
+                  <p className="text-sm font-medium">Receive immediately</p>
+                  <p className="text-xs text-muted-foreground">
+                    Stock will be updated right away
+                  </p>
+                </div>
+              </label>
+            )}
           </div>
 
           <DialogFooter className="flex-col sm:flex-row gap-2 pt-4">
             <Button
               variant="outline"
               className="w-full sm:w-auto"
-              onClick={() => setShowNewPurchase(false)}
+              onClick={() => setShowPoDialog(false)}
               disabled={isCreating}
             >
               Cancel
             </Button>
             <Button
               className="w-full sm:w-auto"
-              onClick={handleCreatePurchase}
+              onClick={handleSavePurchase}
               disabled={isCreating || poItems.length === 0}
             >
               {isCreating ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  Creating…
+                  {editingPurchaseId ? 'Saving…' : 'Creating…'}
                 </>
+              ) : editingPurchaseId ? (
+                'Save Changes'
               ) : poReceiveNow ? (
                 'Create & Receive'
               ) : (
@@ -936,8 +986,9 @@ export default function Purchases({ onNavigate }: PurchasesProps) {
               </div>
 
               {/* Actions */}
-              {viewPurchase.status === 'draft' && (
-                <DialogFooter className="flex-col sm:flex-row gap-2 pt-4">
+              <DialogFooter className="flex-col sm:flex-row gap-2 pt-4">
+                {/* Cancel — only for draft orders */}
+                {viewPurchase.status === 'draft' && (
                   <Button
                     variant="destructive"
                     className="w-full sm:w-auto"
@@ -956,6 +1007,32 @@ export default function Purchases({ onNavigate }: PurchasesProps) {
                       </>
                     )}
                   </Button>
+                )}
+
+                {/* Delete */}
+                <Button
+                  variant="outline"
+                  className="w-full sm:w-auto text-destructive hover:text-destructive"
+                  onClick={() => { setViewPurchase(null); setDeletingPurchaseId(viewPurchase.id); }}
+                  disabled={isReceiving || isCancelling}
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete
+                </Button>
+
+                {/* Edit — available for all statuses */}
+                <Button
+                  variant="outline"
+                  className="w-full sm:w-auto"
+                  onClick={() => openEditPurchase(viewPurchase)}
+                  disabled={isReceiving || isCancelling}
+                >
+                  <Edit className="w-4 h-4 mr-2" />
+                  Edit
+                </Button>
+
+                {/* Receive — only for draft orders */}
+                {viewPurchase.status === 'draft' && (
                   <Button
                     className="w-full sm:w-auto bg-success hover:bg-success/90"
                     onClick={() => handleReceive(viewPurchase.id)}
@@ -973,8 +1050,8 @@ export default function Purchases({ onNavigate }: PurchasesProps) {
                       </>
                     )}
                   </Button>
-                </DialogFooter>
-              )}
+                )}
+              </DialogFooter>
             </>
           )}
         </DialogContent>

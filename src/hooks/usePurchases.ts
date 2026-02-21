@@ -201,6 +201,63 @@ export function usePurchases() {
     [fetchPurchases],
   );
 
+  // ── Update purchase (draft only) ────────────────────────────────────────
+
+  const updatePurchase = useCallback(
+    async (
+      purchaseId: string,
+      supplierId: string | null,
+      items: NewPurchaseItem[],
+      opts?: { notes?: string; reference?: string },
+    ) => {
+      const subtotal = items.reduce((s, i) => s + i.quantity * i.unit_cost, 0);
+
+      // Update header
+      const { error: headerErr } = await supabase
+        .from('purchases')
+        .update({
+          supplier_id: supplierId || null,
+          subtotal,
+          tax_amount: 0,
+          total: subtotal,
+          notes: opts?.notes || null,
+          reference: opts?.reference || null,
+        })
+        .eq('id', purchaseId);
+
+      if (headerErr) throw headerErr;
+
+      // Delete old items and re-insert new ones
+      const { error: delErr } = await supabase
+        .from('purchase_items')
+        .delete()
+        .eq('purchase_id', purchaseId);
+
+      if (delErr) throw delErr;
+
+      if (items.length > 0) {
+        const lineItems = items.map((item) => ({
+          purchase_id: purchaseId,
+          product_id: item.product_id,
+          product_name: item.product_name,
+          product_sku: item.product_sku,
+          quantity: item.quantity,
+          unit_cost: item.unit_cost,
+          line_total: item.quantity * item.unit_cost,
+        }));
+
+        const { error: insertErr } = await supabase
+          .from('purchase_items')
+          .insert(lineItems);
+
+        if (insertErr) throw insertErr;
+      }
+
+      await fetchPurchases();
+    },
+    [fetchPurchases],
+  );
+
   // ── Delete purchase ─────────────────────────────────────────────────────
 
   const deletePurchase = useCallback(
@@ -221,6 +278,7 @@ export function usePurchases() {
     error,
     refetch: fetchPurchases,
     createPurchase,
+    updatePurchase,
     receivePurchase,
     cancelPurchase,
     deletePurchase,
