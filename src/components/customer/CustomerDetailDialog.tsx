@@ -31,6 +31,7 @@ import { PaymentDialog } from '@/components/payment/PaymentDialog';
 import { CustomerStatement } from '@/components/customer/CustomerStatement';
 import { toast } from 'sonner';
 import { formatCurrency } from '@/lib/currency';
+import { useCompanySettings } from '@/context/BusinessSettingsContext';
 
 interface CustomerDetailDialogProps {
   open: boolean;
@@ -62,6 +63,7 @@ export function CustomerDetailDialog({
   onEdit,
 }: CustomerDetailDialogProps) {
   const { orders, loading: ordersLoading, recordPayment, getOrderBalanceDue } = useOrders();
+  const { companyName } = useCompanySettings();
 
   const [paymentOrder, setPaymentOrder] = useState<SaleOrder | null>(null);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
@@ -499,6 +501,7 @@ export function CustomerDetailDialog({
           onPaymentComplete={() => {
             toast.success('Payment recorded successfully');
           }}
+          companyName={companyName}
         />
       )}
 

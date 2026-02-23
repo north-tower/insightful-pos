@@ -196,6 +196,12 @@ export function CartPanelEnhanced() {
         setLastOrderCustomer(freshCustomer);
         const saleLabel = saleType === 'credit' ? 'Credit invoice' : 'Order';
         toast.success(`${saleLabel} #${order.invoice_number || order.order_number} — ${fc(order.total)}`);
+
+        // Send SMS notification for credit invoices (fire-and-forget)
+        if (saleType === 'credit') {
+          notifyInvoiceCreated(order, companyName);
+        }
+
         setIsInvoiceOpen(true);
     clearCart();
     setPartialPayment(null);

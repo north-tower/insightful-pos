@@ -23,6 +23,7 @@ import { useOrders, SaleOrder, Payment } from '@/hooks/useOrders';
 import { useCustomers, Customer } from '@/hooks/useCustomers';
 import { toast } from 'sonner';
 import { fc } from '@/lib/currency';
+import { useCompanySettings } from '@/context/BusinessSettingsContext';
 
 interface OrderHistoryProps {
   onNavigate: (tab: string) => void;
@@ -88,6 +89,7 @@ function orderToReceiptData(order: SaleOrder): ReceiptData {
 export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
   const { orders, loading, voidOrder, refundOrder, recordPayment, updatePayment, deletePayment, todaysOrders, todaysRevenue, getOrderBalanceDue } = useOrders();
   const { customers, getCustomerById } = useCustomers();
+  const { companyName } = useCompanySettings();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [saleTypeFilter, setSaleTypeFilter] = useState<string>('all');
@@ -913,6 +915,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
           otherUnpaidOrders={getOtherUnpaidOrders(paymentOrder)}
           onRecordPayment={recordPayment}
           onPaymentComplete={handlePaymentComplete}
+          companyName={companyName}
         />
       )}
 

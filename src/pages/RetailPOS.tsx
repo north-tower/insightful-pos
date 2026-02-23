@@ -31,6 +31,8 @@ import {
 import { generatePlaceholderUrl } from '@/lib/product-images';
 import { fc, CURRENCY_SYMBOL } from '@/lib/currency';
 import { toast } from 'sonner';
+import { useCompanySettings } from '@/context/BusinessSettingsContext';
+import { notifyInvoiceCreated } from '@/lib/sendSms';
 
 interface RetailPOSProps {
   onNavigate: (tab: string) => void;
@@ -49,6 +51,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
   const { retailProducts, loading, refetch: refetchProducts } = useProducts();
   const { createOrder } = useOrders();
   const { customers, getCustomerDisplayName, refetch: refetchCustomers } = useCustomers();
+  const { companyName } = useCompanySettings();
   const [searchQuery, setSearchQuery] = useState('');
   // All retail products are under one category – no category filter needed
   const activeCategory = 'all';
@@ -264,6 +267,12 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
 
         const label = saleType === 'credit' ? 'Credit invoice' : 'Sale';
         toast.success(`${label} #${order.invoice_number || order.order_number} — ${fc(order.total)}`);
+
+        // Send SMS notification for credit invoices (fire-and-forget)
+        if (saleType === 'credit') {
+          notifyInvoiceCreated(order, companyName);
+        }
+
         setIsInvoiceOpen(true);
         clearCart();
         setSelectedCustomer(null);

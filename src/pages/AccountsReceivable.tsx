@@ -27,6 +27,7 @@ import { CustomerStatement } from '@/components/customer/CustomerStatement';
 import { ReceiptData } from '@/data/receiptData';
 import { toast } from 'sonner';
 import { formatCurrency } from '@/lib/currency';
+import { useCompanySettings } from '@/context/BusinessSettingsContext';
 
 interface AccountsReceivableProps {
   onNavigate: (tab: string) => void;
@@ -91,6 +92,7 @@ export default function AccountsReceivable({
     getOrderBalanceDue,
   } = useOrders();
   const { customers, getCustomerById, totalOutstanding } = useCustomers();
+  const { companyName } = useCompanySettings();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedCustomer, setExpandedCustomer] = useState<string | null>(null);
@@ -615,6 +617,7 @@ export default function AccountsReceivable({
           otherUnpaidOrders={paymentOtherOrders}
           onRecordPayment={recordPayment}
           onPaymentComplete={handlePaymentComplete}
+          companyName={companyName}
         />
       )}
 

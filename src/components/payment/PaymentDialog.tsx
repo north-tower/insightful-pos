@@ -24,6 +24,7 @@ import { fc, CURRENCY_SYMBOL } from '@/lib/currency';
 import { format } from 'date-fns';
 import { SaleOrder, PaymentMethod } from '@/hooks/useOrders';
 import { Customer } from '@/hooks/useCustomers';
+import { notifyPaymentReceived } from '@/lib/sendSms';
 
 interface PaymentDialogProps {
   open: boolean;
@@ -40,6 +41,8 @@ interface PaymentDialogProps {
   ) => Promise<any>;
   /** Called after everything is done */
   onPaymentComplete?: () => void;
+  /** Company name for SMS notifications */
+  companyName?: string;
 }
 
 const paymentMethods: Array<{
@@ -117,6 +120,7 @@ export function PaymentDialog({
   otherUnpaidOrders = [],
   onRecordPayment,
   onPaymentComplete,
+  companyName,
 }: PaymentDialogProps) {
   const [method, setMethod] = useState<PaymentMethod>('cash');
   const [amount, setAmount] = useState('');
@@ -172,6 +176,25 @@ export function PaymentDialog({
       // 1. Reduced customer.credit_balance for each payment
       // 2. Updated each order's payment_status
       // No need to call makePaymentOnAccount — that would be a double-deduction.
+
+      // Send SMS notification for the payment (fire-and-forget)
+      if (companyName) {
+        const phone = customer?.phone || order.customer_phone;
+        if (phone) {
+          // Total balance remaining across all affected invoices
+          const totalBalanceAfter = distribution.reduce(
+            (sum, line) => sum + line.balanceAfter,
+            0,
+          );
+          notifyPaymentReceived(
+            order,
+            enteredAmount,
+            totalBalanceAfter,
+            companyName,
+            phone,
+          );
+        }
+      }
 
         setSuccess(true);
         setTimeout(() => {
