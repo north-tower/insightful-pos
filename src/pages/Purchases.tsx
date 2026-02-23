@@ -451,7 +451,7 @@ export default function Purchases({ onNavigate }: PurchasesProps) {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         <Card>
           <CardContent className="p-4 min-w-0">
             <p className="text-xs text-muted-foreground mb-1">Total Orders</p>

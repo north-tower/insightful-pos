@@ -8,7 +8,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { Customer, useCustomers } from '@/hooks/useCustomers';
+import { Customer } from '@/hooks/useCustomers';
 import { useOrders, SaleOrder } from '@/hooks/useOrders';
 import { format } from 'date-fns';
 import {
@@ -62,7 +62,6 @@ export function CustomerDetailDialog({
   onEdit,
 }: CustomerDetailDialogProps) {
   const { orders, loading: ordersLoading, recordPayment, getOrderBalanceDue } = useOrders();
-  const { makePaymentOnAccount } = useCustomers();
 
   const [paymentOrder, setPaymentOrder] = useState<SaleOrder | null>(null);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
@@ -148,15 +147,15 @@ export function CustomerDetailDialog({
                 <h3 className="font-semibold mb-4">Contact Information</h3>
                 <div className="grid grid-cols-2 gap-4">
                   {customer.email && (
-                    <div className="flex items-center gap-2">
-                      <Mail className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-sm">{customer.email}</span>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Mail className="w-4 h-4 text-muted-foreground shrink-0" />
+                      <span className="text-sm truncate">{customer.email}</span>
                     </div>
                   )}
                   {customer.phone && (
-                    <div className="flex items-center gap-2">
-                      <Phone className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-sm">{customer.phone}</span>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Phone className="w-4 h-4 text-muted-foreground shrink-0" />
+                      <span className="text-sm truncate">{customer.phone}</span>
                     </div>
                   )}
                   {customer.address && (
@@ -363,14 +362,14 @@ export function CustomerDetailDialog({
                       )}
                     >
                       <CardContent className="p-4">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-2 flex-wrap">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-2 flex-wrap">
                               <h4 className="font-semibold">
                                 Order #{order.order_number}
                               </h4>
                               {order.invoice_number && (
-                                <span className="text-xs text-muted-foreground font-mono">
+                                <span className="text-xs text-muted-foreground font-mono truncate">
                                   {order.invoice_number}
                                 </span>
                               )}
@@ -388,36 +387,36 @@ export function CustomerDetailDialog({
                                   Credit
                                 </Badge>
                               )}
-                              <Badge variant="outline" className="text-xs">
+                              <Badge variant="outline" className="text-xs whitespace-nowrap">
                                 {format(
                                   new Date(order.created_at),
                                   'MMM dd, yyyy HH:mm',
                                 )}
                               </Badge>
                             </div>
-                            <div className="grid grid-cols-4 gap-4 text-sm">
-                              <div>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                              <div className="min-w-0">
                                 <p className="text-muted-foreground">Items</p>
-                                <p className="font-medium">
+                                <p className="font-medium tabular-nums">
                                   {order.items.length}
                                 </p>
                               </div>
-                              <div>
+                              <div className="min-w-0">
                                 <p className="text-muted-foreground">Total</p>
-                                <p className="font-medium">
+                                <p className="font-medium tabular-nums truncate">
                                   {formatCurrency(order.total)}
                                 </p>
                               </div>
-                              <div>
+                              <div className="min-w-0">
                                 <p className="text-muted-foreground">Payment</p>
-                                <p className="font-medium capitalize">
+                                <p className="font-medium capitalize truncate">
                                   {order.payment_status}
                                 </p>
                               </div>
                               {isUnpaid && (
-                                <div>
+                                <div className="min-w-0">
                                   <p className="text-muted-foreground">Balance</p>
-                                  <p className="font-bold text-warning">
+                                  <p className="font-bold text-warning tabular-nums truncate">
                                     {formatCurrency(balanceDue)}
                                   </p>
                                 </div>
@@ -428,7 +427,7 @@ export function CustomerDetailDialog({
                             <Button
                               size="sm"
                               onClick={() => handleRecordPayment(order)}
-                              className="gap-1.5 bg-success hover:bg-success/90 text-white ml-3"
+                              className="gap-1.5 bg-success hover:bg-success/90 text-white shrink-0"
                             >
                               <CircleDollarSign className="w-4 h-4" />
                               Pay
@@ -495,8 +494,8 @@ export function CustomerDetailDialog({
           }}
           order={paymentOrder}
           customer={customer}
+          otherUnpaidOrders={unpaidOrders.filter((o) => o.id !== paymentOrder.id)}
           onRecordPayment={recordPayment}
-          onDeductCustomerBalance={makePaymentOnAccount}
           onPaymentComplete={() => {
             toast.success('Payment recorded successfully');
           }}

@@ -27,14 +27,12 @@ interface EditPaymentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   payment: Payment;
-  /** The parent order (used to check sale_type / customer_id for balance adjustment) */
+  /** The parent order (for context display) */
   order?: SaleOrder;
   onUpdate: (
     paymentId: string,
     updates: { method?: PaymentMethod; amount?: number; reference?: string },
   ) => Promise<Payment | null>;
-  /** Adjust customer credit balance by a delta (+ve = increase, -ve = decrease) */
-  onAdjustCustomerBalance?: (customerId: string, delta: number) => Promise<any>;
   onUpdateComplete?: () => void;
 }
 
@@ -54,7 +52,6 @@ export function EditPaymentDialog({
   payment,
   order,
   onUpdate,
-  onAdjustCustomerBalance,
   onUpdateComplete,
 }: EditPaymentDialogProps) {
   const [method, setMethod] = useState<PaymentMethod>(payment.method);
@@ -98,20 +95,9 @@ export function EditPaymentDialog({
       const result = await onUpdate(payment.id, updates);
 
       if (result) {
-        // Adjust customer balance if amount changed on a credit sale
-        if (
-          updates.amount !== undefined &&
-          updates.amount !== payment.amount &&
-          order?.sale_type === 'credit' &&
-          order?.customer_id &&
-          onAdjustCustomerBalance
-        ) {
-          // If you paid more, balance goes down (delta negative).
-          // If you paid less, balance goes up (delta positive).
-          const delta = -(updates.amount - payment.amount);
-          await onAdjustCustomerBalance(order.customer_id, delta);
-        }
-
+        // DB trigger (trg_payment_update_balance) already:
+        // 1. Adjusts customer.credit_balance by the diff
+        // 2. Recalculates order.payment_status
         setSuccess(true);
         setTimeout(() => {
           setSuccess(false);

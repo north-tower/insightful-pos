@@ -86,7 +86,7 @@ function orderToReceiptData(order: SaleOrder): ReceiptData {
 
 export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
   const { orders, loading, voidOrder, refundOrder, recordPayment, updatePayment, deletePayment, todaysOrders, todaysRevenue, getOrderBalanceDue } = useOrders();
-  const { customers, getCustomerById, makePaymentOnAccount, adjustCustomerBalance, refetch: refetchCustomers } = useCustomers();
+  const { customers, getCustomerById } = useCustomers();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [saleTypeFilter, setSaleTypeFilter] = useState<string>('all');
@@ -129,11 +129,21 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
     return result;
   }, [orders, searchQuery, statusFilter, saleTypeFilter]);
 
-  // Computed stats
-  const creditOrders = useMemo(() => orders.filter(o => o.sale_type === 'credit'), [orders]);
+  // Computed stats — use getOrderBalanceDue for single source of truth
+  const unpaidCreditOrders = useMemo(
+    () =>
+      orders.filter(
+        (o) =>
+          o.sale_type === 'credit' &&
+          (o.payment_status === 'unpaid' || o.payment_status === 'partial') &&
+          o.status !== 'voided' &&
+          o.status !== 'cancelled',
+      ),
+    [orders],
+  );
   const totalCreditBalance = useMemo(
-    () => creditOrders.filter(o => o.payment_status === 'unpaid').reduce((sum, o) => sum + o.total, 0),
-    [creditOrders],
+    () => unpaidCreditOrders.reduce((sum, o) => sum + getOrderBalanceDue(o), 0),
+    [unpaidCreditOrders, getOrderBalanceDue],
   );
 
   const handleViewOrder = (order: SaleOrder) => {
@@ -181,6 +191,14 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
     setIsPaymentOpen(true);
   };
 
+  /** Get other unpaid orders for the same customer (for payment distribution) */
+  const getOtherUnpaidOrders = (order: SaleOrder): SaleOrder[] => {
+    if (!order.customer_id) return [];
+    return unpaidCreditOrders.filter(
+      (o) => o.id !== order.id && o.customer_id === order.customer_id,
+    );
+  };
+
   const handlePaymentComplete = () => {
     toast.success('Payment recorded successfully');
     // If the detail dialog was showing this order, refresh its data
@@ -202,18 +220,13 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
   };
 
   const handleDeletePayment = async (paymentId: string) => {
-    // Find the order & payment before deleting so we can adjust customer balance
-    const order = orders.find((o) => o.payments.some((p) => p.id === paymentId));
-    const payment = order?.payments.find((p) => p.id === paymentId);
-
     setDeletingPaymentId(paymentId);
     try {
       const ok = await deletePayment(paymentId);
       if (ok) {
-        // Adjust customer balance (DB trigger also handles this server-side)
-        if (order?.sale_type === 'credit' && order?.customer_id && payment) {
-          await adjustCustomerBalance(order.customer_id, payment.amount);
-        }
+        // DB trigger (trg_payment_delete_balance) already:
+        // 1. Adds payment amount back to customer.credit_balance
+        // 2. Recalculates order.payment_status
         toast.success('Payment deleted');
         setIsDetailOpen(false);
       } else {
@@ -235,7 +248,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
           </div>
 
           {/* Quick Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-6">
             <Card>
               <CardContent className="p-4 flex items-center gap-3">
                 <div className="h-10 w-10 rounded bg-primary/10 flex items-center justify-center">
@@ -424,10 +437,13 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                           <p className="text-muted-foreground">Total</p>
                           <p className="font-medium">{fc(order.total)}</p>
                         </div>
-                            {order.sale_type === 'credit' && order.payment_status === 'unpaid' && (
+                            {order.sale_type === 'credit' &&
+                              (order.payment_status === 'unpaid' || order.payment_status === 'partial') &&
+                              order.status !== 'voided' &&
+                              order.status !== 'cancelled' && (
                               <div>
                                 <p className="text-muted-foreground">Balance Due</p>
-                                <p className="font-bold text-warning">{fc(order.total)}</p>
+                                <p className="font-bold text-warning">{fc(getOrderBalanceDue(order))}</p>
                               </div>
                             )}
                             {orderCustomer && orderCustomer.credit_balance > 0 && (
@@ -868,8 +884,8 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
           }}
           order={paymentOrder}
           customer={paymentCustomer}
+          otherUnpaidOrders={getOtherUnpaidOrders(paymentOrder)}
           onRecordPayment={recordPayment}
-          onDeductCustomerBalance={makePaymentOnAccount}
           onPaymentComplete={handlePaymentComplete}
         />
       )}
@@ -885,7 +901,6 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
           payment={editingPayment}
           order={selectedOrder || undefined}
           onUpdate={updatePayment}
-          onAdjustCustomerBalance={adjustCustomerBalance}
           onUpdateComplete={handleEditPaymentComplete}
         />
       )}

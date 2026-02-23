@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -17,6 +17,7 @@ import {
   Loader2,
   CheckCircle2,
   AlertCircle,
+  ArrowRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { fc, CURRENCY_SYMBOL } from '@/lib/currency';
@@ -27,19 +28,17 @@ import { Customer } from '@/hooks/useCustomers';
 interface PaymentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** The primary order the user clicked "Pay" on */
   order: SaleOrder;
   customer?: Customer | null;
+  /** Other unpaid credit orders for the same customer (excluding the primary order) */
+  otherUnpaidOrders?: SaleOrder[];
+  /** Record a single payment against an order — DB trigger handles customer balance */
   onRecordPayment: (
     orderId: string,
     payment: { method: PaymentMethod; amount: number; reference?: string },
   ) => Promise<any>;
-  /** Called after successful payment to deduct from customer's main credit balance */
-  onDeductCustomerBalance?: (
-    customerId: string,
-    amount: number,
-    method: PaymentMethod,
-  ) => Promise<any>;
-  /** Called after everything is done (payment recorded + balance deducted) */
+  /** Called after everything is done */
   onPaymentComplete?: () => void;
 }
 
@@ -53,13 +52,70 @@ const paymentMethods: Array<{
   { id: 'qr', label: 'QR / Mobile', icon: QrCode },
 ];
 
+/** Compute the balance due for an order from its payments array */
+function orderBalanceDue(order: SaleOrder): number {
+  const paid = order.payments.reduce((s, p) => s + p.amount, 0);
+  return Math.max(order.total - paid, 0);
+}
+
+/** Build a distribution plan: how a payment amount is split across orders */
+interface DistributionLine {
+  order: SaleOrder;
+  balanceBefore: number;
+  applied: number;
+  balanceAfter: number;
+}
+
+function buildDistribution(
+  primaryOrder: SaleOrder,
+  otherOrders: SaleOrder[],
+  paymentAmount: number,
+): DistributionLine[] {
+  const lines: DistributionLine[] = [];
+  let remaining = paymentAmount;
+
+  // Primary order first
+  const primaryBalance = orderBalanceDue(primaryOrder);
+  const primaryApplied = Math.min(remaining, primaryBalance);
+  if (primaryApplied > 0) {
+    lines.push({
+      order: primaryOrder,
+      balanceBefore: primaryBalance,
+      applied: primaryApplied,
+      balanceAfter: primaryBalance - primaryApplied,
+    });
+    remaining -= primaryApplied;
+  }
+
+  // Then other orders sorted by oldest first (by created_at)
+  const sorted = [...otherOrders].sort(
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+  );
+
+  for (const order of sorted) {
+    if (remaining <= 0) break;
+    const bal = orderBalanceDue(order);
+    if (bal <= 0) continue;
+    const applied = Math.min(remaining, bal);
+    lines.push({
+      order,
+      balanceBefore: bal,
+      applied,
+      balanceAfter: bal - applied,
+    });
+    remaining -= applied;
+  }
+
+  return lines;
+}
+
 export function PaymentDialog({
   open,
   onOpenChange,
   order,
   customer,
+  otherUnpaidOrders = [],
   onRecordPayment,
-  onDeductCustomerBalance,
   onPaymentComplete,
 }: PaymentDialogProps) {
   const [method, setMethod] = useState<PaymentMethod>('cash');
@@ -69,9 +125,24 @@ export function PaymentDialog({
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const totalPaid = order.payments.reduce((s, p) => s + p.amount, 0);
-  const balanceDue = Math.max(order.total - totalPaid, 0);
+  const balanceDue = orderBalanceDue(order);
   const enteredAmount = parseFloat(amount) || 0;
+
+  // Total balance across all unpaid invoices for this customer
+  const totalCustomerBalance = useMemo(() => {
+    const otherBalance = otherUnpaidOrders.reduce((s, o) => s + orderBalanceDue(o), 0);
+    return balanceDue + otherBalance;
+  }, [balanceDue, otherUnpaidOrders]);
+
+  // Distribution preview
+  const distribution = useMemo(
+    () => buildDistribution(order, otherUnpaidOrders, enteredAmount),
+    [order, otherUnpaidOrders, enteredAmount],
+  );
+
+  const willSpillOver = distribution.length > 1;
+  const totalApplied = distribution.reduce((s, d) => s + d.applied, 0);
+  const excessAfterAll = Math.max(enteredAmount - totalCustomerBalance, 0);
 
   const customerName = customer
     ? `${customer.first_name} ${customer.last_name}`.trim()
@@ -87,29 +158,29 @@ export function PaymentDialog({
     setError(null);
 
     try {
-      const result = await onRecordPayment(order.id, {
-        method,
-        amount: enteredAmount,
-        reference: reference.trim() || undefined,
-      });
-
-      if (result) {
-        // Deduct from customer's main credit balance
-        if (onDeductCustomerBalance && order.customer_id) {
-          await onDeductCustomerBalance(order.customer_id, enteredAmount, method);
-        }
-
-        setSuccess(true);
-        setTimeout(() => {
-          setSuccess(false);
-          setAmount('');
-          setReference('');
-          onPaymentComplete?.();
-          onOpenChange(false);
-        }, 1500);
-      } else {
-        setError('Payment failed. Please try again.');
+      // Apply payment to each order in the distribution
+      for (const line of distribution) {
+        if (line.applied <= 0) continue;
+        await onRecordPayment(line.order.id, {
+          method,
+          amount: line.applied,
+          reference: reference.trim() || undefined,
+        });
       }
+
+      // DB triggers have already:
+      // 1. Reduced customer.credit_balance for each payment
+      // 2. Updated each order's payment_status
+      // No need to call makePaymentOnAccount — that would be a double-deduction.
+
+      setSuccess(true);
+      setTimeout(() => {
+        setSuccess(false);
+        setAmount('');
+        setReference('');
+        onPaymentComplete?.();
+        onOpenChange(false);
+      }, 1500);
     } catch (err: any) {
       setError(err.message || 'Payment failed');
     } finally {
@@ -147,6 +218,7 @@ export function PaymentDialog({
             <p className="text-lg font-semibold text-success">Payment Recorded!</p>
             <p className="text-sm text-muted-foreground">
               {fc(enteredAmount)} via {method}
+              {willSpillOver && ` — distributed across ${distribution.length} invoices`}
             </p>
           </div>
         ) : (
@@ -164,14 +236,30 @@ export function PaymentDialog({
                     {order.payments.length > 1 ? 's' : ''})
                   </span>
                   <span className="font-medium text-success tabular-nums text-right">
-                    -{fc(totalPaid)}
+                    -{fc(order.total - balanceDue)}
                   </span>
                 </div>
               )}
               <div className="flex justify-between font-bold text-base border-t pt-2 mt-2 gap-4">
-                <span className="shrink-0">Balance Due</span>
+                <span className="shrink-0">This Invoice Balance</span>
                 <span className="text-warning tabular-nums text-right">{fc(balanceDue)}</span>
               </div>
+              {otherUnpaidOrders.length > 0 && (
+                <div className="flex justify-between text-sm text-muted-foreground gap-4">
+                  <span className="shrink-0">
+                    + {otherUnpaidOrders.length} other unpaid invoice{otherUnpaidOrders.length > 1 ? 's' : ''}
+                  </span>
+                  <span className="tabular-nums text-right">
+                    {fc(totalCustomerBalance - balanceDue)}
+                  </span>
+                </div>
+              )}
+              {otherUnpaidOrders.length > 0 && (
+                <div className="flex justify-between text-sm font-medium gap-4">
+                  <span className="shrink-0">Total Account Balance</span>
+                  <span className="text-warning tabular-nums text-right">{fc(totalCustomerBalance)}</span>
+                </div>
+              )}
               {order.due_date && (
                 <div className="flex justify-between text-xs text-muted-foreground gap-4">
                   <span className="shrink-0">Due Date</span>
@@ -179,20 +267,6 @@ export function PaymentDialog({
                 </div>
               )}
             </div>
-
-            {/* Customer Account Info */}
-            {customer && customer.credit_balance > 0 && (
-              <div className="p-3 bg-warning/5 border border-warning/20 rounded-lg">
-                <div className="flex justify-between text-sm gap-4">
-                  <span className="text-muted-foreground shrink-0">
-                    {customerName}'s Total Account Balance
-                  </span>
-                  <span className="font-bold text-warning tabular-nums text-right">
-                    {fc(customer.credit_balance)}
-                  </span>
-                </div>
-              </div>
-            )}
 
             {/* Payment Method */}
             <div className="space-y-2">
@@ -246,8 +320,18 @@ export function PaymentDialog({
                   onClick={() => setAmount(balanceDue.toFixed(2))}
                   className="text-xs tabular-nums"
                 >
-                  Pay Full ({fc(balanceDue)})
+                  This Invoice ({fc(balanceDue)})
                 </Button>
+                {otherUnpaidOrders.length > 0 && totalCustomerBalance > balanceDue && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setAmount(totalCustomerBalance.toFixed(2))}
+                    className="text-xs tabular-nums"
+                  >
+                    All Invoices ({fc(totalCustomerBalance)})
+                  </Button>
+                )}
                 {balanceDue > 100 && (
                   <Button
                     variant="outline"
@@ -288,37 +372,106 @@ export function PaymentDialog({
               </div>
             )}
 
-            {/* After-payment preview */}
+            {/* Distribution Preview */}
             {enteredAmount > 0 && (
-              <div className="p-3 bg-muted/30 rounded-lg text-sm space-y-1">
-                <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground shrink-0">After this payment</span>
-                  <Badge
-                    className={cn(
-                      'text-xs shrink-0',
-                      enteredAmount >= balanceDue
-                        ? 'bg-success/10 text-success'
-                        : 'bg-warning/10 text-warning',
-                    )}
-                  >
-                    {enteredAmount >= balanceDue ? 'FULLY PAID' : 'PARTIAL'}
-                  </Badge>
-                </div>
-                <div className="flex justify-between font-medium gap-4">
-                  <span className="shrink-0">Remaining Balance</span>
-                  <span
-                    className={cn(
-                      'tabular-nums text-right',
-                      enteredAmount >= balanceDue ? 'text-success' : 'text-warning',
-                    )}
-                  >
-                    {fc(Math.max(balanceDue - enteredAmount, 0))}
-                  </span>
-                </div>
-                {enteredAmount > balanceDue && (
-                  <div className="flex justify-between font-medium text-info gap-4">
+              <div className="p-3 bg-muted/30 rounded-lg text-sm space-y-3">
+                {/* Show distribution when it spills over to multiple orders */}
+                {willSpillOver ? (
+                  <>
+                    <div className="flex items-center gap-2 text-primary font-medium">
+                      <ArrowRight className="w-4 h-4" />
+                      Payment will be distributed across {distribution.length} invoices
+                    </div>
+                    <div className="space-y-2">
+                      {distribution.map((line, idx) => (
+                        <div
+                          key={line.order.id}
+                          className={cn(
+                            'flex items-center justify-between gap-3 p-2 rounded border text-xs',
+                            idx === 0
+                              ? 'bg-primary/5 border-primary/20'
+                              : 'bg-muted/50 border-border',
+                          )}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium truncate">
+                              {line.order.invoice_number || line.order.order_number}
+                              {idx === 0 && (
+                                <span className="text-muted-foreground ml-1">(this invoice)</span>
+                              )}
+                            </p>
+                            <p className="text-muted-foreground">
+                              Balance: {fc(line.balanceBefore)}
+                            </p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p className="font-bold text-success tabular-nums">
+                              -{fc(line.applied)}
+                            </p>
+                            <p className="text-muted-foreground tabular-nums">
+                              {line.balanceAfter <= 0 ? (
+                                <span className="text-success">Paid</span>
+                              ) : (
+                                <>Rem: {fc(line.balanceAfter)}</>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  /* Single order — simple preview */
+                  <>
+                    <div className="flex justify-between gap-4">
+                      <span className="text-muted-foreground shrink-0">After this payment</span>
+                      <Badge
+                        className={cn(
+                          'text-xs shrink-0',
+                          enteredAmount >= balanceDue
+                            ? 'bg-success/10 text-success'
+                            : 'bg-warning/10 text-warning',
+                        )}
+                      >
+                        {enteredAmount >= balanceDue ? 'FULLY PAID' : 'PARTIAL'}
+                      </Badge>
+                    </div>
+                    <div className="flex justify-between font-medium gap-4">
+                      <span className="shrink-0">Remaining Balance</span>
+                      <span
+                        className={cn(
+                          'tabular-nums text-right',
+                          enteredAmount >= balanceDue ? 'text-success' : 'text-warning',
+                        )}
+                      >
+                        {fc(Math.max(balanceDue - enteredAmount, 0))}
+                      </span>
+                    </div>
+                  </>
+                )}
+
+                {/* Excess beyond all invoices */}
+                {excessAfterAll > 0 && (
+                  <div className="flex justify-between font-medium text-info gap-4 border-t pt-2">
                     <span className="shrink-0">Overpayment (advance credit)</span>
-                    <span className="tabular-nums text-right">{fc(enteredAmount - balanceDue)}</span>
+                    <span className="tabular-nums text-right">{fc(excessAfterAll)}</span>
+                  </div>
+                )}
+
+                {/* Total account balance after payment */}
+                {otherUnpaidOrders.length > 0 && (
+                  <div className="flex justify-between font-medium gap-4 border-t pt-2">
+                    <span className="shrink-0">Account Balance After</span>
+                    <span
+                      className={cn(
+                        'tabular-nums text-right',
+                        totalCustomerBalance - totalApplied <= 0
+                          ? 'text-success'
+                          : 'text-warning',
+                      )}
+                    >
+                      {fc(Math.max(totalCustomerBalance - totalApplied, 0))}
+                    </span>
                   </div>
                 )}
               </div>

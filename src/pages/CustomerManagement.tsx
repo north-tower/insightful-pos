@@ -178,7 +178,7 @@ export default function CustomerManagement({
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 sm:gap-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-5 gap-3 sm:gap-4 mb-6">
             <Card>
               <CardContent className="p-4 min-w-0">
                 <p className="text-sm text-muted-foreground mb-1">

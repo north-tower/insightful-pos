@@ -90,7 +90,7 @@ export default function AccountsReceivable({
     recordPayment,
     getOrderBalanceDue,
   } = useOrders();
-  const { customers, getCustomerById, totalOutstanding, makePaymentOnAccount } = useCustomers();
+  const { customers, getCustomerById, totalOutstanding } = useCustomers();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedCustomer, setExpandedCustomer] = useState<string | null>(null);
@@ -100,6 +100,7 @@ export default function AccountsReceivable({
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [paymentOrder, setPaymentOrder] = useState<SaleOrder | null>(null);
   const [paymentCustomer, setPaymentCustomer] = useState<Customer | null>(null);
+  const [paymentOtherOrders, setPaymentOtherOrders] = useState<SaleOrder[]>([]);
 
   // Invoice dialog state
   const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
@@ -194,9 +195,11 @@ export default function AccountsReceivable({
     [customerAccounts],
   );
 
-  const handleRecordPayment = (order: SaleOrder, customer: Customer | null) => {
+  const handleRecordPayment = (order: SaleOrder, account: CustomerAccount) => {
     setPaymentOrder(order);
-    setPaymentCustomer(customer);
+    setPaymentCustomer(account.customer);
+    // Other unpaid orders for this customer (excluding the one we clicked)
+    setPaymentOtherOrders(account.orders.filter((o) => o.id !== order.id));
     setIsPaymentOpen(true);
   };
 
@@ -236,7 +239,7 @@ export default function AccountsReceivable({
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-6">
             <Card>
               <CardContent className="p-4 flex items-center gap-3 min-w-0">
                 <div className="h-10 w-10 rounded bg-warning/10 flex items-center justify-center shrink-0">
@@ -574,7 +577,7 @@ export default function AccountsReceivable({
                                       onClick={() =>
                                         handleRecordPayment(
                                           order,
-                                          account.customer,
+                                          account,
                                         )
                                       }
                                       className="gap-1.5 bg-success hover:bg-success/90 text-white"
@@ -604,12 +607,13 @@ export default function AccountsReceivable({
             if (!open) {
               setPaymentOrder(null);
               setPaymentCustomer(null);
+              setPaymentOtherOrders([]);
             }
           }}
           order={paymentOrder}
           customer={paymentCustomer}
+          otherUnpaidOrders={paymentOtherOrders}
           onRecordPayment={recordPayment}
-          onDeductCustomerBalance={makePaymentOnAccount}
           onPaymentComplete={handlePaymentComplete}
         />
       )}

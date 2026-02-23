@@ -9,9 +9,6 @@ import {
   LogOut,
   ChevronRight,
   History,
-  ShoppingCart,
-  Package,
-  Warehouse,
   Receipt,
   Store,
   CircleDollarSign,
@@ -56,10 +53,7 @@ const restaurantNavItems: NavItem[] = [
 
 const retailNavItems: NavItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { id: 'pos', label: 'Point of Sale', icon: ShoppingCart },
-  { id: 'products', label: 'Products', icon: Package, roles: ['admin', 'manager'] },
   { id: 'purchases', label: 'Purchases', icon: Truck, roles: ['admin', 'manager'] },
-  { id: 'inventory', label: 'Inventory', icon: Warehouse, roles: ['admin', 'manager'] },
   { id: 'order-history', label: 'Transactions', icon: Receipt },
   { id: 'accounts', label: 'Accounts', icon: CircleDollarSign, roles: ['admin', 'manager', 'cashier'] },
   { id: 'customers', label: 'Customers', icon: Users, roles: ['admin', 'manager'] },
