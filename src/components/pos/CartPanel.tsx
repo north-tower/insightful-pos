@@ -4,6 +4,7 @@ import { useCart } from '@/context/CartContext';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { formatCurrency } from '@/lib/currency';
 
 type PaymentMethod = 'cash' | 'card' | 'qr';
 type OrderType = 'dine-in' | 'takeaway' | 'delivery';
@@ -23,7 +24,7 @@ export function CartPanel() {
   };
 
   return (
-    <div className="w-80 bg-card border-l border-border flex flex-col h-full">
+    <div className="w-full lg:w-[26rem] bg-card border-l border-border flex flex-col h-full">
       {/* Header */}
       <div className="p-4 border-b border-border">
         <div className="flex items-center justify-between mb-3">
@@ -76,37 +77,42 @@ export function CartPanel() {
               <img
                 src={item.image}
                 alt={item.name}
-                className="w-14 h-14 rounded-lg object-cover"
+                className="w-16 h-16 rounded-lg object-cover shrink-0"
               />
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-foreground text-sm truncate">{item.name}</p>
-                <p className="text-xs text-primary font-semibold">${item.price.toFixed(2)} × {item.quantity}</p>
-                <div className="flex items-center gap-2 mt-1">
-                  <button
-                    onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                    className="w-6 h-6 rounded-md bg-card border border-border flex items-center justify-center hover:bg-muted transition-colors"
-                  >
-                    <Minus className="w-3 h-3" />
-                  </button>
-                  <span className="text-sm font-medium w-4 text-center">{item.quantity}</span>
-                  <button
-                    onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                    className="w-6 h-6 rounded-md bg-card border border-border flex items-center justify-center hover:bg-muted transition-colors"
-                  >
-                    <Plus className="w-3 h-3" />
-                  </button>
+                <p className="text-xs text-primary font-semibold tabular-nums truncate">{formatCurrency(item.price)} × {item.quantity.toLocaleString()}</p>
+                <div className="flex items-center justify-between mt-2">
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                      className={cn(
+                        "w-7 h-7 rounded-md flex items-center justify-center transition-colors",
+                        item.quantity === 1
+                          ? "bg-destructive/10 border border-destructive/30 text-destructive hover:bg-destructive/20"
+                          : "bg-card border border-border hover:bg-muted"
+                      )}
+                    >
+                      {item.quantity === 1 ? (
+                        <Trash2 className="w-3 h-3" />
+                      ) : (
+                        <Minus className="w-3 h-3" />
+                      )}
+                    </button>
+                    <span className="text-sm font-semibold min-w-[2.5rem] text-center tabular-nums">
+                      {item.quantity.toLocaleString()}
+                    </span>
+                    <button
+                      onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                      className="w-7 h-7 rounded-md bg-card border border-border flex items-center justify-center hover:bg-muted transition-colors"
+                    >
+                      <Plus className="w-3 h-3" />
+                    </button>
+                  </div>
+                  <p className="font-bold text-foreground text-sm tabular-nums">
+                    {formatCurrency(item.price * item.quantity)}
+                  </p>
                 </div>
-              </div>
-              <div className="flex flex-col items-end justify-between">
-                <button
-                  onClick={() => removeItem(item.id)}
-                  className="text-destructive/70 hover:text-destructive transition-colors"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-                <p className="font-bold text-foreground text-sm">
-                  ${(item.price * item.quantity).toFixed(2)}
-                </p>
               </div>
             </div>
           ))
@@ -116,17 +122,17 @@ export function CartPanel() {
       {/* Payment Summary */}
       <div className="p-4 border-t border-border space-y-4">
         <div className="space-y-2 text-sm">
-          <div className="flex justify-between text-muted-foreground">
-            <span>Subtotal</span>
-            <span>${subtotal.toFixed(2)}</span>
+          <div className="flex justify-between text-muted-foreground gap-4">
+            <span className="shrink-0">Subtotal</span>
+            <span className="tabular-nums text-right">{formatCurrency(subtotal)}</span>
           </div>
-          <div className="flex justify-between text-muted-foreground">
-            <span>Tax (5%)</span>
-            <span>${tax.toFixed(2)}</span>
+          <div className="flex justify-between text-muted-foreground gap-4">
+            <span className="shrink-0">Tax (5%)</span>
+            <span className="tabular-nums text-right">{formatCurrency(tax)}</span>
           </div>
-          <div className="flex justify-between font-bold text-lg text-foreground pt-2 border-t border-border">
-            <span>Total</span>
-            <span>${total.toFixed(2)}</span>
+          <div className="flex justify-between items-baseline font-bold text-lg text-foreground pt-2 border-t border-border gap-4">
+            <span className="shrink-0">Total</span>
+            <span className="tabular-nums text-right break-all">{formatCurrency(total)}</span>
           </div>
         </div>
 

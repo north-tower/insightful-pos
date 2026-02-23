@@ -22,12 +22,15 @@ import {
   CreditCard,
   Loader2,
   CircleDollarSign,
+  ScrollText,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useMemo, useState } from 'react';
 import { PaymentDialog } from '@/components/payment/PaymentDialog';
+import { CustomerStatement } from '@/components/customer/CustomerStatement';
 import { toast } from 'sonner';
+import { formatCurrency } from '@/lib/currency';
 
 interface CustomerDetailDialogProps {
   open: boolean;
@@ -63,6 +66,7 @@ export function CustomerDetailDialog({
 
   const [paymentOrder, setPaymentOrder] = useState<SaleOrder | null>(null);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
+  const [isStatementOpen, setIsStatementOpen] = useState(false);
 
   // Filter orders for this customer
   const customerOrders = useMemo(() => {
@@ -110,10 +114,22 @@ export function CustomerDetailDialog({
                 {format(new Date(customer.created_at), 'MMM dd, yyyy')}
               </DialogDescription>
             </div>
-            <Button variant="outline" onClick={onEdit}>
-              <Edit className="w-4 h-4 mr-2" />
-              Edit
-            </Button>
+            <div className="flex items-center gap-2">
+              {customer.credit_balance > 0 && (
+                <Button
+                  variant="outline"
+                  onClick={() => setIsStatementOpen(true)}
+                  className="gap-1.5"
+                >
+                  <ScrollText className="w-4 h-4" />
+                  Statement
+                </Button>
+              )}
+              <Button variant="outline" onClick={onEdit}>
+                <Edit className="w-4 h-4 mr-2" />
+                Edit
+              </Button>
+            </div>
           </div>
         </DialogHeader>
 
@@ -166,17 +182,17 @@ export function CustomerDetailDialog({
             {/* Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <Card>
-                <CardContent className="p-4 text-center">
+                <CardContent className="p-4 text-center min-w-0">
                   <ShoppingBag className="w-6 h-6 mx-auto mb-2 text-muted-foreground" />
-                  <p className="text-2xl font-bold">{customer.total_orders}</p>
+                  <p className="text-2xl font-bold tabular-nums truncate">{customer.total_orders.toLocaleString()}</p>
                   <p className="text-sm text-muted-foreground">Total Orders</p>
                 </CardContent>
               </Card>
               <Card>
-                <CardContent className="p-4 text-center">
+                <CardContent className="p-4 text-center min-w-0">
                   <Award className="w-6 h-6 mx-auto mb-2 text-primary" />
-                  <p className="text-2xl font-bold text-primary">
-                    {customer.loyalty_points}
+                  <p className="text-2xl font-bold text-primary tabular-nums truncate">
+                    {customer.loyalty_points.toLocaleString()}
                   </p>
                   <p className="text-sm text-muted-foreground">
                     Loyalty Points
@@ -184,15 +200,15 @@ export function CustomerDetailDialog({
                 </CardContent>
               </Card>
               <Card>
-                <CardContent className="p-4 text-center">
-                  <p className="text-2xl font-bold">
-                    ${customer.total_spent.toFixed(2)}
+                <CardContent className="p-4 text-center min-w-0">
+                  <p className="text-2xl font-bold tabular-nums truncate">
+                    {formatCurrency(customer.total_spent)}
                   </p>
                   <p className="text-sm text-muted-foreground">Total Spent</p>
                 </CardContent>
               </Card>
               <Card>
-                <CardContent className="p-4 text-center">
+                <CardContent className="p-4 text-center min-w-0">
                   <CreditCard
                     className={cn(
                       'w-6 h-6 mx-auto mb-2',
@@ -203,11 +219,11 @@ export function CustomerDetailDialog({
                   />
                   <p
                     className={cn(
-                      'text-2xl font-bold',
+                      'text-2xl font-bold tabular-nums truncate',
                       customer.credit_balance > 0 ? 'text-warning' : '',
                     )}
                   >
-                    ${customer.credit_balance.toFixed(2)}
+                    {formatCurrency(customer.credit_balance)}
                   </p>
                   <p className="text-sm text-muted-foreground">
                     Credit Balance
@@ -222,31 +238,30 @@ export function CustomerDetailDialog({
                 <CardContent className="p-4">
                   <h3 className="font-semibold mb-2">Credit Details</h3>
                   <div className="grid grid-cols-3 gap-4 text-sm">
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-muted-foreground">Credit Limit</p>
-                      <p className="font-medium">
-                        ${customer.credit_limit.toFixed(2)}
+                      <p className="font-medium tabular-nums truncate">
+                        {formatCurrency(customer.credit_limit)}
                       </p>
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-muted-foreground">Outstanding</p>
                       <p
                         className={cn(
-                          'font-medium',
+                          'font-medium tabular-nums truncate',
                           customer.credit_balance > 0 && 'text-warning',
                         )}
                       >
-                        ${customer.credit_balance.toFixed(2)}
+                        {formatCurrency(customer.credit_balance)}
                       </p>
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-muted-foreground">Available</p>
-                      <p className="font-medium text-success">
-                        $
-                        {Math.max(
+                      <p className="font-medium text-success tabular-nums truncate">
+                        {formatCurrency(Math.max(
                           customer.credit_limit - customer.credit_balance,
                           0,
-                        ).toFixed(2)}
+                        ))}
                       </p>
                     </div>
                   </div>
@@ -317,15 +332,11 @@ export function CustomerDetailDialog({
             {/* Unpaid invoices banner */}
             {unpaidOrders.length > 0 && (
               <div className="p-3 bg-warning/5 border border-warning/20 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-warning font-medium text-sm">
-                    <CreditCard className="w-4 h-4" />
-                    {unpaidOrders.length} unpaid invoice{unpaidOrders.length > 1 ? 's' : ''} —
-                    Total: $
-                    {unpaidOrders
-                      .reduce((sum, o) => sum + getOrderBalanceDue(o), 0)
-                      .toFixed(2)}
-                  </div>
+                <div className="flex items-center gap-2 text-warning font-medium text-sm flex-wrap">
+                  <CreditCard className="w-4 h-4 shrink-0" />
+                  <span>{unpaidOrders.length} unpaid invoice{unpaidOrders.length > 1 ? 's' : ''}</span>
+                  <span className="tabular-nums">— Total: {formatCurrency(unpaidOrders
+                    .reduce((sum, o) => sum + getOrderBalanceDue(o), 0))}</span>
                 </div>
               </div>
             )}
@@ -394,7 +405,7 @@ export function CustomerDetailDialog({
                               <div>
                                 <p className="text-muted-foreground">Total</p>
                                 <p className="font-medium">
-                                  ${order.total.toFixed(2)}
+                                  {formatCurrency(order.total)}
                                 </p>
                               </div>
                               <div>
@@ -407,7 +418,7 @@ export function CustomerDetailDialog({
                                 <div>
                                   <p className="text-muted-foreground">Balance</p>
                                   <p className="font-bold text-warning">
-                                    ${balanceDue.toFixed(2)}
+                                    {formatCurrency(balanceDue)}
                                   </p>
                                 </div>
                               )}
@@ -491,6 +502,15 @@ export function CustomerDetailDialog({
           }}
         />
       )}
+
+      {/* Statement Dialog */}
+      <CustomerStatement
+        open={isStatementOpen}
+        onOpenChange={setIsStatementOpen}
+        customer={customer}
+        orders={customerOrders}
+        loading={ordersLoading}
+      />
     </Dialog>
   );
 }

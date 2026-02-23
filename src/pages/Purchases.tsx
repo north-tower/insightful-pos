@@ -51,6 +51,7 @@ import { useSuppliers, type Supplier } from '@/hooks/useSuppliers';
 import { useProducts } from '@/hooks/useProducts';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { formatCurrency } from '@/lib/currency';
 
 interface PurchasesProps {
   onNavigate: (tab: string) => void;
@@ -452,28 +453,28 @@ export default function Purchases({ onNavigate }: PurchasesProps) {
       {/* Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-4 min-w-0">
             <p className="text-xs text-muted-foreground mb-1">Total Orders</p>
-            <p className="text-2xl font-bold">{stats.total}</p>
+            <p className="text-2xl font-bold tabular-nums truncate">{stats.total}</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-4 min-w-0">
             <p className="text-xs text-muted-foreground mb-1">Pending</p>
-            <p className="text-2xl font-bold text-warning">{stats.draft}</p>
+            <p className="text-2xl font-bold text-warning tabular-nums truncate">{stats.draft}</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-4 min-w-0">
             <p className="text-xs text-muted-foreground mb-1">Received</p>
-            <p className="text-2xl font-bold text-success">{stats.received}</p>
+            <p className="text-2xl font-bold text-success tabular-nums truncate">{stats.received}</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-4 min-w-0">
             <p className="text-xs text-muted-foreground mb-1">Total Spent</p>
-            <p className="text-2xl font-bold">
-              ${stats.totalValue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            <p className="text-2xl font-bold tabular-nums truncate">
+              {formatCurrency(stats.totalValue)}
             </p>
           </CardContent>
         </Card>
@@ -574,11 +575,11 @@ export default function Purchases({ onNavigate }: PurchasesProps) {
                         </div>
 
                         {/* Right: total + actions */}
-                        <div className="flex items-center gap-3">
-                          <p className="text-lg font-bold">
-                            ${po.total.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        <div className="flex items-center gap-3 shrink-0">
+                          <p className="text-lg font-bold tabular-nums whitespace-nowrap">
+                            {formatCurrency(po.total)}
                           </p>
-                          <div className="flex gap-1">
+                          <div className="flex gap-1 shrink-0">
                             <Button
                               size="sm"
                               variant="ghost"
@@ -814,10 +815,10 @@ export default function Purchases({ onNavigate }: PurchasesProps) {
                       </div>
 
                       {/* Line total */}
-                      <div className="sm:col-span-2 text-right">
+                      <div className="sm:col-span-2 text-right min-w-0">
                         <Label className="sm:hidden text-xs mb-1 block">Total</Label>
-                        <p className="text-sm font-semibold py-2">
-                          ${(item.quantity * item.unit_cost).toFixed(2)}
+                        <p className="text-sm font-semibold py-2 tabular-nums truncate">
+                          {formatCurrency(item.quantity * item.unit_cost)}
                         </p>
                       </div>
 
@@ -837,10 +838,10 @@ export default function Purchases({ onNavigate }: PurchasesProps) {
 
                   {/* Subtotal */}
                   <div className="flex justify-end pr-12 pt-2 border-t">
-                    <div className="text-right">
+                    <div className="text-right min-w-0">
                       <p className="text-sm text-muted-foreground">Subtotal</p>
-                      <p className="text-lg font-bold">
-                        ${poSubtotal.toFixed(2)}
+                      <p className="text-lg font-bold tabular-nums">
+                        {formatCurrency(poSubtotal)}
                       </p>
                     </div>
                   </div>
@@ -930,19 +931,19 @@ export default function Purchases({ onNavigate }: PurchasesProps) {
                   <p className="text-sm font-medium mb-2">Items</p>
                   <div className="border rounded-lg divide-y">
                     {(viewPurchase.items || []).map((item) => (
-                      <div key={item.id} className="flex items-center justify-between p-3">
+                      <div key={item.id} className="flex items-center justify-between gap-4 p-3">
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium truncate">{item.product_name}</p>
                           {item.product_sku && (
-                            <p className="text-xs text-muted-foreground font-mono">{item.product_sku}</p>
+                            <p className="text-xs text-muted-foreground font-mono truncate">{item.product_sku}</p>
                           )}
                         </div>
-                        <div className="text-right ml-4">
-                          <p className="text-sm font-medium">
-                            ${item.line_total.toFixed(2)}
+                        <div className="text-right shrink-0">
+                          <p className="text-sm font-medium tabular-nums whitespace-nowrap">
+                            {formatCurrency(item.line_total)}
                           </p>
-                          <p className="text-xs text-muted-foreground">
-                            {item.quantity} × ${item.unit_cost.toFixed(2)}
+                          <p className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">
+                            {item.quantity.toLocaleString()} × {formatCurrency(item.unit_cost)}
                           </p>
                         </div>
                       </div>
@@ -951,10 +952,10 @@ export default function Purchases({ onNavigate }: PurchasesProps) {
                 </div>
 
                 {/* Total */}
-                <div className="flex justify-between items-center p-3 rounded-lg bg-muted">
-                  <span className="font-medium">Total</span>
-                  <span className="text-lg font-bold">
-                    ${viewPurchase.total.toFixed(2)}
+                <div className="flex justify-between items-center gap-4 p-3 rounded-lg bg-muted">
+                  <span className="font-medium shrink-0">Total</span>
+                  <span className="text-lg font-bold tabular-nums text-right">
+                    {formatCurrency(viewPurchase.total)}
                   </span>
                 </div>
 

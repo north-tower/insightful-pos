@@ -24,6 +24,7 @@ import { cn } from '@/lib/utils';
 import { CustomerDialog } from '@/components/customer/CustomerDialog';
 import { CustomerDetailDialog } from '@/components/customer/CustomerDetailDialog';
 import { toast } from 'sonner';
+import { formatCurrency } from '@/lib/currency';
 
 interface CustomerManagementProps {
   onNavigate: (tab: string) => void;
@@ -179,19 +180,19 @@ export default function CustomerManagement({
           {/* Stats */}
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 sm:gap-4 mb-6">
             <Card>
-              <CardContent className="p-4">
+              <CardContent className="p-4 min-w-0">
                 <p className="text-sm text-muted-foreground mb-1">
                   Total Customers
                 </p>
-                <p className="text-2xl font-bold">{customers.length}</p>
+                <p className="text-2xl font-bold tabular-nums truncate">{customers.length}</p>
               </CardContent>
             </Card>
             <Card>
-              <CardContent className="p-4">
+              <CardContent className="p-4 min-w-0">
                 <p className="text-sm text-muted-foreground mb-1">
                   Active Customers
                 </p>
-                <p className="text-2xl font-bold text-success">
+                <p className="text-2xl font-bold text-success tabular-nums truncate">
                   {
                     customers.filter(
                       (c) => c.status === 'active' || c.status === 'vip',
@@ -201,35 +202,35 @@ export default function CustomerManagement({
               </CardContent>
             </Card>
             <Card>
-              <CardContent className="p-4">
+              <CardContent className="p-4 min-w-0">
                 <p className="text-sm text-muted-foreground mb-1">
                   VIP Members
                 </p>
-                <p className="text-2xl font-bold text-warning">
+                <p className="text-2xl font-bold text-warning tabular-nums truncate">
                   {customers.filter((c) => c.status === 'vip').length}
                 </p>
               </CardContent>
             </Card>
             <Card>
-              <CardContent className="p-4">
+              <CardContent className="p-4 min-w-0">
                 <p className="text-sm text-muted-foreground mb-1">
                   Total Loyalty Points
                 </p>
-                <p className="text-2xl font-bold text-primary">
-                  {customers.reduce((sum, c) => sum + c.loyalty_points, 0)}
+                <p className="text-2xl font-bold text-primary tabular-nums truncate">
+                  {customers.reduce((sum, c) => sum + c.loyalty_points, 0).toLocaleString()}
                 </p>
               </CardContent>
             </Card>
             <Card>
-              <CardContent className="p-4">
+              <CardContent className="p-4 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <CreditCard className="w-4 h-4 text-warning" />
-                  <p className="text-sm text-muted-foreground">
+                  <CreditCard className="w-4 h-4 text-warning shrink-0" />
+                  <p className="text-sm text-muted-foreground truncate">
                     Credit Outstanding
                   </p>
                 </div>
-                <p className="text-2xl font-bold text-warning">
-                  ${totalOutstanding.toFixed(2)}
+                <p className="text-2xl font-bold text-warning tabular-nums truncate">
+                  {formatCurrency(totalOutstanding)}
                 </p>
               </CardContent>
             </Card>
@@ -262,24 +263,24 @@ export default function CustomerManagement({
                   )}
                 >
                   <CardContent className="p-5">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-bold text-lg">
+                    <div className="flex items-start justify-between gap-2 mb-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1 min-w-0">
+                          <h3 className="font-bold text-lg truncate">
                             {getCustomerDisplayName(customer)}
                           </h3>
                           {customer.status === 'vip' && (
-                            <Star className="w-4 h-4 text-warning fill-warning" />
+                            <Star className="w-4 h-4 text-warning fill-warning shrink-0" />
                           )}
                         </div>
                         <div className="space-y-1 text-sm text-muted-foreground">
-                          {customer.email && <p>{customer.email}</p>}
-                          {customer.phone && <p>{customer.phone}</p>}
+                          {customer.email && <p className="truncate">{customer.email}</p>}
+                          {customer.phone && <p className="truncate">{customer.phone}</p>}
                         </div>
                       </div>
                       <Badge
                         className={cn(
-                          'text-xs',
+                          'text-xs shrink-0',
                           statusColors[customer.status] || '',
                         )}
                       >
@@ -304,47 +305,47 @@ export default function CustomerManagement({
 
                     {/* Stats */}
                     <div className="grid grid-cols-2 gap-3 mb-4 p-3 bg-muted/50 rounded-lg">
-                      <div>
+                      <div className="min-w-0">
                         <p className="text-xs text-muted-foreground">Orders</p>
-                        <p className="font-semibold">
-                          {customer.total_orders}
+                        <p className="font-semibold tabular-nums truncate">
+                          {customer.total_orders.toLocaleString()}
                         </p>
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <p className="text-xs text-muted-foreground">Spent</p>
-                        <p className="font-semibold">
-                          ${customer.total_spent.toFixed(2)}
+                        <p className="font-semibold tabular-nums truncate">
+                          {formatCurrency(customer.total_spent)}
                         </p>
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <p className="text-xs text-muted-foreground">Points</p>
-                        <p className="font-semibold text-primary">
-                          {customer.loyalty_points}
+                        <p className="font-semibold text-primary tabular-nums truncate">
+                          {customer.loyalty_points.toLocaleString()}
                         </p>
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <p className="text-xs text-muted-foreground">
                           Credit Balance
                         </p>
                         <p
                           className={cn(
-                            'font-semibold',
+                            'font-semibold tabular-nums truncate',
                             customer.credit_balance > 0
                               ? 'text-warning'
                               : 'text-muted-foreground',
                           )}
                         >
-                          ${customer.credit_balance.toFixed(2)}
+                          {formatCurrency(customer.credit_balance)}
                         </p>
                       </div>
                     </div>
 
                     {/* Loyalty Points */}
                     {customer.loyalty_points > 0 && (
-                      <div className="flex items-center gap-2 mb-4 p-2 bg-primary/10 rounded-lg">
-                        <Award className="w-4 h-4 text-primary" />
-                        <span className="text-sm font-medium text-primary">
-                          {customer.loyalty_points} loyalty points
+                      <div className="flex items-center gap-2 mb-4 p-2 bg-primary/10 rounded-lg min-w-0">
+                        <Award className="w-4 h-4 text-primary shrink-0" />
+                        <span className="text-sm font-medium text-primary tabular-nums truncate">
+                          {customer.loyalty_points.toLocaleString()} loyalty points
                         </span>
                       </div>
                     )}

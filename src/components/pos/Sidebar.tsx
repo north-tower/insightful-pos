@@ -24,6 +24,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { useBusinessMode } from '@/context/BusinessModeContext';
 import { useAuth, UserRole } from '@/context/AuthContext';
+import { useCompanySettings } from '@/context/BusinessSettingsContext';
 
 interface SidebarProps {
   activeTab: string;
@@ -72,6 +73,7 @@ const bottomNavItems: NavItem[] = [
 export function Sidebar({ activeTab, onTabChange, mobileOpen, onMobileClose }: SidebarProps) {
   const { isRestaurant, config } = useBusinessMode();
   const { user, signOut } = useAuth();
+  const { companyName, settings: company } = useCompanySettings();
   const allNavItems = isRestaurant ? restaurantNavItems : retailNavItems;
   const LogoIcon = isRestaurant ? UtensilsCrossed : Store;
 
@@ -119,7 +121,7 @@ export function Sidebar({ activeTab, onTabChange, mobileOpen, onMobileClose }: S
             <div className="absolute -top-1 -right-1 w-4 h-4 bg-success rounded-full border-2 border-sidebar"></div>
           </div>
           <div>
-            <h1 className="font-bold text-xl leading-tight tracking-tight">Nexus</h1>
+            <h1 className="font-bold text-xl leading-tight tracking-tight">{companyName || 'POS'}</h1>
               <p className="text-xs text-sidebar-foreground/60 font-medium">{config.label} POS</p>
             </div>
           </div>

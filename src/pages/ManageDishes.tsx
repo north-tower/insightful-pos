@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { PageLayout } from '@/components/pos/PageLayout';
 import { cn } from '@/lib/utils';
+import { formatCurrency } from '@/lib/currency';
 import { useProducts } from '@/hooks/useProducts';
 import type { MenuItem } from '@/hooks/useProducts';
 
@@ -233,8 +234,8 @@ function DishManageCard({ dish, isSelected, onSelect, style }: DishManageCardPro
         <h3 className="font-semibold text-foreground mb-2 line-clamp-2">
           {dish.name}
         </h3>
-        <p className="text-lg font-bold text-foreground">
-          ${dish.price.toFixed(2)}
+        <p className="text-base font-bold text-foreground tabular-nums truncate">
+          {formatCurrency(dish.price)}
         </p>
       </div>
     </div>

@@ -15,6 +15,7 @@ import {
   Clock,
   ChevronDown,
   ChevronUp,
+  ScrollText,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, differenceInDays } from 'date-fns';
@@ -22,8 +23,10 @@ import { useOrders, SaleOrder } from '@/hooks/useOrders';
 import { useCustomers, Customer } from '@/hooks/useCustomers';
 import { PaymentDialog } from '@/components/payment/PaymentDialog';
 import { InvoiceDialog } from '@/components/receipt/InvoiceDialog';
+import { CustomerStatement } from '@/components/customer/CustomerStatement';
 import { ReceiptData } from '@/data/receiptData';
 import { toast } from 'sonner';
+import { formatCurrency } from '@/lib/currency';
 
 interface AccountsReceivableProps {
   onNavigate: (tab: string) => void;
@@ -102,6 +105,11 @@ export default function AccountsReceivable({
   const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
   const [invoiceOrder, setInvoiceOrder] = useState<SaleOrder | null>(null);
   const [invoiceCustomer, setInvoiceCustomer] = useState<Customer | null>(null);
+
+  // Statement dialog state
+  const [isStatementOpen, setIsStatementOpen] = useState(false);
+  const [statementCustomer, setStatementCustomer] = useState<Customer | null>(null);
+  const [statementOrders, setStatementOrders] = useState<SaleOrder[]>([]);
 
   // Group unpaid orders by customer
   const customerAccounts = useMemo(() => {
@@ -202,6 +210,19 @@ export default function AccountsReceivable({
     toast.success('Payment recorded successfully');
   };
 
+  const handleViewStatement = (account: CustomerAccount) => {
+    if (!account.customer) return;
+    // Get all credit orders for this customer (not just unpaid)
+    const customerOrders = orders.filter(
+      (o) =>
+        (o.customer_id === account.customerId ||
+          o.customer_name === account.customerName),
+    );
+    setStatementCustomer(account.customer);
+    setStatementOrders(customerOrders);
+    setIsStatementOpen(true);
+  };
+
   return (
     <PageLayout activeTab="accounts" onNavigate={onNavigate}>
           {/* Page Header */}
@@ -217,58 +238,58 @@ export default function AccountsReceivable({
           {/* Stats */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-6">
             <Card>
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className="h-10 w-10 rounded bg-warning/10 flex items-center justify-center">
+              <CardContent className="p-4 flex items-center gap-3 min-w-0">
+                <div className="h-10 w-10 rounded bg-warning/10 flex items-center justify-center shrink-0">
                   <CreditCard className="w-5 h-5 text-warning" />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <p className="text-sm text-muted-foreground">
                     Total Outstanding
                   </p>
-                  <p className="text-xl font-bold text-warning">
-                    ${totalOutstandingCredit.toFixed(2)}
+                  <p className="text-lg font-bold text-warning tabular-nums truncate">
+                    {formatCurrency(totalOutstandingCredit)}
                   </p>
                 </div>
               </CardContent>
             </Card>
             <Card>
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className="h-10 w-10 rounded bg-destructive/10 flex items-center justify-center">
+              <CardContent className="p-4 flex items-center gap-3 min-w-0">
+                <div className="h-10 w-10 rounded bg-destructive/10 flex items-center justify-center shrink-0">
                   <AlertTriangle className="w-5 h-5 text-destructive" />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <p className="text-sm text-muted-foreground">Overdue</p>
-                  <p className="text-xl font-bold text-destructive">
-                    ${overdueTotal.toFixed(2)}
+                  <p className="text-lg font-bold text-destructive tabular-nums truncate">
+                    {formatCurrency(overdueTotal)}
                   </p>
                 </div>
               </CardContent>
             </Card>
             <Card>
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className="h-10 w-10 rounded bg-info/10 flex items-center justify-center">
+              <CardContent className="p-4 flex items-center gap-3 min-w-0">
+                <div className="h-10 w-10 rounded bg-info/10 flex items-center justify-center shrink-0">
                   <FileText className="w-5 h-5 text-info" />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <p className="text-sm text-muted-foreground">
                     Unpaid Invoices
                   </p>
-                  <p className="text-xl font-bold">
+                  <p className="text-xl font-bold tabular-nums">
                     {unpaidCreditOrders.length}
                   </p>
                 </div>
               </CardContent>
             </Card>
             <Card>
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className="h-10 w-10 rounded bg-primary/10 flex items-center justify-center">
+              <CardContent className="p-4 flex items-center gap-3 min-w-0">
+                <div className="h-10 w-10 rounded bg-primary/10 flex items-center justify-center shrink-0">
                   <Users className="w-5 h-5 text-primary" />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <p className="text-sm text-muted-foreground">
                     Accounts w/ Balance
                   </p>
-                  <p className="text-xl font-bold">{customerAccounts.length}</p>
+                  <p className="text-xl font-bold tabular-nums">{customerAccounts.length}</p>
                 </div>
               </CardContent>
             </Card>
@@ -382,26 +403,40 @@ export default function AccountsReceivable({
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-4">
-                          <div className="text-right">
+                        <div className="flex items-center gap-3 shrink-0">
+                          {account.customer && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="gap-1.5 hidden sm:flex"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleViewStatement(account);
+                              }}
+                            >
+                              <ScrollText className="w-3.5 h-3.5" />
+                              Statement
+                            </Button>
+                          )}
+                          <div className="text-right min-w-0">
                             <p className="text-sm text-muted-foreground">
                               Balance Owed
                             </p>
                             <p
                               className={cn(
-                                'text-xl font-bold',
+                                'text-lg font-bold tabular-nums',
                                 account.isOverdue
                                   ? 'text-destructive'
                                   : 'text-warning',
                               )}
                             >
-                              ${account.totalOwed.toFixed(2)}
+                              {formatCurrency(account.totalOwed)}
                             </p>
                           </div>
                           {isExpanded ? (
-                            <ChevronUp className="w-5 h-5 text-muted-foreground" />
+                            <ChevronUp className="w-5 h-5 text-muted-foreground shrink-0" />
                           ) : (
-                            <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                            <ChevronDown className="w-5 h-5 text-muted-foreground shrink-0" />
                           )}
                         </div>
                       </button>
@@ -409,6 +444,20 @@ export default function AccountsReceivable({
                       {/* Expanded: invoice list */}
                       {isExpanded && (
                         <div className="border-t px-5 pb-5 pt-3 space-y-3">
+                          {/* Mobile statement button */}
+                          {account.customer && (
+                            <div className="sm:hidden">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="w-full gap-1.5"
+                                onClick={() => handleViewStatement(account)}
+                              >
+                                <ScrollText className="w-3.5 h-3.5" />
+                                View Statement
+                              </Button>
+                            </div>
+                          )}
                           {account.orders
                             .sort(
                               (a, b) =>
@@ -435,13 +484,13 @@ export default function AccountsReceivable({
                                 <div
                                   key={order.id}
                                   className={cn(
-                                    'flex items-center justify-between p-4 rounded-lg border',
+                                    'flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-lg border',
                                     isOverdue
                                       ? 'bg-destructive/5 border-destructive/20'
                                       : 'bg-muted/30 border-border',
                                   )}
                                 >
-                                  <div className="flex-1">
+                                  <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-3 mb-1 flex-wrap">
                                       <span className="font-semibold">
                                         {order.invoice_number ||
@@ -466,19 +515,19 @@ export default function AccountsReceivable({
                                         </span>
                                       )}
                                     </div>
-                                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                                    <div className="flex items-center gap-3 text-sm text-muted-foreground flex-wrap">
                                       <span>
                                         {format(
                                           new Date(order.created_at),
                                           'MMM dd, yyyy',
                                         )}
                                       </span>
-                                      <span>
-                                        Total: ${order.total.toFixed(2)}
+                                      <span className="tabular-nums">
+                                        Total: {formatCurrency(order.total)}
                                       </span>
                                       {totalPaid > 0 && (
-                                        <span className="text-success">
-                                          Paid: ${totalPaid.toFixed(2)}
+                                        <span className="text-success tabular-nums">
+                                          Paid: {formatCurrency(totalPaid)}
                                         </span>
                                       )}
                                       {dueDate && !isOverdue && (
@@ -490,20 +539,20 @@ export default function AccountsReceivable({
                                     </div>
                                   </div>
 
-                                  <div className="flex items-center gap-3 ml-4">
+                                  <div className="flex items-center gap-3 shrink-0">
                                     <div className="text-right mr-2">
                                       <p className="text-xs text-muted-foreground">
                                         Due
                                       </p>
                                       <p
                                         className={cn(
-                                          'font-bold',
+                                          'font-bold tabular-nums',
                                           isOverdue
                                             ? 'text-destructive'
                                             : 'text-warning',
                                         )}
                                       >
-                                        ${balanceDue.toFixed(2)}
+                                        {formatCurrency(balanceDue)}
                                       </p>
                                     </div>
                                     <Button
@@ -518,7 +567,7 @@ export default function AccountsReceivable({
                                       className="gap-1.5"
                                     >
                                       <FileText className="w-3.5 h-3.5" />
-                                      Invoice
+                                      <span className="hidden sm:inline">Invoice</span>
                                     </Button>
                                     <Button
                                       size="sm"
@@ -580,6 +629,22 @@ export default function AccountsReceivable({
           customer={invoiceCustomer}
           receiptData={orderToReceiptData(invoiceOrder)}
           defaultView="invoice"
+        />
+      )}
+
+      {/* Statement Dialog */}
+      {statementCustomer && (
+        <CustomerStatement
+          open={isStatementOpen}
+          onOpenChange={(open) => {
+            setIsStatementOpen(open);
+            if (!open) {
+              setStatementCustomer(null);
+              setStatementOrders([]);
+            }
+          }}
+          customer={statementCustomer}
+          orders={statementOrders}
         />
       )}
     </PageLayout>

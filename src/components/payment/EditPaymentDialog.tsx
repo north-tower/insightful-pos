@@ -19,6 +19,7 @@ import {
   Pencil,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { fc, CURRENCY_SYMBOL } from '@/lib/currency';
 import { format } from 'date-fns';
 import { Payment, PaymentMethod, SaleOrder } from '@/hooks/useOrders';
 
@@ -183,8 +184,8 @@ export function EditPaymentDialog({
                 Amount
               </Label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">
-                  $
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium text-xs">
+                  {CURRENCY_SYMBOL}
                 </span>
                 <Input
                   id="edit-payment-amount"
@@ -197,17 +198,17 @@ export function EditPaymentDialog({
                     setError(null);
                   }}
                   placeholder="0.00"
-                  className="pl-7 text-lg font-semibold"
+                  className="pl-10 text-lg font-semibold"
                 />
               </div>
               {enteredAmount !== payment.amount && enteredAmount > 0 && (
                 <p className="text-xs text-muted-foreground">
-                  Original: ${payment.amount.toFixed(2)} →{' '}
+                  Original: {fc(payment.amount)} →{' '}
                   <span className="font-medium text-foreground">
-                    ${enteredAmount.toFixed(2)}
+                    {fc(enteredAmount)}
                   </span>{' '}
                   ({enteredAmount > payment.amount ? '+' : ''}
-                  {(enteredAmount - payment.amount).toFixed(2)})
+                  {fc(enteredAmount - payment.amount)})
                 </p>
               )}
             </div>

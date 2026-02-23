@@ -3,6 +3,7 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/
 import { Pie, PieChart, Cell } from 'recharts';
 import { RevenueBreakdown } from '@/data/dashboardData';
 import { cn } from '@/lib/utils';
+import { formatCurrency } from '@/lib/currency';
 
 interface RevenueBreakdownProps {
   data: RevenueBreakdown[];
@@ -62,7 +63,7 @@ export function RevenueBreakdownChart({ data }: RevenueBreakdownProps) {
                             <span className="text-sm font-medium">{data.name}</span>
                           </div>
                           <div className="text-sm text-muted-foreground">
-                            Revenue: <span className="font-medium text-foreground">${data.revenue.toFixed(2)}</span>
+                            Revenue: <span className="font-medium text-foreground">{formatCurrency(data.revenue)}</span>
                           </div>
                           <div className="text-sm text-muted-foreground">
                             Percentage: <span className="font-medium text-foreground">{data.percentage.toFixed(1)}%</span>
@@ -102,7 +103,7 @@ export function RevenueBreakdownChart({ data }: RevenueBreakdownProps) {
                 <span className="text-sm text-muted-foreground">{item.name}</span>
               </div>
               <div className="flex items-center gap-4">
-                <span className="text-sm font-medium">${item.revenue.toFixed(2)}</span>
+                <span className="text-sm font-medium">{formatCurrency(item.revenue)}</span>
                 <span className="text-sm text-muted-foreground w-12 text-right">{item.percentage.toFixed(1)}%</span>
               </div>
             </div>

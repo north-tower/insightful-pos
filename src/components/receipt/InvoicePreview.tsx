@@ -1,9 +1,10 @@
 import { format } from 'date-fns';
-import { businessInfo } from '@/data/receiptData';
 import { SaleOrder } from '@/hooks/useOrders';
+import { useCompanySettings } from '@/context/BusinessSettingsContext';
 import { Customer } from '@/hooks/useCustomers';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { fc } from '@/lib/currency';
 
 interface InvoicePreviewProps {
   order: SaleOrder;
@@ -11,6 +12,7 @@ interface InvoicePreviewProps {
 }
 
 export function InvoicePreview({ order, customer }: InvoicePreviewProps) {
+  const { settings: company } = useCompanySettings();
   const invoiceNumber = order.invoice_number || order.order_number;
   const isCreditSale = order.sale_type === 'credit';
   const isPaid = order.payment_status === 'paid';
@@ -36,16 +38,16 @@ export function InvoicePreview({ order, customer }: InvoicePreviewProps) {
       <div className="flex justify-between items-start mb-8">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
-            {businessInfo.name}
+            {company.fullName}
           </h1>
-          <p className="text-gray-500 mt-1">{businessInfo.address}</p>
-          <p className="text-gray-500">{businessInfo.city}</p>
-          <p className="text-gray-500 mt-1">Tel: {businessInfo.phone}</p>
-          {businessInfo.email && (
-            <p className="text-gray-500">{businessInfo.email}</p>
+          <p className="text-gray-500 mt-1">{company.address}</p>
+          <p className="text-gray-500">{company.city}</p>
+          <p className="text-gray-500 mt-1">Tel: {company.phone}</p>
+          {company.email && (
+            <p className="text-gray-500">{company.email}</p>
           )}
-          {businessInfo.website && (
-            <p className="text-gray-500">{businessInfo.website}</p>
+          {company.website && (
+            <p className="text-gray-500">{company.website}</p>
           )}
         </div>
 
@@ -134,7 +136,7 @@ export function InvoicePreview({ order, customer }: InvoicePreviewProps) {
               )}
               {isCreditSale && customer && (
                 <p className="text-gray-500 mt-2 text-xs">
-                  Previous Balance: <span className="font-bold text-amber-600">${previousBalance.toFixed(2)}</span>
+                  Previous Balance: <span className="font-bold text-amber-600">{fc(previousBalance)}</span>
                 </p>
               )}
             </div>
@@ -219,7 +221,7 @@ export function InvoicePreview({ order, customer }: InvoicePreviewProps) {
                       <p key={mi} className="text-xs text-gray-500">
                         + {mod.name}
                         {mod.price && mod.price > 0
-                          ? ` ($${mod.price.toFixed(2)})`
+                          ? ` (${fc(mod.price)})`
                           : ''}
                       </p>
                     ))}
@@ -238,10 +240,10 @@ export function InvoicePreview({ order, customer }: InvoicePreviewProps) {
               )}
               <td className="py-3 text-center text-gray-700">{item.quantity}</td>
               <td className="py-3 text-right text-gray-700">
-                ${item.unit_price.toFixed(2)}
+                {fc(item.unit_price)}
               </td>
               <td className="py-3 text-right font-semibold text-gray-900">
-                ${item.line_total.toFixed(2)}
+                {fc(item.line_total)}
               </td>
             </tr>
           ))}
@@ -254,21 +256,21 @@ export function InvoicePreview({ order, customer }: InvoicePreviewProps) {
           <div className="space-y-2">
             <div className="flex justify-between text-gray-600">
               <span>Subtotal</span>
-              <span>${order.subtotal.toFixed(2)}</span>
+              <span>{fc(order.subtotal)}</span>
             </div>
             {order.discount_amount > 0 && (
               <div className="flex justify-between text-green-600">
                 <span>Discount</span>
-                <span>-${order.discount_amount.toFixed(2)}</span>
+                <span>-{fc(order.discount_amount)}</span>
               </div>
             )}
             <div className="flex justify-between text-gray-600">
               <span>Tax ({(order.tax_rate * 100).toFixed(0)}%)</span>
-              <span>${order.tax_amount.toFixed(2)}</span>
+              <span>{fc(order.tax_amount)}</span>
             </div>
             <div className="flex justify-between font-bold text-xl text-gray-900 border-t-2 border-gray-900 pt-2 mt-2">
               <span>Total</span>
-              <span>${order.total.toFixed(2)}</span>
+              <span>{fc(order.total)}</span>
             </div>
 
             {/* Payment info */}
@@ -286,12 +288,12 @@ export function InvoicePreview({ order, customer }: InvoicePreviewProps) {
                       {payment.method}
                       {payment.reference ? ` (${payment.reference})` : ''}
                     </span>
-                    <span>${payment.amount.toFixed(2)}</span>
+                    <span>{fc(payment.amount)}</span>
                   </div>
                 ))}
                 <div className="flex justify-between text-gray-500 text-sm mt-1">
                   <span>Total Paid</span>
-                  <span className="font-semibold">${totalPaid.toFixed(2)}</span>
+                  <span className="font-semibold">{fc(totalPaid)}</span>
                 </div>
               </div>
             )}
@@ -300,7 +302,7 @@ export function InvoicePreview({ order, customer }: InvoicePreviewProps) {
             {isCreditSale && balanceDue > 0 && (
               <div className="flex justify-between font-bold text-lg text-amber-600 border-t-2 border-amber-400 pt-2 mt-2">
                 <span>Balance Due</span>
-                <span>${balanceDue.toFixed(2)}</span>
+                <span>{fc(balanceDue)}</span>
               </div>
             )}
 
@@ -312,21 +314,21 @@ export function InvoicePreview({ order, customer }: InvoicePreviewProps) {
                 </p>
                 <div className="flex justify-between text-gray-600 text-sm">
                   <span>Previous Balance</span>
-                  <span>${previousBalance.toFixed(2)}</span>
+                  <span>{fc(previousBalance)}</span>
                 </div>
                 <div className="flex justify-between text-gray-600 text-sm">
                   <span>This Invoice</span>
-                  <span>+ ${balanceDue.toFixed(2)}</span>
+                  <span>+ {fc(balanceDue)}</span>
                 </div>
                 {totalPaid > 0 && (
                   <div className="flex justify-between text-green-600 text-sm">
                     <span>Payments Received</span>
-                    <span>− ${totalPaid.toFixed(2)}</span>
+                    <span>− {fc(totalPaid)}</span>
                   </div>
                 )}
                 <div className="flex justify-between font-bold text-base text-red-700 border-t border-gray-400 pt-2 mt-1">
                   <span>Overall Account Balance</span>
-                  <span>${overallBalance.toFixed(2)}</span>
+                  <span>{fc(overallBalance)}</span>
                 </div>
               </div>
             )}
@@ -361,9 +363,9 @@ export function InvoicePreview({ order, customer }: InvoicePreviewProps) {
 
         <div className="text-center text-xs text-gray-400 mt-6 space-y-1">
           <p>Thank you for your business!</p>
-          {businessInfo.taxId && <p>Tax ID: {businessInfo.taxId}</p>}
+          {company.tax_id && <p>Tax ID: {company.tax_id}</p>}
           <p>
-            {businessInfo.name} • {businessInfo.address} • {businessInfo.city}
+            {company.fullName} • {company.address} • {company.city}
           </p>
         </div>
       </div>

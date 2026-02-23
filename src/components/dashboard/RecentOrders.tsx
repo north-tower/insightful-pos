@@ -2,6 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { RecentOrder } from '@/data/dashboardData';
 import { cn } from '@/lib/utils';
+import { formatCurrency } from '@/lib/currency';
 
 interface RecentOrdersProps {
   orders: RecentOrder[];
@@ -58,7 +59,7 @@ export function RecentOrders({ orders }: RecentOrdersProps) {
                   </div>
                 </div>
                 <div className="ml-4 text-right">
-                  <p className="font-bold text-lg text-foreground">${order.total.toFixed(2)}</p>
+                  <p className="font-bold text-lg text-foreground">{formatCurrency(order.total)}</p>
                 </div>
               </div>
             );

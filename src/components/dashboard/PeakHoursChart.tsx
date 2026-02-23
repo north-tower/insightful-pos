@@ -2,6 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { PeakHoursData } from '@/data/dashboardData';
+import { formatCurrency } from '@/lib/currency';
 
 interface PeakHoursChartProps {
   data: PeakHoursData[];
@@ -66,7 +67,7 @@ export function PeakHoursChart({ data }: PeakHoursChartProps) {
                         <div className="flex items-center gap-2">
                           <div className="h-2 w-2 rounded-full bg-info" />
                           <span className="text-sm text-muted-foreground">
-                            Revenue: <span className="font-medium text-foreground">${data.revenue.toLocaleString()}</span>
+                            Revenue: <span className="font-medium text-foreground">{formatCurrency(data.revenue)}</span>
                           </span>
                         </div>
                       </div>

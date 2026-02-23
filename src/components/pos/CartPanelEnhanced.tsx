@@ -17,6 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { ReceiptData } from '@/data/receiptData';
 import { useOrders, SaleOrder, SaleType } from '@/hooks/useOrders';
 import { useCustomers, Customer } from '@/hooks/useCustomers';
+import { fc } from '@/lib/currency';
 
 type PaymentMethod = 'cash' | 'card' | 'qr' | 'split';
 type OrderType = 'dine-in' | 'takeaway' | 'delivery';
@@ -191,7 +192,7 @@ export function CartPanelEnhanced() {
         }
         setLastOrderCustomer(freshCustomer);
         const saleLabel = saleType === 'credit' ? 'Credit invoice' : 'Order';
-        toast.success(`${saleLabel} #${order.invoice_number || order.order_number} — $${order.total.toFixed(2)}`);
+        toast.success(`${saleLabel} #${order.invoice_number || order.order_number} — ${fc(order.total)}`);
         setIsInvoiceOpen(true);
     clearCart();
     setPartialPayment(null);
@@ -286,7 +287,7 @@ export function CartPanelEnhanced() {
 
   return (
     <>
-      <div className="w-full lg:w-80 bg-card border-t lg:border-t-0 lg:border-l border-border flex flex-col h-auto max-h-[50vh] lg:max-h-none lg:h-full shrink-0">
+      <div className="w-full lg:w-[26rem] bg-card border-t lg:border-t-0 lg:border-l border-border flex flex-col h-auto max-h-[50vh] lg:max-h-none lg:h-full shrink-0">
         {/* Header */}
         <div className="p-4 border-b border-border">
           <div className="flex items-center justify-between mb-3">
@@ -367,9 +368,9 @@ export function CartPanelEnhanced() {
                         {getCustomerDisplayName(selectedCustomer)}
                       </p>
                       <p className="text-[10px] text-muted-foreground">
-                        Balance: ${selectedCustomer.credit_balance.toFixed(2)}
+                        Balance: {fc(selectedCustomer.credit_balance)}
                         {selectedCustomer.credit_limit > 0 &&
-                          ` / Limit: $${selectedCustomer.credit_limit.toFixed(2)}`}
+                          ` / Limit: ${fc(selectedCustomer.credit_limit)}`}
                       </p>
                     </div>
                   </div>
@@ -434,7 +435,7 @@ export function CartPanelEnhanced() {
                       <div className="text-right">
                         {customer.credit_balance > 0 && (
                           <Badge variant="outline" className="text-[10px] text-warning border-warning/30">
-                            ${customer.credit_balance.toFixed(2)}
+                            {fc(customer.credit_balance)}
                           </Badge>
                         )}
                         {customer.status === 'vip' && (
@@ -487,21 +488,21 @@ export function CartPanelEnhanced() {
                   <img
                     src={item.image}
                     alt={item.name}
-                    className="w-14 h-14 rounded-lg object-cover"
+                    className="w-16 h-16 rounded-lg object-cover shrink-0"
                   />
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between mb-1">
-                      <p className="font-medium text-foreground text-sm">{item.name}</p>
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <p className="font-medium text-foreground text-sm truncate">{item.name}</p>
                       <button
                         onClick={() => handleModifyItem(item)}
-                        className="text-primary hover:text-primary/80 transition-colors"
+                        className="text-primary hover:text-primary/80 transition-colors shrink-0"
                         title="Customize item"
                       >
-                        <Settings2 className="w-3 h-3" />
+                        <Settings2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
-                    <p className="text-xs text-primary font-semibold">
-                      ${item.price.toFixed(2)} × {item.quantity}
+                    <p className="text-xs text-primary font-semibold tabular-nums truncate">
+                      {fc(item.price)} × {item.quantity.toLocaleString()}
                     </p>
                     
                     {/* Modifiers */}
@@ -514,7 +515,7 @@ export function CartPanelEnhanced() {
                             </Badge>
                             {mod.price && mod.price > 0 && (
                               <span className="text-xs text-muted-foreground">
-                                +${mod.price.toFixed(2)}
+                                +{fc(mod.price)}
                               </span>
                             )}
                           </div>
@@ -524,37 +525,42 @@ export function CartPanelEnhanced() {
                     
                     {/* Notes */}
                     {item.notes && (
-                      <p className="text-xs text-muted-foreground mt-1 italic">
+                      <p className="text-xs text-muted-foreground mt-1 italic truncate">
                         Note: {item.notes}
                       </p>
                     )}
 
-                    <div className="flex items-center gap-2 mt-2">
-                      <button
-                        onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                        className="w-6 h-6 rounded-md bg-card border border-border flex items-center justify-center hover:bg-muted transition-colors"
-                      >
-                        <Minus className="w-3 h-3" />
-                      </button>
-                      <span className="text-sm font-medium w-4 text-center">{item.quantity}</span>
-                      <button
-                        onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                        className="w-6 h-6 rounded-md bg-card border border-border flex items-center justify-center hover:bg-muted transition-colors"
-                      >
-                        <Plus className="w-3 h-3" />
-                      </button>
+                    <div className="flex items-center justify-between mt-2">
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                          className={cn(
+                            "w-7 h-7 rounded-md flex items-center justify-center transition-colors",
+                            item.quantity === 1
+                              ? "bg-destructive/10 border border-destructive/30 text-destructive hover:bg-destructive/20"
+                              : "bg-card border border-border hover:bg-muted"
+                          )}
+                        >
+                          {item.quantity === 1 ? (
+                            <Trash2 className="w-3 h-3" />
+                          ) : (
+                            <Minus className="w-3 h-3" />
+                          )}
+                        </button>
+                        <span className="text-sm font-semibold min-w-[2.5rem] text-center tabular-nums">
+                          {item.quantity.toLocaleString()}
+                        </span>
+                        <button
+                          onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                          className="w-7 h-7 rounded-md bg-card border border-border flex items-center justify-center hover:bg-muted transition-colors"
+                        >
+                          <Plus className="w-3 h-3" />
+                        </button>
+                      </div>
+                      <p className="font-bold text-foreground text-sm tabular-nums">
+                        {fc(itemTotal)}
+                      </p>
                     </div>
-                  </div>
-                  <div className="flex flex-col items-end justify-between">
-                    <button
-                      onClick={() => removeItem(item.id)}
-                      className="text-destructive/70 hover:text-destructive transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                    <p className="font-bold text-foreground text-sm">
-                      ${itemTotal.toFixed(2)}
-                    </p>
                   </div>
                 </div>
               );
@@ -581,29 +587,29 @@ export function CartPanelEnhanced() {
         {/* Payment Summary */}
         <div className="p-4 border-t border-border space-y-4">
           <div className="space-y-2 text-sm">
-            <div className="flex justify-between text-muted-foreground">
-              <span>Subtotal</span>
-              <span>${subtotal.toFixed(2)}</span>
+            <div className="flex justify-between text-muted-foreground gap-4">
+              <span className="shrink-0">Subtotal</span>
+              <span className="tabular-nums text-right">{fc(subtotal)}</span>
             </div>
-            <div className="flex justify-between text-muted-foreground">
-              <span>Tax (5%)</span>
-              <span>${tax.toFixed(2)}</span>
+            <div className="flex justify-between text-muted-foreground gap-4">
+              <span className="shrink-0">Tax (5%)</span>
+              <span className="tabular-nums text-right">{fc(tax)}</span>
             </div>
             {partialPayment !== null && (
               <>
-                <div className="flex justify-between text-info">
-                  <span>Paid</span>
-                  <span>${partialPayment.toFixed(2)}</span>
+                <div className="flex justify-between text-info gap-4">
+                  <span className="shrink-0">Paid</span>
+                  <span className="tabular-nums text-right">{fc(partialPayment)}</span>
                 </div>
-                <div className="flex justify-between text-warning font-medium">
-                  <span>Remaining</span>
-                  <span>${remaining.toFixed(2)}</span>
+                <div className="flex justify-between text-warning font-medium gap-4">
+                  <span className="shrink-0">Remaining</span>
+                  <span className="tabular-nums text-right">{fc(remaining)}</span>
                 </div>
               </>
             )}
-            <div className="flex justify-between font-bold text-lg text-foreground pt-2 border-t border-border">
-              <span>Total</span>
-              <span>${displayTotal.toFixed(2)}</span>
+            <div className="flex justify-between items-baseline font-bold text-lg text-foreground pt-2 border-t border-border gap-4">
+              <span className="shrink-0">Total</span>
+              <span className="tabular-nums text-right break-all">{fc(displayTotal)}</span>
             </div>
           </div>
 
@@ -694,8 +700,8 @@ export function CartPanelEnhanced() {
                   </>
                 ) : saleType === 'credit' ? (
                   <>
-                    <FileText className="w-4 h-4" />
-                    Create Invoice — ${total.toFixed(2)}
+                    <FileText className="w-4 h-4 shrink-0" />
+                    <span className="truncate">Create Invoice — {fc(total)}</span>
                   </>
                 ) : (
                   'Place Order'

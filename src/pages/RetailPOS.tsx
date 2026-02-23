@@ -29,6 +29,7 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { generatePlaceholderUrl } from '@/lib/product-images';
+import { fc, CURRENCY_SYMBOL } from '@/lib/currency';
 import { toast } from 'sonner';
 
 interface RetailPOSProps {
@@ -62,6 +63,35 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
   const [lastOrder, setLastOrder] = useState<SaleOrder | null>(null);
   const [lastOrderCustomer, setLastOrderCustomer] = useState<Customer | null>(null);
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
+
+  // Local editing state so inputs can be cleared / partially typed before committing
+  const [editingQty, setEditingQty] = useState<Record<string, string>>({});
+  const [editingPrice, setEditingPrice] = useState<Record<string, string>>({});
+
+  const commitQty = (productId: string) => {
+    const raw = editingQty[productId];
+    if (raw !== undefined) {
+      const val = parseInt(raw, 10);
+      if (!isNaN(val) && val > 0) {
+        updateCartQuantity(productId, val);
+      } else if (raw === '' || val <= 0) {
+        // Treat empty or zero as remove
+        updateCartQuantity(productId, 0);
+      }
+      setEditingQty((prev) => { const n = { ...prev }; delete n[productId]; return n; });
+    }
+  };
+
+  const commitPrice = (productId: string) => {
+    const raw = editingPrice[productId];
+    if (raw !== undefined) {
+      const val = parseFloat(raw);
+      if (!isNaN(val) && val >= 0) {
+        updateCartPrice(productId, val);
+      }
+      setEditingPrice((prev) => { const n = { ...prev }; delete n[productId]; return n; });
+    }
+  };
 
   // Customer search filter
   const filteredCustomers = useMemo(() => {
@@ -233,7 +263,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
         setLastOrderCustomer(freshCustomer);
 
         const label = saleType === 'credit' ? 'Credit invoice' : 'Sale';
-        toast.success(`${label} #${order.invoice_number || order.order_number} — $${order.total.toFixed(2)}`);
+        toast.success(`${label} #${order.invoice_number || order.order_number} — ${fc(order.total)}`);
         setIsInvoiceOpen(true);
         clearCart();
         setSelectedCustomer(null);
@@ -393,7 +423,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                       </p>
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-bold text-foreground">
-                          ${product.price.toFixed(2)}
+                          {fc(product.price)}
                         </span>
                         <span
                           className={cn(
@@ -435,7 +465,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                 View Cart ({totalItems})
               </span>
               <span className="font-bold text-sm">
-                ${total.toFixed(2)}
+                {fc(total)}
               </span>
             </button>
           )}
@@ -524,9 +554,9 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                                 {getCustomerDisplayName(selectedCustomer)}
                               </p>
                               <p className="text-[10px] text-muted-foreground">
-                                Balance: ${selectedCustomer.credit_balance.toFixed(2)}
+                                Balance: {fc(selectedCustomer.credit_balance)}
                                 {selectedCustomer.credit_limit > 0 &&
-                                  ` / Limit: $${selectedCustomer.credit_limit.toFixed(2)}`}
+                                  ` / Limit: ${fc(selectedCustomer.credit_limit)}`}
                               </p>
                             </div>
                           </div>
@@ -589,7 +619,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                               <div className="text-right">
                                 {customer.credit_balance > 0 && (
                                   <Badge variant="outline" className="text-[10px] text-warning border-warning/30">
-                                    ${customer.credit_balance.toFixed(2)}
+                                    {fc(customer.credit_balance)}
                                   </Badge>
                                 )}
                               </div>
@@ -644,35 +674,33 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                           </div>
                           <div className="flex items-center gap-2 mt-1.5">
                             {/* Editable unit price */}
-                            <div className="relative w-20">
-                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">$</span>
+                            <div className="relative w-24">
+                              <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">{CURRENCY_SYMBOL}</span>
                               <input
                                 type="number"
                                 step="0.01"
                                 min="0"
-                                value={unitPrice}
-                                onChange={(e) => {
-                                  const val = parseFloat(e.target.value);
-                                  if (!isNaN(val) && val >= 0) updateCartPrice(item.product.id, val);
-                                }}
-                                className="w-full h-7 pl-5 pr-1 text-xs font-medium rounded border border-border bg-muted/50 text-foreground focus:outline-none focus:ring-1 focus:ring-primary [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                value={editingPrice[item.product.id] ?? unitPrice}
+                                onChange={(e) => setEditingPrice((prev) => ({ ...prev, [item.product.id]: e.target.value }))}
+                                onBlur={() => commitPrice(item.product.id)}
+                                onKeyDown={(e) => { if (e.key === 'Enter') commitPrice(item.product.id); }}
+                                className="w-full h-7 pl-8 pr-1 text-xs font-medium rounded border border-border bg-muted/50 text-foreground focus:outline-none focus:ring-1 focus:ring-primary [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                               />
                             </div>
                             <span className="text-muted-foreground text-xs">×</span>
                             {/* Editable quantity */}
                             <input
                               type="number"
-                              min="1"
-                              value={item.quantity}
-                              onChange={(e) => {
-                                const val = parseInt(e.target.value, 10);
-                                if (!isNaN(val) && val > 0) updateCartQuantity(item.product.id, val);
-                              }}
-                              className="w-12 h-7 text-center text-xs font-semibold rounded border border-border bg-muted/50 text-foreground focus:outline-none focus:ring-1 focus:ring-primary [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                              min="0"
+                              value={editingQty[item.product.id] ?? item.quantity}
+                              onChange={(e) => setEditingQty((prev) => ({ ...prev, [item.product.id]: e.target.value }))}
+                              onBlur={() => commitQty(item.product.id)}
+                              onKeyDown={(e) => { if (e.key === 'Enter') commitQty(item.product.id); }}
+                              className="w-14 h-7 text-center text-xs font-semibold rounded border border-border bg-muted/50 text-foreground focus:outline-none focus:ring-1 focus:ring-primary [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                             />
                             {/* Line total */}
-                            <span className="ml-auto text-sm font-bold text-foreground whitespace-nowrap">
-                              ${(unitPrice * item.quantity).toFixed(2)}
+                            <span className="ml-auto text-sm font-bold text-foreground whitespace-nowrap tabular-nums">
+                              {fc(unitPrice * item.quantity)}
                             </span>
                           </div>
                         </div>
@@ -686,15 +714,15 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                   <div className="space-y-1 text-sm">
                     <div className="flex justify-between text-muted-foreground">
                       <span>Subtotal</span>
-                      <span>${subtotal.toFixed(2)}</span>
+                      <span>{fc(subtotal)}</span>
                     </div>
                     <div className="flex justify-between text-muted-foreground">
                       <span>Tax (5%)</span>
-                      <span>${tax.toFixed(2)}</span>
+                      <span>{fc(tax)}</span>
                     </div>
                     <div className="flex justify-between font-bold text-foreground text-lg pt-1.5 border-t border-border">
                       <span>Total</span>
-                      <span>${total.toFixed(2)}</span>
+                      <span>{fc(total)}</span>
                     </div>
                   </div>
 
@@ -752,10 +780,10 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                     ) : saleType === 'credit' ? (
                       <>
                         <FileText className="w-4 h-4 mr-2" />
-                        Create Invoice — ${total.toFixed(2)}
+                        Create Invoice — {fc(total)}
                       </>
                     ) : (
-                      `Complete Sale — $${total.toFixed(2)}`
+                      `Complete Sale — ${fc(total)}`
                     )}
                   </Button>
                 </div>
@@ -764,7 +792,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
           )}
 
           {/* ── Desktop Cart Sidebar (hidden on mobile) ── */}
-          <div className="hidden lg:flex w-80 bg-card border-l border-border flex-col h-full shrink-0">
+          <div className="hidden lg:flex w-96 bg-card border-l border-border flex-col h-full shrink-0">
             {/* Cart Header */}
             <div className="p-4 border-b border-border">
               <div className="flex items-center justify-between mb-1">
@@ -835,9 +863,9 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                             {getCustomerDisplayName(selectedCustomer)}
                           </p>
                           <p className="text-[10px] text-muted-foreground">
-                            Balance: ${selectedCustomer.credit_balance.toFixed(2)}
+                            Balance: {fc(selectedCustomer.credit_balance)}
                             {selectedCustomer.credit_limit > 0 &&
-                              ` / Limit: $${selectedCustomer.credit_limit.toFixed(2)}`}
+                              ` / Limit: ${fc(selectedCustomer.credit_limit)}`}
                           </p>
                         </div>
                       </div>
@@ -902,7 +930,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                           <div className="text-right">
                             {customer.credit_balance > 0 && (
                               <Badge variant="outline" className="text-[10px] text-warning border-warning/30">
-                                ${customer.credit_balance.toFixed(2)}
+                                {fc(customer.credit_balance)}
                               </Badge>
                             )}
                           </div>
@@ -967,35 +995,33 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                       </div>
                       <div className="flex items-center gap-2 mt-1.5">
                         {/* Editable unit price */}
-                        <div className="relative w-20">
-                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">$</span>
+                        <div className="relative flex-1 min-w-0">
+                          <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">{CURRENCY_SYMBOL}</span>
                           <input
                             type="number"
                             step="0.01"
                             min="0"
-                            value={unitPrice}
-                            onChange={(e) => {
-                              const val = parseFloat(e.target.value);
-                              if (!isNaN(val) && val >= 0) updateCartPrice(item.product.id, val);
-                            }}
-                            className="w-full h-7 pl-5 pr-1 text-xs font-medium rounded border border-border bg-muted/50 text-foreground focus:outline-none focus:ring-1 focus:ring-primary [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                            value={editingPrice[item.product.id] ?? unitPrice}
+                            onChange={(e) => setEditingPrice((prev) => ({ ...prev, [item.product.id]: e.target.value }))}
+                            onBlur={() => commitPrice(item.product.id)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') commitPrice(item.product.id); }}
+                            className="w-full h-7 pl-7 pr-1 text-xs font-medium rounded border border-border bg-muted/50 text-foreground focus:outline-none focus:ring-1 focus:ring-primary tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                           />
                         </div>
-                        <span className="text-muted-foreground text-xs">×</span>
+                        <span className="text-muted-foreground text-xs shrink-0">×</span>
                         {/* Editable quantity */}
                         <input
                           type="number"
-                          min="1"
-                          value={item.quantity}
-                          onChange={(e) => {
-                            const val = parseInt(e.target.value, 10);
-                            if (!isNaN(val) && val > 0) updateCartQuantity(item.product.id, val);
-                          }}
-                          className="w-12 h-7 text-center text-xs font-semibold rounded border border-border bg-muted/50 text-foreground focus:outline-none focus:ring-1 focus:ring-primary [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                          min="0"
+                          value={editingQty[item.product.id] ?? item.quantity}
+                          onChange={(e) => setEditingQty((prev) => ({ ...prev, [item.product.id]: e.target.value }))}
+                          onBlur={() => commitQty(item.product.id)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') commitQty(item.product.id); }}
+                          className="w-14 h-7 text-center text-xs font-semibold rounded border border-border bg-muted/50 text-foreground shrink-0 focus:outline-none focus:ring-1 focus:ring-primary tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                         />
                         {/* Line total */}
-                        <span className="ml-auto text-sm font-bold text-foreground whitespace-nowrap">
-                          ${(unitPrice * item.quantity).toFixed(2)}
+                        <span className="text-sm font-bold text-foreground whitespace-nowrap tabular-nums shrink-0">
+                          {fc(unitPrice * item.quantity)}
                         </span>
                       </div>
                     </div>
@@ -1011,15 +1037,15 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between text-muted-foreground">
                     <span>Subtotal</span>
-                    <span>${subtotal.toFixed(2)}</span>
+                    <span>{fc(subtotal)}</span>
                   </div>
                   <div className="flex justify-between text-muted-foreground">
                     <span>Tax (5%)</span>
-                    <span>${tax.toFixed(2)}</span>
+                    <span>{fc(tax)}</span>
                   </div>
                   <div className="flex justify-between font-bold text-foreground text-lg pt-2 border-t border-border">
                     <span>Total</span>
-                    <span>${total.toFixed(2)}</span>
+                    <span>{fc(total)}</span>
                   </div>
                 </div>
 
@@ -1077,10 +1103,10 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                   ) : saleType === 'credit' ? (
                     <>
                       <FileText className="w-4 h-4 mr-2" />
-                      Create Invoice — ${total.toFixed(2)}
+                      Create Invoice — {fc(total)}
                     </>
                   ) : (
-                    `Complete Sale — $${total.toFixed(2)}`
+                    `Complete Sale — ${fc(total)}`
                   )}
                 </Button>
 

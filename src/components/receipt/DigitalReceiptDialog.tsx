@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { ReceiptData } from '@/data/receiptData';
 import { Mail, MessageSquare, Send } from 'lucide-react';
 import { toast } from 'sonner';
+import { formatCurrency } from '@/lib/currency';
 
 interface DigitalReceiptDialogProps {
   open: boolean;

@@ -33,6 +33,7 @@ import type { Product } from '@/hooks/useProducts';
 import { useStockAdjustments, type StockAdjustmentRow } from '@/hooks/useStockAdjustments';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
+import { formatCurrency } from '@/lib/currency';
 
 interface RetailInventoryProps {
   onNavigate: (tab: string) => void;
@@ -197,7 +198,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                       {stockSummary.totalProducts}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      ${stockSummary.totalValue.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} value
+                      {formatCurrency(stockSummary.totalValue)} value
                     </p>
                   </div>
                   <Package className="w-8 h-8 text-primary opacity-50" />

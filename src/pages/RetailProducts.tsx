@@ -60,6 +60,7 @@ import EditProductDialog from '@/components/product/EditProductDialog';
 import ImageUploader from '@/components/product/ImageUploader';
 import { generatePlaceholderUrl } from '@/lib/product-images';
 import { toast } from 'sonner';
+import { formatCurrency } from '@/lib/currency';
 
 interface RetailProductsProps {
   onNavigate: (tab: string) => void;
@@ -464,10 +465,10 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
                           {product.barcode && <p className="text-xs text-muted-foreground font-mono">{product.barcode}</p>}
                         </div>
                         <div className="col-span-1">
-                          <span className="text-sm font-semibold">${product.price.toFixed(2)}</span>
+                          <span className="text-sm font-semibold">{formatCurrency(product.price)}</span>
                         </div>
                         <div className="col-span-1">
-                          <span className="text-sm text-muted-foreground">${product.cost.toFixed(2)}</span>
+                          <span className="text-sm text-muted-foreground">{formatCurrency(product.cost)}</span>
                           <p className="text-xs text-success">{Math.round(((product.price - product.cost) / product.price) * 100)}% margin</p>
                         </div>
                         <div className="col-span-1">
@@ -529,7 +530,7 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
                           </div>
                         </div>
                         <div className="text-right shrink-0">
-                          <p className="text-sm font-bold text-foreground">${product.price.toFixed(2)}</p>
+                          <p className="text-sm font-bold text-foreground">{formatCurrency(product.price)}</p>
                           <p className="text-[10px] text-success">
                             {Math.round(((product.price - product.cost) / product.price) * 100)}% margin
                           </p>
@@ -573,7 +574,7 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
                         </p>
                         <div className="flex items-center justify-between">
                           <span className="text-sm sm:text-base font-bold">
-                            ${product.price.toFixed(2)}
+                            {formatCurrency(product.price)}
                           </span>
                           <div className="hidden sm:flex gap-1">
                             <Button
@@ -642,13 +643,13 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
                   <div>
                     <p className="text-xs text-muted-foreground">Price</p>
                     <p className="font-bold text-base sm:text-lg">
-                      ${selectedProduct.price.toFixed(2)}
+                      {formatCurrency(selectedProduct.price)}
                     </p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Cost</p>
                     <p className="font-bold text-base sm:text-lg">
-                      ${selectedProduct.cost.toFixed(2)}
+                      {formatCurrency(selectedProduct.cost)}
                     </p>
                   </div>
                   <div>
@@ -709,7 +710,7 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
                               <span className="font-mono text-[10px] sm:text-xs hidden sm:inline">
                                 {v.sku}
                               </span>
-                              <span>${v.price.toFixed(2)}</span>
+                              <span>{formatCurrency(v.price)}</span>
                               <span className="text-muted-foreground">
                                 {v.stock} pcs
                               </span>

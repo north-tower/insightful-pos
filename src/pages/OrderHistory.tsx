@@ -21,6 +21,7 @@ import { ReceiptData } from '@/data/receiptData';
 import { useOrders, SaleOrder, Payment } from '@/hooks/useOrders';
 import { useCustomers, Customer } from '@/hooks/useCustomers';
 import { toast } from 'sonner';
+import { fc } from '@/lib/currency';
 
 interface OrderHistoryProps {
   onNavigate: (tab: string) => void;
@@ -253,7 +254,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Today's Revenue</p>
-                  <p className="text-xl font-bold">${todaysRevenue.toFixed(2)}</p>
+                  <p className="text-xl font-bold">{fc(todaysRevenue)}</p>
                 </div>
               </CardContent>
             </Card>
@@ -264,7 +265,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Credit Outstanding</p>
-                  <p className="text-xl font-bold text-warning">${totalCreditBalance.toFixed(2)}</p>
+                  <p className="text-xl font-bold text-warning">{fc(totalCreditBalance)}</p>
                 </div>
               </CardContent>
             </Card>
@@ -421,18 +422,18 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                         </div>
                         <div>
                           <p className="text-muted-foreground">Total</p>
-                          <p className="font-medium">${order.total.toFixed(2)}</p>
+                          <p className="font-medium">{fc(order.total)}</p>
                         </div>
                             {order.sale_type === 'credit' && order.payment_status === 'unpaid' && (
                               <div>
                                 <p className="text-muted-foreground">Balance Due</p>
-                                <p className="font-bold text-warning">${order.total.toFixed(2)}</p>
+                                <p className="font-bold text-warning">{fc(order.total)}</p>
                               </div>
                             )}
                             {orderCustomer && orderCustomer.credit_balance > 0 && (
                               <div>
                                 <p className="text-muted-foreground">Acct. Balance</p>
-                                <p className="font-bold text-warning">${orderCustomer.credit_balance.toFixed(2)}</p>
+                                <p className="font-bold text-warning">{fc(orderCustomer.credit_balance)}</p>
                               </div>
                             )}
                       </div>
@@ -606,7 +607,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                     <p className="font-medium">{selectedOrder.customer_name}</p>
                     {detailCustomer && detailCustomer.credit_balance > 0 && (
                       <p className="text-xs text-warning mt-0.5">
-                        Account Balance: ${detailCustomer.credit_balance.toFixed(2)}
+                        Account Balance: {fc(detailCustomer.credit_balance)}
                       </p>
                     )}
                   </div>
@@ -644,7 +645,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                       <div className="flex-1">
                         <p className="font-medium">{item.product_name}</p>
                         <p className="text-sm text-muted-foreground">
-                          ${item.unit_price.toFixed(2)} × {item.quantity}
+                          {fc(item.unit_price)} × {item.quantity}
                         </p>
                         {item.sku && (
                           <p className="text-xs text-muted-foreground mt-0.5">
@@ -661,13 +662,13 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                             {item.modifiers.map((mod) => (
                               <p key={mod.id} className="text-xs text-muted-foreground">
                                 {mod.type}: {mod.name}{' '}
-                                {mod.price ? `(+$${mod.price.toFixed(2)})` : ''}
+                                {mod.price ? `(+${fc(mod.price)})` : ''}
                               </p>
                             ))}
                           </div>
                         )}
                       </div>
-                      <p className="font-medium">${item.line_total.toFixed(2)}</p>
+                      <p className="font-medium">{fc(item.line_total)}</p>
                     </div>
                   ))}
                 </div>
@@ -700,7 +701,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="font-semibold text-base mr-2">
-                            ${payment.amount.toFixed(2)}
+                            {fc(payment.amount)}
                           </span>
                           <Button
                             variant="ghost"
@@ -730,7 +731,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                     <div className="flex justify-between pt-2 border-t border-border/50 text-sm">
                       <span className="text-muted-foreground">Total Paid</span>
                       <span className="font-semibold text-success">
-                        ${selectedOrder.payments.reduce((s, p) => s + p.amount, 0).toFixed(2)}
+                        {fc(selectedOrder.payments.reduce((s, p) => s + p.amount, 0))}
                       </span>
                     </div>
                   </div>
@@ -749,13 +750,13 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
               <div className="border-t pt-4 space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Subtotal</span>
-                  <span>${selectedOrder.subtotal.toFixed(2)}</span>
+                  <span>{fc(selectedOrder.subtotal)}</span>
                 </div>
                 {selectedOrder.discount_amount > 0 && (
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Discount</span>
                     <span className="text-success">
-                      -${selectedOrder.discount_amount.toFixed(2)}
+                      -{fc(selectedOrder.discount_amount)}
                     </span>
                   </div>
                 )}
@@ -763,11 +764,11 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                   <span className="text-muted-foreground">
                     Tax ({(selectedOrder.tax_rate * 100).toFixed(0)}%)
                   </span>
-                  <span>${selectedOrder.tax_amount.toFixed(2)}</span>
+                  <span>{fc(selectedOrder.tax_amount)}</span>
                 </div>
                 <div className="flex justify-between font-bold text-lg pt-2 border-t">
                   <span>Total</span>
-                  <span>${selectedOrder.total.toFixed(2)}</span>
+                  <span>{fc(selectedOrder.total)}</span>
                 </div>
               </div>
 
@@ -792,7 +793,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                     </Button>
                   </div>
                   <p className="text-lg font-bold text-warning">
-                    ${getOrderBalanceDue(selectedOrder).toFixed(2)}
+                    {fc(getOrderBalanceDue(selectedOrder))}
                   </p>
                   {selectedOrder.due_date && (
                     <p className="text-xs text-muted-foreground mt-1">

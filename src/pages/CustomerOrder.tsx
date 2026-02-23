@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useCart } from '@/context/CartContext';
 import { useOrderQueue } from '@/context/OrderQueueContext';
 import { Card, CardContent } from '@/components/ui/card';
@@ -9,13 +9,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { CategoryTabs } from '@/components/pos/CategoryTabs';
 import { MenuCard } from '@/components/pos/MenuCard';
 import { useProducts } from '@/hooks/useProducts';
+import { supabase } from '@/lib/supabase';
 import { ShoppingCart, CheckCircle2, ArrowLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useMemo } from 'react';
 import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ThemeToggle } from '@/components/ThemeToggle';
-
+import { formatCurrency } from '@/lib/currency';
 type OrderType = 'dine-in' | 'takeaway' | 'delivery';
 type OrderSource = 'kiosk' | 'qr' | 'web';
 
@@ -33,6 +33,19 @@ export default function CustomerOrder() {
   const [orderSubmitted, setOrderSubmitted] = useState(false);
   const [trackingCode, setTrackingCode] = useState('');
   const [source] = useState<OrderSource>('qr'); // Could be passed as prop or from URL params
+  const [companyName, setCompanyName] = useState('');
+
+  // Fetch company name directly (this page is public, outside auth provider)
+  useEffect(() => {
+    supabase
+      .from('business_settings')
+      .select('name')
+      .limit(1)
+      .single()
+      .then(({ data }) => {
+        if (data?.name) setCompanyName(data.name);
+      });
+  }, []);
 
   const filteredItems = useMemo(() => {
     if (activeCategory === 'all') return menuItems;
@@ -131,7 +144,7 @@ export default function CustomerOrder() {
       <div className="bg-primary text-primary-foreground p-4">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">Nexus Restaurant</h1>
+            <h1 className="text-2xl font-bold">{companyName || 'Our Menu'}</h1>
             <p className="text-sm opacity-90">Place Your Order</p>
           </div>
           <ThemeToggle variant="primary" />
@@ -256,11 +269,11 @@ export default function CustomerOrder() {
                         <div className="flex-1">
                           <p className="font-medium">{item.name}</p>
                           <p className="text-muted-foreground">
-                            ${item.price.toFixed(2)} × {item.quantity}
+                            {formatCurrency(item.price)} × {item.quantity}
                           </p>
                         </div>
                         <p className="font-semibold">
-                          ${(item.price * item.quantity).toFixed(2)}
+                          {formatCurrency(item.price * item.quantity)}
                         </p>
                       </div>
                     ))
@@ -286,15 +299,15 @@ export default function CustomerOrder() {
                   <div className="space-y-2 mb-4 pt-4 border-t">
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Subtotal</span>
-                      <span>${subtotal.toFixed(2)}</span>
+                      <span>{formatCurrency(subtotal)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Tax</span>
-                      <span>${tax.toFixed(2)}</span>
+                      <span>{formatCurrency(tax)}</span>
                     </div>
                     <div className="flex justify-between font-bold text-lg pt-2 border-t">
                       <span>Total</span>
-                      <span>${total.toFixed(2)}</span>
+                      <span>{formatCurrency(total)}</span>
                     </div>
                   </div>
                 )}

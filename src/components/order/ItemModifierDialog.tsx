@@ -13,6 +13,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { CartItem } from '@/context/CartContext';
 import { OrderModifier, modifierOptions } from '@/data/orderData';
 import { Plus, X } from 'lucide-react';
+import { formatCurrency } from '@/lib/currency';
 
 interface ItemModifierDialogProps {
   open: boolean;
@@ -78,7 +79,7 @@ export function ItemModifierDialog({ open, onOpenChange, item, onSave }: ItemMod
                       />
                       <span className="text-sm">{option.name}</span>
                     </div>
-                    <span className="text-sm font-medium">+${option.price.toFixed(2)}</span>
+                    <span className="text-sm font-medium">+{formatCurrency(option.price)}</span>
                   </div>
                 );
               })}
@@ -125,7 +126,7 @@ export function ItemModifierDialog({ open, onOpenChange, item, onSave }: ItemMod
             <div className="p-3 bg-muted/50 rounded-lg">
               <div className="flex justify-between">
                 <span className="text-sm text-muted-foreground">Add-ons Total</span>
-                <span className="font-semibold">+${modifierTotal.toFixed(2)}</span>
+                <span className="font-semibold">+{formatCurrency(modifierTotal)}</span>
               </div>
             </div>
           )}

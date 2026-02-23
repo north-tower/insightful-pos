@@ -1,8 +1,9 @@
-import { Plus, Minus, Leaf } from 'lucide-react';
+import { Plus, Minus, Leaf, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MenuItem } from '@/data/menuData';
 import { useCart } from '@/context/CartContext';
 import { cn } from '@/lib/utils';
+import { formatCurrency } from '@/lib/currency';
 
 interface MenuCardProps {
   item: MenuItem;
@@ -46,31 +47,42 @@ export function MenuCard({ item }: MenuCardProps) {
           {item.name}
         </h3>
 
-        <div className="flex items-center justify-between">
-          <p className="text-lg font-bold text-foreground">
-            ${item.price.toFixed(2)}
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-base font-bold text-foreground tabular-nums truncate">
+            {formatCurrency(item.price)}
           </p>
 
           {quantity === 0 ? (
             <Button
               size="sm"
               onClick={() => addItem(item)}
-              className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl h-9 px-4"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl h-9 px-4 shrink-0"
             >
               <Plus className="w-4 h-4 mr-1" />
               Add
             </Button>
           ) : (
-            <div className="flex items-center gap-2 bg-primary/10 rounded-xl p-1">
+            <div className="flex items-center gap-1 bg-primary/10 rounded-xl p-1 shrink-0">
               <Button
                 size="icon"
                 variant="ghost"
                 onClick={() => updateQuantity(item.id, quantity - 1)}
-                className="h-7 w-7 rounded-lg hover:bg-primary/20 text-primary"
+                className={cn(
+                  "h-7 w-7 rounded-lg",
+                  quantity === 1
+                    ? "hover:bg-destructive/20 text-destructive"
+                    : "hover:bg-primary/20 text-primary"
+                )}
               >
-                <Minus className="w-3 h-3" />
+                {quantity === 1 ? (
+                  <Trash2 className="w-3 h-3" />
+                ) : (
+                  <Minus className="w-3 h-3" />
+                )}
               </Button>
-              <span className="w-6 text-center font-semibold text-primary">{quantity}</span>
+              <span className="min-w-[2rem] text-center font-semibold text-primary tabular-nums text-sm">
+                {quantity.toLocaleString()}
+              </span>
               <Button
                 size="icon"
                 variant="ghost"

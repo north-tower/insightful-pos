@@ -27,25 +27,6 @@ export interface ReceiptData {
   type: 'dine-in' | 'takeaway' | 'delivery';
 }
 
-export interface BusinessInfo {
-  name: string;
-  address: string;
-  city: string;
-  phone: string;
-  email: string;
-  website?: string;
-  taxId?: string;
-}
-
-export const businessInfo: BusinessInfo = {
-  name: 'Nexus Restaurant',
-  address: '123 Main Street',
-  city: 'New York, NY 10001',
-  phone: '(555) 123-4567',
-  email: 'info@nexusrestaurant.com',
-  website: 'www.nexusrestaurant.com',
-  taxId: 'TAX-123456',
-};
 
 export const receiptTemplates: ReceiptTemplate[] = [
   { id: 'customer-standard', name: 'Customer Receipt (Standard)', type: 'customer', layout: 'standard' },

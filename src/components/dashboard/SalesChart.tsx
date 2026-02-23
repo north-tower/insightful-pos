@@ -4,6 +4,7 @@ import { Area, AreaChart, CartesianGrid, XAxis } from 'recharts';
 import { SalesData } from '@/data/dashboardData';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
+import { formatCurrency } from '@/lib/currency';
 
 interface SalesChartProps {
   data: SalesData[];
@@ -104,7 +105,7 @@ export function SalesChart({ data, dailyData, weeklyData, monthlyData }: SalesCh
                         <div className="flex items-center gap-2">
                           <div className="h-2 w-2 rounded-full bg-primary" />
                           <span className="text-sm text-muted-foreground">
-                            Revenue: <span className="font-medium text-foreground">${payload[0].value?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            Revenue: <span className="font-medium text-foreground">{formatCurrency(Number(payload[0].value) || 0)}</span>
                           </span>
                         </div>
                       </div>
@@ -130,7 +131,7 @@ export function SalesChart({ data, dailyData, weeklyData, monthlyData }: SalesCh
             <span className="text-muted-foreground">Revenue</span>
           </div>
           <div className="text-muted-foreground">
-            Total: ${chartData.reduce((sum, item) => sum + item.revenue, 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            Total: {formatCurrency(chartData.reduce((sum, item) => sum + item.revenue, 0))}
           </div>
         </div>
       </CardContent>

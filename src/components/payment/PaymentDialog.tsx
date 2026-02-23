@@ -19,6 +19,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { fc, CURRENCY_SYMBOL } from '@/lib/currency';
 import { format } from 'date-fns';
 import { SaleOrder, PaymentMethod } from '@/hooks/useOrders';
 import { Customer } from '@/hooks/useCustomers';
@@ -145,35 +146,35 @@ export function PaymentDialog({
             <CheckCircle2 className="w-16 h-16 text-success" />
             <p className="text-lg font-semibold text-success">Payment Recorded!</p>
             <p className="text-sm text-muted-foreground">
-              ${enteredAmount.toFixed(2)} via {method}
+              {fc(enteredAmount)} via {method}
             </p>
           </div>
         ) : (
           <div className="space-y-6">
             {/* Invoice Summary */}
             <div className="p-4 bg-muted/50 rounded-lg space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Invoice Total</span>
-                <span className="font-medium">${order.total.toFixed(2)}</span>
+              <div className="flex justify-between text-sm gap-4">
+                <span className="text-muted-foreground shrink-0">Invoice Total</span>
+                <span className="font-medium tabular-nums text-right">{fc(order.total)}</span>
               </div>
               {order.payments.length > 0 && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">
+                <div className="flex justify-between text-sm gap-4">
+                  <span className="text-muted-foreground shrink-0">
                     Previously Paid ({order.payments.length} payment
                     {order.payments.length > 1 ? 's' : ''})
                   </span>
-                  <span className="font-medium text-success">
-                    -${totalPaid.toFixed(2)}
+                  <span className="font-medium text-success tabular-nums text-right">
+                    -{fc(totalPaid)}
                   </span>
                 </div>
               )}
-              <div className="flex justify-between font-bold text-base border-t pt-2 mt-2">
-                <span>Balance Due</span>
-                <span className="text-warning">${balanceDue.toFixed(2)}</span>
+              <div className="flex justify-between font-bold text-base border-t pt-2 mt-2 gap-4">
+                <span className="shrink-0">Balance Due</span>
+                <span className="text-warning tabular-nums text-right">{fc(balanceDue)}</span>
               </div>
               {order.due_date && (
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>Due Date</span>
+                <div className="flex justify-between text-xs text-muted-foreground gap-4">
+                  <span className="shrink-0">Due Date</span>
                   <span>{format(new Date(order.due_date), 'MMM dd, yyyy')}</span>
                 </div>
               )}
@@ -182,12 +183,12 @@ export function PaymentDialog({
             {/* Customer Account Info */}
             {customer && customer.credit_balance > 0 && (
               <div className="p-3 bg-warning/5 border border-warning/20 rounded-lg">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">
+                <div className="flex justify-between text-sm gap-4">
+                  <span className="text-muted-foreground shrink-0">
                     {customerName}'s Total Account Balance
                   </span>
-                  <span className="font-bold text-warning">
-                    ${customer.credit_balance.toFixed(2)}
+                  <span className="font-bold text-warning tabular-nums text-right">
+                    {fc(customer.credit_balance)}
                   </span>
                 </div>
               </div>
@@ -221,8 +222,8 @@ export function PaymentDialog({
                 Amount
               </Label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">
-                  $
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium text-xs">
+                  {CURRENCY_SYMBOL}
                 </span>
                 <Input
                   id="payment-amount"
@@ -235,26 +236,26 @@ export function PaymentDialog({
                     setError(null);
                   }}
                   placeholder="0.00"
-                  className="pl-7 text-lg font-semibold"
+                  className="pl-10 text-lg font-semibold"
                 />
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setAmount(balanceDue.toFixed(2))}
-                  className="text-xs"
+                  className="text-xs tabular-nums"
                 >
-                  Pay Full (${balanceDue.toFixed(2)})
+                  Pay Full ({fc(balanceDue)})
                 </Button>
                 {balanceDue > 100 && (
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setAmount((balanceDue / 2).toFixed(2))}
-                    className="text-xs"
+                    className="text-xs tabular-nums"
                   >
-                    Half (${(balanceDue / 2).toFixed(2)})
+                    Half ({fc(balanceDue / 2)})
                   </Button>
                 )}
               </div>
@@ -290,11 +291,11 @@ export function PaymentDialog({
             {/* After-payment preview */}
             {enteredAmount > 0 && (
               <div className="p-3 bg-muted/30 rounded-lg text-sm space-y-1">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">After this payment</span>
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground shrink-0">After this payment</span>
                   <Badge
                     className={cn(
-                      'text-xs',
+                      'text-xs shrink-0',
                       enteredAmount >= balanceDue
                         ? 'bg-success/10 text-success'
                         : 'bg-warning/10 text-warning',
@@ -303,20 +304,21 @@ export function PaymentDialog({
                     {enteredAmount >= balanceDue ? 'FULLY PAID' : 'PARTIAL'}
                   </Badge>
                 </div>
-                <div className="flex justify-between font-medium">
-                  <span>Remaining Balance</span>
+                <div className="flex justify-between font-medium gap-4">
+                  <span className="shrink-0">Remaining Balance</span>
                   <span
                     className={cn(
+                      'tabular-nums text-right',
                       enteredAmount >= balanceDue ? 'text-success' : 'text-warning',
                     )}
                   >
-                    ${Math.max(balanceDue - enteredAmount, 0).toFixed(2)}
+                    {fc(Math.max(balanceDue - enteredAmount, 0))}
                   </span>
                 </div>
                 {enteredAmount > balanceDue && (
-                  <div className="flex justify-between font-medium text-info">
-                    <span>Overpayment (advance credit)</span>
-                    <span>${(enteredAmount - balanceDue).toFixed(2)}</span>
+                  <div className="flex justify-between font-medium text-info gap-4">
+                    <span className="shrink-0">Overpayment (advance credit)</span>
+                    <span className="tabular-nums text-right">{fc(enteredAmount - balanceDue)}</span>
                   </div>
                 )}
               </div>
@@ -344,8 +346,8 @@ export function PaymentDialog({
                   </>
                 ) : (
                   <>
-                    <CheckCircle2 className="w-4 h-4" />
-                    Record ${enteredAmount > 0 ? enteredAmount.toFixed(2) : '0.00'}
+                    <CheckCircle2 className="w-4 h-4 shrink-0" />
+                    <span className="truncate tabular-nums">Record {enteredAmount > 0 ? fc(enteredAmount) : fc(0)}</span>
                   </>
                 )}
               </Button>

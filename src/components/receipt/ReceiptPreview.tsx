@@ -1,9 +1,11 @@
-import { ReceiptData, businessInfo, ReceiptTemplate } from '@/data/receiptData';
+import { ReceiptData, ReceiptTemplate } from '@/data/receiptData';
 import { format } from 'date-fns';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Printer, Mail, MessageSquare, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { fc } from '@/lib/currency';
+import { useCompanySettings } from '@/context/BusinessSettingsContext';
 
 interface ReceiptPreviewProps {
   receiptData: ReceiptData;
@@ -24,13 +26,15 @@ export function ReceiptPreview({
   onSMS,
   showActions = true,
 }: ReceiptPreviewProps) {
+  const { settings: company } = useCompanySettings();
+
   const renderCompact = () => (
     <div className="space-y-3 text-sm">
       {/* Header */}
       <div className="text-center border-b pb-3">
-        <h2 className="font-bold text-lg">{businessInfo.name}</h2>
-        <p className="text-xs text-muted-foreground">{businessInfo.address}</p>
-        <p className="text-xs text-muted-foreground">{businessInfo.city}</p>
+        <h2 className="font-bold text-lg">{company.fullName}</h2>
+        <p className="text-xs text-muted-foreground">{company.address}</p>
+        <p className="text-xs text-muted-foreground">{company.city}</p>
       </div>
 
       {/* Order Info */}
@@ -64,7 +68,7 @@ export function ReceiptPreview({
                 <p className="text-muted-foreground ml-4 italic">Note: {item.notes}</p>
               )}
             </div>
-            <span className="font-medium">${(item.price * item.quantity).toFixed(2)}</span>
+            <span className="font-medium">{fc(item.price * item.quantity)}</span>
           </div>
         ))}
       </div>
@@ -73,21 +77,21 @@ export function ReceiptPreview({
       <div className="border-t pt-2 space-y-1">
         <div className="flex justify-between">
           <span>Subtotal:</span>
-          <span>${receiptData.subtotal.toFixed(2)}</span>
+          <span>{fc(receiptData.subtotal)}</span>
         </div>
         {receiptData.discount && (
           <div className="flex justify-between text-success">
             <span>Discount:</span>
-            <span>-${receiptData.discount.toFixed(2)}</span>
+            <span>-{fc(receiptData.discount)}</span>
           </div>
         )}
         <div className="flex justify-between">
           <span>Tax:</span>
-          <span>${receiptData.tax.toFixed(2)}</span>
+          <span>{fc(receiptData.tax)}</span>
         </div>
         <div className="flex justify-between font-bold text-lg border-t pt-1">
           <span>Total:</span>
-          <span>${receiptData.total.toFixed(2)}</span>
+          <span>{fc(receiptData.total)}</span>
         </div>
       </div>
 
@@ -105,12 +109,12 @@ export function ReceiptPreview({
     <div className="space-y-4 text-sm">
       {/* Header */}
       <div className="text-center border-b pb-4">
-        <h2 className="font-bold text-xl">{businessInfo.name}</h2>
-        <p className="text-sm text-muted-foreground mt-1">{businessInfo.address}</p>
-        <p className="text-sm text-muted-foreground">{businessInfo.city}</p>
-        <p className="text-sm text-muted-foreground mt-1">{businessInfo.phone}</p>
-        {businessInfo.website && (
-          <p className="text-xs text-muted-foreground">{businessInfo.website}</p>
+        <h2 className="font-bold text-xl">{company.fullName}</h2>
+        <p className="text-sm text-muted-foreground mt-1">{company.address}</p>
+        <p className="text-sm text-muted-foreground">{company.city}</p>
+        <p className="text-sm text-muted-foreground mt-1">{company.phone}</p>
+        {company.website && (
+          <p className="text-xs text-muted-foreground">{company.website}</p>
         )}
       </div>
 
@@ -159,7 +163,7 @@ export function ReceiptPreview({
                       {item.modifiers.map((mod) => (
                         <p key={mod.id} className="text-xs text-muted-foreground">
                           {mod.type === 'add-on' && '+'} {mod.name}
-                          {mod.price && mod.price > 0 && ` (+$${mod.price.toFixed(2)})`}
+                          {mod.price && mod.price > 0 && ` (+${fc(mod.price)})`}
                         </p>
                       ))}
                     </div>
@@ -168,7 +172,7 @@ export function ReceiptPreview({
                     <p className="ml-6 text-xs text-muted-foreground italic">Note: {item.notes}</p>
                   )}
                 </div>
-                <span className="font-medium">${itemTotal.toFixed(2)}</span>
+                <span className="font-medium">{fc(itemTotal)}</span>
               </div>
             </div>
           );
@@ -179,21 +183,21 @@ export function ReceiptPreview({
       <div className="border-t pt-3 space-y-2">
         <div className="flex justify-between">
           <span className="text-muted-foreground">Subtotal</span>
-          <span>${receiptData.subtotal.toFixed(2)}</span>
+          <span>{fc(receiptData.subtotal)}</span>
         </div>
         {receiptData.discount && (
           <div className="flex justify-between text-success">
             <span>Discount</span>
-            <span>-${receiptData.discount.toFixed(2)}</span>
+            <span>-{fc(receiptData.discount)}</span>
           </div>
         )}
         <div className="flex justify-between">
           <span className="text-muted-foreground">Tax</span>
-          <span>${receiptData.tax.toFixed(2)}</span>
+          <span>{fc(receiptData.tax)}</span>
         </div>
         <div className="flex justify-between font-bold text-xl border-t pt-2 mt-2">
           <span>TOTAL</span>
-          <span>${receiptData.total.toFixed(2)}</span>
+          <span>{fc(receiptData.total)}</span>
         </div>
       </div>
 
@@ -208,7 +212,7 @@ export function ReceiptPreview({
             {receiptData.splitPayments.map((payment, idx) => (
               <div key={idx} className="flex justify-between text-xs">
                 <span className="capitalize">{payment.method}</span>
-                <span>${payment.amount.toFixed(2)}</span>
+                <span>{fc(payment.amount)}</span>
               </div>
             ))}
           </div>
@@ -218,7 +222,7 @@ export function ReceiptPreview({
       {/* Footer */}
       <div className="border-t pt-3 text-center text-xs text-muted-foreground">
         <p>Thank you for dining with us!</p>
-        {businessInfo.taxId && <p className="mt-1">Tax ID: {businessInfo.taxId}</p>}
+        {company.tax_id && <p className="mt-1">Tax ID: {company.tax_id}</p>}
       </div>
     </div>
   );
@@ -227,7 +231,7 @@ export function ReceiptPreview({
     <div className="space-y-3 text-sm">
       {/* Header */}
       <div className="text-center border-b-2 border-foreground pb-3">
-        <h2 className="font-bold text-xl">{businessInfo.name}</h2>
+        <h2 className="font-bold text-xl">{company.fullName}</h2>
         <p className="font-semibold">KITCHEN TICKET</p>
       </div>
 

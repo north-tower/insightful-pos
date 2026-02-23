@@ -18,6 +18,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { formatCurrency } from '@/lib/currency';
 import { tables } from '@/data/tableData';
 
 interface IncomingOrdersQueueProps {
@@ -216,7 +217,7 @@ export function IncomingOrdersQueue({ className }: IncomingOrdersQueueProps) {
 
                   {/* Total and item count */}
                   <div className="text-sm text-muted-foreground mb-3">
-                    {order.items.length} items • ${order.total.toFixed(2)}
+                    {order.items.length} items • {formatCurrency(order.total)}
                   </div>
 
                   {/* Actions */}
@@ -260,7 +261,7 @@ export function IncomingOrdersQueue({ className }: IncomingOrdersQueueProps) {
               <div>
                 <Label>Order #{selectedOrder.orderNumber}</Label>
                 <p className="text-sm text-muted-foreground mt-1">
-                  {selectedOrder.items.length} items • ${selectedOrder.total.toFixed(2)}
+                  {selectedOrder.items.length} items • {formatCurrency(selectedOrder.total)}
                 </p>
               </div>
               {selectedOrder.type === 'dine-in' && (
