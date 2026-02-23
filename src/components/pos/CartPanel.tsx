@@ -122,15 +122,7 @@ export function CartPanel() {
       {/* Payment Summary */}
       <div className="p-4 border-t border-border space-y-4">
         <div className="space-y-2 text-sm">
-          <div className="flex justify-between text-muted-foreground gap-4">
-            <span className="shrink-0">Subtotal</span>
-            <span className="tabular-nums text-right">{formatCurrency(subtotal)}</span>
-          </div>
-          <div className="flex justify-between text-muted-foreground gap-4">
-            <span className="shrink-0">Tax (5%)</span>
-            <span className="tabular-nums text-right">{formatCurrency(tax)}</span>
-          </div>
-          <div className="flex justify-between items-baseline font-bold text-lg text-foreground pt-2 border-t border-border gap-4">
+          <div className="flex justify-between items-baseline font-bold text-lg text-foreground gap-4">
             <span className="shrink-0">Total</span>
             <span className="tabular-nums text-right break-all">{formatCurrency(total)}</span>
           </div>

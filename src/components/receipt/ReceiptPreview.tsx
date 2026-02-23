@@ -85,10 +85,6 @@ export function ReceiptPreview({
             <span>-{fc(receiptData.discount)}</span>
           </div>
         )}
-        <div className="flex justify-between">
-          <span>Tax:</span>
-          <span>{fc(receiptData.tax)}</span>
-        </div>
         <div className="flex justify-between font-bold text-lg border-t pt-1">
           <span>Total:</span>
           <span>{fc(receiptData.total)}</span>
@@ -191,10 +187,6 @@ export function ReceiptPreview({
             <span>-{fc(receiptData.discount)}</span>
           </div>
         )}
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">Tax</span>
-          <span>{fc(receiptData.tax)}</span>
-        </div>
         <div className="flex justify-between font-bold text-xl border-t pt-2 mt-2">
           <span>TOTAL</span>
           <span>{fc(receiptData.total)}</span>

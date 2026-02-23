@@ -33,47 +33,47 @@ export function InvoicePreview({ order, customer }: InvoicePreviewProps) {
   const previousBalance = overallBalance - balanceDue;
 
   return (
-    <div className="invoice-content bg-white text-black p-8 max-w-[210mm] mx-auto font-sans text-sm leading-relaxed print:p-6">
+    <div className="invoice-content bg-white text-black p-4 sm:p-8 max-w-[210mm] mx-auto font-sans text-sm leading-relaxed print:p-6">
       {/* ── Header: Company + Invoice title ─────────────────────────────── */}
-      <div className="flex justify-between items-start mb-8">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 sm:gap-6 mb-6 sm:mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight">
             {company.fullName}
           </h1>
-          <p className="text-gray-500 mt-1">{company.address}</p>
-          <p className="text-gray-500">{company.city}</p>
-          <p className="text-gray-500 mt-1">Tel: {company.phone}</p>
+          <p className="text-gray-500 mt-1 text-xs sm:text-sm">{company.address}</p>
+          <p className="text-gray-500 text-xs sm:text-sm">{company.city}</p>
+          <p className="text-gray-500 mt-1 text-xs sm:text-sm">Tel: {company.phone}</p>
           {company.email && (
-            <p className="text-gray-500">{company.email}</p>
+            <p className="text-gray-500 text-xs sm:text-sm">{company.email}</p>
           )}
           {company.website && (
-            <p className="text-gray-500">{company.website}</p>
+            <p className="text-gray-500 text-xs sm:text-sm">{company.website}</p>
           )}
         </div>
 
-        <div className="text-right">
-          <h2 className="text-3xl font-extrabold tracking-tight text-gray-900 uppercase">
+        <div className="sm:text-right">
+          <h2 className="text-xl sm:text-3xl font-extrabold tracking-tight text-gray-900 uppercase">
             {isCreditSale ? 'Invoice' : 'Sales Invoice'}
           </h2>
-          <div className="mt-3 space-y-1">
-            <div className="flex justify-end gap-4">
-              <span className="text-gray-500 font-medium">Invoice #:</span>
-              <span className="font-bold text-gray-900">{invoiceNumber}</span>
+          <div className="mt-2 sm:mt-3 space-y-1">
+            <div className="flex sm:justify-end gap-2 sm:gap-4">
+              <span className="text-gray-500 font-medium text-xs sm:text-sm">Invoice #:</span>
+              <span className="font-bold text-gray-900 text-xs sm:text-sm">{invoiceNumber}</span>
             </div>
-            <div className="flex justify-end gap-4">
-              <span className="text-gray-500 font-medium">Order #:</span>
-              <span className="font-semibold text-gray-700">{order.order_number}</span>
+            <div className="flex sm:justify-end gap-2 sm:gap-4">
+              <span className="text-gray-500 font-medium text-xs sm:text-sm">Order #:</span>
+              <span className="font-semibold text-gray-700 text-xs sm:text-sm">{order.order_number}</span>
             </div>
-            <div className="flex justify-end gap-4">
-              <span className="text-gray-500 font-medium">Date:</span>
-              <span className="text-gray-700">
+            <div className="flex sm:justify-end gap-2 sm:gap-4">
+              <span className="text-gray-500 font-medium text-xs sm:text-sm">Date:</span>
+              <span className="text-gray-700 text-xs sm:text-sm">
                 {format(new Date(order.created_at), 'MMM dd, yyyy')}
               </span>
             </div>
             {order.due_date && (
-              <div className="flex justify-end gap-4">
-                <span className="text-gray-500 font-medium">Due Date:</span>
-                <span className="text-gray-700">
+              <div className="flex sm:justify-end gap-2 sm:gap-4">
+                <span className="text-gray-500 font-medium text-xs sm:text-sm">Due Date:</span>
+                <span className="text-gray-700 text-xs sm:text-sm">
                   {format(new Date(order.due_date), 'MMM dd, yyyy')}
                 </span>
               </div>
@@ -81,7 +81,7 @@ export function InvoicePreview({ order, customer }: InvoicePreviewProps) {
           </div>
 
           {/* Status Badge */}
-          <div className="mt-3">
+          <div className="mt-2 sm:mt-3">
             {isVoided ? (
               <span className="inline-block px-3 py-1 bg-red-100 text-red-700 text-xs font-bold rounded uppercase tracking-wider">
                 VOIDED
@@ -104,25 +104,25 @@ export function InvoicePreview({ order, customer }: InvoicePreviewProps) {
       </div>
 
       {/* ── Divider ───────────────────────────────────────────────────── */}
-      <div className="border-t-2 border-gray-900 mb-6" />
+      <div className="border-t-2 border-gray-900 mb-4 sm:mb-6" />
 
-      {/* ── Bill To / Ship To ─────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-8 mb-8">
+      {/* ── Bill To / Sale Details ────────────────────────────────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-8 mb-6 sm:mb-8">
         <div>
           <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
             Bill To
           </h3>
           {customerName ? (
             <div>
-              <p className="font-bold text-gray-900 text-base">{customerName}</p>
+              <p className="font-bold text-gray-900 text-sm sm:text-base">{customerName}</p>
               {customer?.email && (
-                <p className="text-gray-600">{customer.email}</p>
+                <p className="text-gray-600 text-xs sm:text-sm">{customer.email}</p>
               )}
               {customer?.phone && (
-                <p className="text-gray-600">{customer.phone}</p>
+                <p className="text-gray-600 text-xs sm:text-sm">{customer.phone}</p>
               )}
               {customer?.address && (
-                <p className="text-gray-600 mt-1">
+                <p className="text-gray-600 mt-1 text-xs sm:text-sm">
                   {customer.address}
                   {customer.city && (
                     <>
@@ -141,7 +141,7 @@ export function InvoicePreview({ order, customer }: InvoicePreviewProps) {
               )}
             </div>
           ) : (
-            <p className="text-gray-400 italic">Walk-in Customer</p>
+            <p className="text-gray-400 italic text-xs sm:text-sm">Walk-in Customer</p>
           )}
         </div>
 
@@ -149,26 +149,26 @@ export function InvoicePreview({ order, customer }: InvoicePreviewProps) {
           <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
             Sale Details
           </h3>
-          <div className="space-y-1 text-gray-700">
-            <div className="flex gap-4">
-              <span className="text-gray-500 w-24">Sale Type:</span>
+          <div className="space-y-1 text-gray-700 text-xs sm:text-sm">
+            <div className="flex gap-2 sm:gap-4">
+              <span className="text-gray-500 w-20 sm:w-24 shrink-0">Sale Type:</span>
               <span className="font-medium capitalize">{order.sale_type || 'cash'}</span>
             </div>
-            <div className="flex gap-4">
-              <span className="text-gray-500 w-24">Order Type:</span>
+            <div className="flex gap-2 sm:gap-4">
+              <span className="text-gray-500 w-20 sm:w-24 shrink-0">Order Type:</span>
               <span className="font-medium capitalize">
                 {order.order_type.replace('-', ' ')}
               </span>
             </div>
             {order.table_number && (
-              <div className="flex gap-4">
-                <span className="text-gray-500 w-24">Table:</span>
+              <div className="flex gap-2 sm:gap-4">
+                <span className="text-gray-500 w-20 sm:w-24 shrink-0">Table:</span>
                 <span className="font-medium">#{order.table_number}</span>
               </div>
             )}
             {order.staff_name && (
-              <div className="flex gap-4">
-                <span className="text-gray-500 w-24">Served By:</span>
+              <div className="flex gap-2 sm:gap-4">
+                <span className="text-gray-500 w-20 sm:w-24 shrink-0">Served By:</span>
                 <span className="font-medium">{order.staff_name}</span>
               </div>
             )}
@@ -176,98 +176,144 @@ export function InvoicePreview({ order, customer }: InvoicePreviewProps) {
         </div>
       </div>
 
-      {/* ── Items Table ───────────────────────────────────────────────── */}
-      <table className="w-full mb-6">
-        <thead>
-          <tr className="border-b-2 border-gray-900">
-            <th className="text-left py-2 text-xs font-bold text-gray-500 uppercase tracking-wider w-8">
-              #
-            </th>
-            <th className="text-left py-2 text-xs font-bold text-gray-500 uppercase tracking-wider">
-              Item
-            </th>
-            {order.items.some((i) => i.sku) && (
-              <th className="text-left py-2 text-xs font-bold text-gray-500 uppercase tracking-wider">
-                SKU
+      {/* ── Items — Desktop Table / Mobile Cards ───────────────────────── */}
+
+      {/* Desktop table (hidden on mobile) */}
+      <div className="hidden sm:block mb-6">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b-2 border-gray-900">
+              <th className="text-left py-2 text-xs font-bold text-gray-500 uppercase tracking-wider w-8">
+                #
               </th>
-            )}
-            <th className="text-center py-2 text-xs font-bold text-gray-500 uppercase tracking-wider w-16">
-              Qty
-            </th>
-            <th className="text-right py-2 text-xs font-bold text-gray-500 uppercase tracking-wider w-24">
-              Unit Price
-            </th>
-            <th className="text-right py-2 text-xs font-bold text-gray-500 uppercase tracking-wider w-28">
-              Total
-            </th>
-          </tr>
-        </thead>
-        <tbody>
+              <th className="text-left py-2 text-xs font-bold text-gray-500 uppercase tracking-wider">
+                Item
+              </th>
+              {order.items.some((i) => i.sku) && (
+                <th className="text-left py-2 text-xs font-bold text-gray-500 uppercase tracking-wider">
+                  SKU
+                </th>
+              )}
+              <th className="text-center py-2 text-xs font-bold text-gray-500 uppercase tracking-wider w-16">
+                Qty
+              </th>
+              <th className="text-right py-2 text-xs font-bold text-gray-500 uppercase tracking-wider w-24">
+                Unit Price
+              </th>
+              <th className="text-right py-2 text-xs font-bold text-gray-500 uppercase tracking-wider w-28">
+                Total
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {order.items.map((item, idx) => (
+              <tr
+                key={item.id}
+                className={cn(
+                  'border-b border-gray-200',
+                  idx % 2 === 0 ? 'bg-white' : 'bg-gray-50',
+                )}
+              >
+                <td className="py-3 text-gray-500 text-xs">{idx + 1}</td>
+                <td className="py-3">
+                  <p className="font-semibold text-gray-900">{item.product_name}</p>
+                  {item.modifiers && item.modifiers.length > 0 && (
+                    <div className="mt-0.5">
+                      {item.modifiers.map((mod, mi) => (
+                        <p key={mi} className="text-xs text-gray-500">
+                          + {mod.name}
+                          {mod.price && mod.price > 0
+                            ? ` (${fc(mod.price)})`
+                            : ''}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                  {item.notes && (
+                    <p className="text-xs text-gray-400 italic mt-0.5">
+                      Note: {item.notes}
+                    </p>
+                  )}
+                </td>
+                {order.items.some((i) => i.sku) && (
+                  <td className="py-3 text-gray-600 text-xs font-mono">
+                    {item.sku || '—'}
+                  </td>
+                )}
+                <td className="py-3 text-center text-gray-700">{item.quantity}</td>
+                <td className="py-3 text-right text-gray-700">
+                  {fc(item.unit_price)}
+                </td>
+                <td className="py-3 text-right font-semibold text-gray-900">
+                  {fc(item.line_total)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Mobile item cards (hidden on desktop) */}
+      <div className="sm:hidden mb-4">
+        <div className="border-b-2 border-gray-900 pb-1 mb-3">
+          <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Items</h3>
+        </div>
+        <div className="space-y-2">
           {order.items.map((item, idx) => (
-            <tr
+            <div
               key={item.id}
               className={cn(
-                'border-b border-gray-200',
+                'p-3 rounded border border-gray-200',
                 idx % 2 === 0 ? 'bg-white' : 'bg-gray-50',
               )}
             >
-              <td className="py-3 text-gray-500 text-xs">{idx + 1}</td>
-              <td className="py-3">
-                <p className="font-semibold text-gray-900">{item.product_name}</p>
-                {/* Modifiers */}
-                {item.modifiers && item.modifiers.length > 0 && (
-                  <div className="mt-0.5">
-                    {item.modifiers.map((mod, mi) => (
-                      <p key={mi} className="text-xs text-gray-500">
-                        + {mod.name}
-                        {mod.price && mod.price > 0
-                          ? ` (${fc(mod.price)})`
-                          : ''}
-                      </p>
-                    ))}
-                  </div>
-                )}
-                {item.notes && (
-                  <p className="text-xs text-gray-400 italic mt-0.5">
-                    Note: {item.notes}
-                  </p>
-                )}
-              </td>
-              {order.items.some((i) => i.sku) && (
-                <td className="py-3 text-gray-600 text-xs font-mono">
-                  {item.sku || '—'}
-                </td>
-              )}
-              <td className="py-3 text-center text-gray-700">{item.quantity}</td>
-              <td className="py-3 text-right text-gray-700">
-                {fc(item.unit_price)}
-              </td>
-              <td className="py-3 text-right font-semibold text-gray-900">
-                {fc(item.line_total)}
-              </td>
-            </tr>
+              <div className="flex justify-between items-start gap-2">
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-gray-900 text-xs">{item.product_name}</p>
+                  {item.sku && (
+                    <p className="text-[10px] text-gray-400 font-mono mt-0.5">SKU: {item.sku}</p>
+                  )}
+                  {item.modifiers && item.modifiers.length > 0 && (
+                    <div className="mt-0.5">
+                      {item.modifiers.map((mod, mi) => (
+                        <p key={mi} className="text-[10px] text-gray-500">
+                          + {mod.name}{mod.price && mod.price > 0 ? ` (${fc(mod.price)})` : ''}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                  {item.notes && (
+                    <p className="text-[10px] text-gray-400 italic mt-0.5">Note: {item.notes}</p>
+                  )}
+                </div>
+                <p className="font-semibold text-gray-900 text-xs tabular-nums shrink-0">
+                  {fc(item.line_total)}
+                </p>
+              </div>
+              <div className="flex justify-between mt-1 text-[10px] text-gray-500">
+                <span>{fc(item.unit_price)} × {item.quantity}</span>
+              </div>
+            </div>
           ))}
-        </tbody>
-      </table>
+        </div>
+      </div>
 
       {/* ── Totals ────────────────────────────────────────────────────── */}
-      <div className="flex justify-end mb-8">
-        <div className="w-72">
+      <div className="flex justify-end mb-6 sm:mb-8">
+        <div className="w-full sm:w-72">
           <div className="space-y-2">
-            <div className="flex justify-between text-gray-600">
-              <span>Subtotal</span>
-              <span>{fc(order.subtotal)}</span>
-            </div>
             {order.discount_amount > 0 && (
-              <div className="flex justify-between text-green-600">
-                <span>Discount</span>
-                <span>-{fc(order.discount_amount)}</span>
-              </div>
+              <>
+                <div className="flex justify-between text-gray-600">
+                  <span>Subtotal</span>
+                  <span>{fc(order.subtotal)}</span>
+                </div>
+                <div className="flex justify-between text-green-600">
+                  <span>Discount</span>
+                  <span>-{fc(order.discount_amount)}</span>
+                </div>
+              </>
             )}
-            <div className="flex justify-between text-gray-600">
-              <span>Tax ({(order.tax_rate * 100).toFixed(0)}%)</span>
-              <span>{fc(order.tax_amount)}</span>
-            </div>
             <div className="flex justify-between font-bold text-xl text-gray-900 border-t-2 border-gray-900 pt-2 mt-2">
               <span>Total</span>
               <span>{fc(order.total)}</span>
@@ -338,16 +384,16 @@ export function InvoicePreview({ order, customer }: InvoicePreviewProps) {
 
       {/* ── Notes ─────────────────────────────────────────────────────── */}
       {order.notes && (
-        <div className="mb-6 p-4 bg-gray-50 rounded border border-gray-200">
+        <div className="mb-4 sm:mb-6 p-3 sm:p-4 bg-gray-50 rounded border border-gray-200">
           <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
             Notes
           </h3>
-          <p className="text-gray-700 text-sm">{order.notes}</p>
+          <p className="text-gray-700 text-xs sm:text-sm">{order.notes}</p>
         </div>
       )}
 
       {/* ── Terms & Footer ────────────────────────────────────────────── */}
-      <div className="border-t border-gray-300 pt-4 mt-8">
+      <div className="border-t border-gray-300 pt-3 sm:pt-4 mt-6 sm:mt-8">
         {isCreditSale && (
           <div className="mb-4">
             <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
@@ -361,7 +407,7 @@ export function InvoicePreview({ order, customer }: InvoicePreviewProps) {
           </div>
         )}
 
-        <div className="text-center text-xs text-gray-400 mt-6 space-y-1">
+        <div className="text-center text-[10px] sm:text-xs text-gray-400 mt-4 sm:mt-6 space-y-1">
           <p>Thank you for your business!</p>
           {company.tax_id && <p>Tax ID: {company.tax_id}</p>}
           <p>

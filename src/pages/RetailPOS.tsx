@@ -46,11 +46,12 @@ interface CartItem {
 type PaymentMethod = 'cash' | 'card' | 'qr';
 
 export default function RetailPOS({ onNavigate }: RetailPOSProps) {
-  const { retailProducts, retailCategories, loading, refetch: refetchProducts } = useProducts();
+  const { retailProducts, loading, refetch: refetchProducts } = useProducts();
   const { createOrder } = useOrders();
   const { customers, getCustomerDisplayName, refetch: refetchCustomers } = useCustomers();
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeCategory, setActiveCategory] = useState('all');
+  // All retail products are under one category – no category filter needed
+  const activeCategory = 'all';
   const [cart, setCart] = useState<CartItem[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card');
   const [saleType, setSaleType] = useState<SaleType>('cash');
@@ -181,9 +182,8 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
     (sum, item) => sum + getUnitPrice(item) * item.quantity,
     0
   );
-  const taxRate = 0.05;
-  const tax = subtotal * taxRate;
-  const total = subtotal + tax;
+  const tax = 0;
+  const total = subtotal;
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   // Barcode scan handler
@@ -327,26 +327,6 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                   className="pl-10 font-mono h-9"
                 />
               </div>
-            </div>
-
-            {/* Category Tabs */}
-            <div className="px-2 sm:px-3 lg:px-4 py-1.5 flex gap-1.5 sm:gap-2 overflow-x-auto scrollbar-hide">
-              {retailCategories.map((cat) => (
-                <button
-                  key={cat.id}
-                  onClick={() => setActiveCategory(cat.id)}
-                  className={cn(
-                    'flex items-center gap-1.5 px-3 py-1.5 rounded text-xs sm:text-sm font-medium whitespace-nowrap transition-all',
-                    activeCategory === cat.id
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-card border border-border text-muted-foreground hover:text-foreground hover:bg-muted'
-                  )}
-                >
-                  <span>{cat.icon}</span>
-                  <span>{cat.name}</span>
-                  <span className="text-xs opacity-70">{cat.count}</span>
-                </button>
-              ))}
             </div>
 
             {/* Product Grid */}
@@ -712,15 +692,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                 {/* Totals + Payment + CTA */}
                 <div className="p-3 border-t border-border space-y-3">
                   <div className="space-y-1 text-sm">
-                    <div className="flex justify-between text-muted-foreground">
-                      <span>Subtotal</span>
-                      <span>{fc(subtotal)}</span>
-                    </div>
-                    <div className="flex justify-between text-muted-foreground">
-                      <span>Tax (5%)</span>
-                      <span>{fc(tax)}</span>
-                    </div>
-                    <div className="flex justify-between font-bold text-foreground text-lg pt-1.5 border-t border-border">
+                    <div className="flex justify-between font-bold text-foreground text-lg">
                       <span>Total</span>
                       <span>{fc(total)}</span>
                     </div>
@@ -1035,15 +1007,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
               <div className="p-4 border-t border-border space-y-4">
                 {/* Totals */}
                 <div className="space-y-2 text-sm">
-                  <div className="flex justify-between text-muted-foreground">
-                    <span>Subtotal</span>
-                    <span>{fc(subtotal)}</span>
-                  </div>
-                  <div className="flex justify-between text-muted-foreground">
-                    <span>Tax (5%)</span>
-                    <span>{fc(tax)}</span>
-                  </div>
-                  <div className="flex justify-between font-bold text-foreground text-lg pt-2 border-t border-border">
+                  <div className="flex justify-between font-bold text-foreground text-lg">
                     <span>Total</span>
                     <span>{fc(total)}</span>
                   </div>

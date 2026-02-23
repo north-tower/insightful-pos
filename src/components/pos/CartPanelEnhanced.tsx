@@ -17,6 +17,8 @@ import { Badge } from '@/components/ui/badge';
 import { ReceiptData } from '@/data/receiptData';
 import { useOrders, SaleOrder, SaleType } from '@/hooks/useOrders';
 import { useCustomers, Customer } from '@/hooks/useCustomers';
+import { useCompanySettings } from '@/context/BusinessSettingsContext';
+import { notifyInvoiceCreated } from '@/lib/sendSms';
 import { fc } from '@/lib/currency';
 
 type PaymentMethod = 'cash' | 'card' | 'qr' | 'split';
@@ -45,6 +47,7 @@ export function CartPanelEnhanced() {
 
   const { createOrder } = useOrders();
   const { customers, getCustomerDisplayName, refetch: refetchCustomers } = useCustomers();
+  const { companyName } = useCompanySettings();
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card');
   const [orderType, setOrderType] = useState<OrderType>('dine-in');
@@ -587,14 +590,6 @@ export function CartPanelEnhanced() {
         {/* Payment Summary */}
         <div className="p-4 border-t border-border space-y-4">
           <div className="space-y-2 text-sm">
-            <div className="flex justify-between text-muted-foreground gap-4">
-              <span className="shrink-0">Subtotal</span>
-              <span className="tabular-nums text-right">{fc(subtotal)}</span>
-            </div>
-            <div className="flex justify-between text-muted-foreground gap-4">
-              <span className="shrink-0">Tax (5%)</span>
-              <span className="tabular-nums text-right">{fc(tax)}</span>
-            </div>
             {partialPayment !== null && (
               <>
                 <div className="flex justify-between text-info gap-4">

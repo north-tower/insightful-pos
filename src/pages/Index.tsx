@@ -9,6 +9,9 @@ import CustomerManagement from '@/pages/CustomerManagement';
 import ManageTable from '@/pages/ManageTable';
 import ManageDishes from '@/pages/ManageDishes';
 import RetailDashboard from '@/pages/RetailDashboard';
+import RetailPOS from '@/pages/RetailPOS';
+import RetailProducts from '@/pages/RetailProducts';
+import RetailInventory from '@/pages/RetailInventory';
 import Purchases from '@/pages/Purchases';
 import AccountsReceivable from '@/pages/AccountsReceivable';
 import Settings from '@/pages/Settings';
@@ -57,6 +60,12 @@ function POSApp() {
   switch (currentPage) {
     case 'dashboard':
       return <RetailDashboard onNavigate={handleNavigate} />;
+    case 'pos':
+      return <RetailPOS onNavigate={handleNavigate} />;
+    case 'products':
+      return <RetailProducts onNavigate={handleNavigate} />;
+    case 'inventory':
+      return <RetailInventory onNavigate={handleNavigate} />;
     case 'purchases':
       return <Purchases onNavigate={handleNavigate} />;
     case 'order-history':

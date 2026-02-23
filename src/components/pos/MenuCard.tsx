@@ -77,7 +77,7 @@ export function MenuCard({ item }: MenuCardProps) {
                 {quantity === 1 ? (
                   <Trash2 className="w-3 h-3" />
                 ) : (
-                  <Minus className="w-3 h-3" />
+                <Minus className="w-3 h-3" />
                 )}
               </Button>
               <span className="min-w-[2rem] text-center font-semibold text-primary tabular-nums text-sm">

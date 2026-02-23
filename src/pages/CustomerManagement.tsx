@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { PageLayout } from '@/components/pos/PageLayout';
+import { PaginationControls } from '@/components/ui/pagination-controls';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -59,6 +60,8 @@ export default function CustomerManagement({
   );
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [isSaving, setIsSaving] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
 
   const filteredCustomers = useMemo(() => {
     return customers.filter((customer) => {
@@ -78,6 +81,15 @@ export default function CustomerManagement({
       return matchesSearch && matchesStatus;
     });
   }, [customers, searchQuery, filterStatus]);
+
+  // Reset page when filters change
+  useEffect(() => { setCurrentPage(1); }, [searchQuery, filterStatus]);
+
+  const totalPages = Math.ceil(filteredCustomers.length / pageSize);
+  const paginatedCustomers = useMemo(
+    () => filteredCustomers.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [filteredCustomers, currentPage, pageSize],
+  );
 
   const handleCreateCustomer = () => {
     setSelectedCustomer(null);
@@ -253,7 +265,7 @@ export default function CustomerManagement({
           {/* Customers List */}
           {!loading && !error && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredCustomers.map((customer) => (
+              {paginatedCustomers.map((customer) => (
                 <Card
                   key={customer.id}
                   className={cn(
@@ -381,6 +393,18 @@ export default function CustomerManagement({
                 </Card>
               ))}
             </div>
+          )}
+
+          {/* Pagination */}
+          {!loading && !error && filteredCustomers.length > 0 && (
+            <PaginationControls
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={filteredCustomers.length}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
+            />
           )}
 
           {!loading && !error && filteredCustomers.length === 0 && (

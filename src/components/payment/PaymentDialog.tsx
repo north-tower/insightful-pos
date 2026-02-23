@@ -162,25 +162,25 @@ export function PaymentDialog({
       for (const line of distribution) {
         if (line.applied <= 0) continue;
         await onRecordPayment(line.order.id, {
-          method,
+        method,
           amount: line.applied,
-          reference: reference.trim() || undefined,
-        });
-      }
+        reference: reference.trim() || undefined,
+      });
+        }
 
       // DB triggers have already:
       // 1. Reduced customer.credit_balance for each payment
       // 2. Updated each order's payment_status
       // No need to call makePaymentOnAccount — that would be a double-deduction.
 
-      setSuccess(true);
-      setTimeout(() => {
-        setSuccess(false);
-        setAmount('');
-        setReference('');
-        onPaymentComplete?.();
-        onOpenChange(false);
-      }, 1500);
+        setSuccess(true);
+        setTimeout(() => {
+          setSuccess(false);
+          setAmount('');
+          setReference('');
+          onPaymentComplete?.();
+          onOpenChange(false);
+        }, 1500);
     } catch (err: any) {
       setError(err.message || 'Payment failed');
     } finally {
@@ -425,28 +425,28 @@ export function PaymentDialog({
                   <>
                     <div className="flex justify-between gap-4">
                       <span className="text-muted-foreground shrink-0">After this payment</span>
-                      <Badge
-                        className={cn(
+                  <Badge
+                    className={cn(
                           'text-xs shrink-0',
-                          enteredAmount >= balanceDue
-                            ? 'bg-success/10 text-success'
-                            : 'bg-warning/10 text-warning',
-                        )}
-                      >
-                        {enteredAmount >= balanceDue ? 'FULLY PAID' : 'PARTIAL'}
-                      </Badge>
-                    </div>
+                      enteredAmount >= balanceDue
+                        ? 'bg-success/10 text-success'
+                        : 'bg-warning/10 text-warning',
+                    )}
+                  >
+                    {enteredAmount >= balanceDue ? 'FULLY PAID' : 'PARTIAL'}
+                  </Badge>
+                </div>
                     <div className="flex justify-between font-medium gap-4">
                       <span className="shrink-0">Remaining Balance</span>
-                      <span
-                        className={cn(
+                  <span
+                    className={cn(
                           'tabular-nums text-right',
-                          enteredAmount >= balanceDue ? 'text-success' : 'text-warning',
-                        )}
-                      >
-                        {fc(Math.max(balanceDue - enteredAmount, 0))}
-                      </span>
-                    </div>
+                      enteredAmount >= balanceDue ? 'text-success' : 'text-warning',
+                    )}
+                  >
+                    {fc(Math.max(balanceDue - enteredAmount, 0))}
+                  </span>
+                </div>
                   </>
                 )}
 

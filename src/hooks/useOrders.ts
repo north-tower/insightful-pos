@@ -139,7 +139,7 @@ export function useOrders() {
         .select('*')
         .eq('business_mode', mode)
         .order('created_at', { ascending: false })
-        .limit(100);
+        .limit(500);
 
       if (orderErr) throw orderErr;
 
@@ -261,9 +261,9 @@ export function useOrders() {
 
       const discountAmount = params.discount_amount || 0;
       const subtotal = itemsTotal - discountAmount;
-      const taxRate = 0.05;
-      const taxAmount = subtotal * taxRate;
-      const total = subtotal + taxAmount;
+      const taxRate = 0;
+      const taxAmount = 0;
+      const total = subtotal;
 
       const saleType = params.sale_type || 'cash';
       const totalPaid = params.payments.reduce((s, p) => s + p.amount, 0);

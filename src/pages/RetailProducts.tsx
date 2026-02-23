@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Plus,
   Search,
@@ -53,6 +53,7 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import { PageLayout } from '@/components/pos/PageLayout';
+import { PaginationControls } from '@/components/ui/pagination-controls';
 import { cn } from '@/lib/utils';
 import { useProducts } from '@/hooks/useProducts';
 import type { Product, ProductCategory } from '@/hooks/useProducts';
@@ -72,7 +73,6 @@ type SortDir = 'asc' | 'desc';
 export default function RetailProducts({ onNavigate }: RetailProductsProps) {
   const {
     retailProducts,
-    retailCategories,
     loading,
     rawCategories,
     slugToCategoryId,
@@ -80,7 +80,8 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
     deleteProduct,
     addProduct,
   } = useProducts();
-  const [activeCategory, setActiveCategory] = useState('all');
+  // All retail products are under one category – no category filter needed
+  const activeCategory = 'all';
   const [viewMode, setViewMode] = useState<'grid' | 'list'>(
     typeof window !== 'undefined' && window.innerWidth < 768 ? 'grid' : 'list'
   );
@@ -97,6 +98,10 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
   // Delete product state
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
 
   // Add product state
   const [isAdding, setIsAdding] = useState(false);
@@ -234,6 +239,15 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
     return products;
   }, [activeCategory, searchQuery, sortField, sortDir, retailProducts]);
 
+  // Reset page on filter/search change
+  useEffect(() => { setCurrentPage(1); }, [searchQuery, sortField, sortDir]);
+
+  const totalPages = Math.ceil(filteredProducts.length / pageSize);
+  const paginatedProducts = useMemo(
+    () => filteredProducts.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [filteredProducts, currentPage, pageSize],
+  );
+
   const toggleSort = (field: SortField) => {
     if (sortField === field) {
       setSortDir((prev) => (prev === 'asc' ? 'desc' : 'asc'));
@@ -263,70 +277,6 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
 
   return (
     <PageLayout activeTab="products" onNavigate={onNavigate} flexContent>
-          {/* Category Sidebar — compact horizontal strip on mobile, vertical on lg+ */}
-          <div className="lg:w-64 bg-card border-b lg:border-b-0 lg:border-r border-border flex lg:flex-col shrink-0">
-            <div className="hidden lg:block p-4 border-b border-border">
-              <h2 className="text-lg font-bold text-foreground">Categories</h2>
-              <p className="text-xs text-muted-foreground mt-1">
-                {categoryStats.total} products • {categoryStats.lowStock} low
-                stock
-              </p>
-            </div>
-
-            <div className="flex lg:flex-col lg:flex-1 overflow-x-auto lg:overflow-y-auto px-2 py-1.5 lg:p-3 gap-1 lg:gap-0 lg:space-y-1 scrollbar-hide">
-              {retailCategories.map((category) => {
-                const isActive = activeCategory === category.id;
-                return (
-                  <button
-                    key={category.id}
-                    onClick={() => setActiveCategory(category.id)}
-                    className={cn(
-                      'flex items-center gap-1.5 lg:gap-3 lg:justify-between px-2.5 lg:px-4 py-1.5 lg:py-3 rounded text-xs lg:text-sm font-medium transition-all whitespace-nowrap shrink-0 lg:w-full',
-                      isActive
-                        ? 'bg-primary text-primary-foreground'
-                        : 'text-foreground hover:bg-muted'
-                    )}
-                  >
-                    <span className="hidden lg:inline text-lg">{category.icon}</span>
-                    <span>{category.name}</span>
-                    <span
-                      className={cn(
-                        'text-[10px] lg:text-xs px-1.5 lg:px-2 py-0.5 rounded-full',
-                        isActive
-                          ? 'bg-primary-foreground/20 text-primary-foreground'
-                          : 'bg-muted text-muted-foreground'
-                      )}
-                    >
-                      {category.count}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Quick stats at bottom — hidden on mobile */}
-            <div className="hidden lg:block p-4 border-t border-border space-y-2 text-xs">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Active</span>
-                <span className="font-medium text-foreground">
-                  {categoryStats.active}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-warning">Low Stock</span>
-                <span className="font-medium text-warning">
-                  {categoryStats.lowStock}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-destructive">Out of Stock</span>
-                <span className="font-medium text-destructive">
-                  {categoryStats.outOfStock}
-                </span>
-              </div>
-            </div>
-          </div>
-
           {/* Product List Area */}
           <div className="flex-1 flex flex-col overflow-hidden min-w-0">
             {/* Toolbar */}
@@ -446,7 +396,7 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
 
                 {/* ── Desktop rows (hidden on mobile) ── */}
                 <div className="hidden md:block divide-y divide-border">
-                  {filteredProducts.map((product) => {
+                  {paginatedProducts.map((product) => {
                     const status = getStockStatus(product);
                     return (
                       <div
@@ -499,7 +449,7 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
 
                 {/* ── Mobile card rows (hidden on desktop) ── */}
                 <div className="md:hidden divide-y divide-border">
-                  {filteredProducts.map((product) => {
+                  {paginatedProducts.map((product) => {
                     const status = getStockStatus(product);
                     return (
                       <div
@@ -546,7 +496,7 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
             {!loading && viewMode === 'grid' && (
               <div className="flex-1 overflow-y-auto p-2 sm:p-4">
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-4">
-                  {filteredProducts.map((product) => {
+                  {paginatedProducts.map((product) => {
                     const status = getStockStatus(product);
                     return (
                       <div
@@ -602,13 +552,25 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
               </div>
             )}
 
+            {/* Pagination */}
+            {!loading && filteredProducts.length > 0 && (
+              <PaginationControls
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={filteredProducts.length}
+                pageSize={pageSize}
+                onPageChange={setCurrentPage}
+                onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
+              />
+            )}
+
             {!loading && filteredProducts.length === 0 && (
               <div className="flex-1 flex items-center justify-center text-muted-foreground">
                 <div className="text-center">
                   <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />
                   <p className="font-medium">No products found</p>
                   <p className="text-sm mt-1">
-                    Try adjusting your search or category filter
+                    Try adjusting your search
                   </p>
                 </div>
               </div>

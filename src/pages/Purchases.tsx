@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Plus,
   Search,
@@ -45,6 +45,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { PageLayout } from '@/components/pos/PageLayout';
+import { PaginationControls } from '@/components/ui/pagination-controls';
 import { cn } from '@/lib/utils';
 import { usePurchases, type NewPurchaseItem } from '@/hooks/usePurchases';
 import { useSuppliers, type Supplier } from '@/hooks/useSuppliers';
@@ -116,6 +117,10 @@ export default function Purchases({ onNavigate }: PurchasesProps) {
   const [deletingSupplierId, setDeletingSupplierId] = useState<string | null>(null);
   const [isDeletingSupplier, setIsDeletingSupplier] = useState(false);
 
+  // ── Pagination state ───────────────────────────────────────────────────
+  const [poPage, setPoPage] = useState(1);
+  const [poPageSize, setPoPageSize] = useState(20);
+
   // ── Filtered purchases ────────────────────────────────────────────────
 
   const filteredPurchases = useMemo(() => {
@@ -134,6 +139,15 @@ export default function Purchases({ onNavigate }: PurchasesProps) {
     }
     return list;
   }, [purchases, statusFilter, searchQuery]);
+
+  // Reset page when filters change
+  useEffect(() => { setPoPage(1); }, [searchQuery, statusFilter]);
+
+  const poTotalPages = Math.ceil(filteredPurchases.length / poPageSize);
+  const paginatedPurchases = useMemo(
+    () => filteredPurchases.slice((poPage - 1) * poPageSize, poPage * poPageSize),
+    [filteredPurchases, poPage, poPageSize],
+  );
 
   // ── Filtered suppliers ────────────────────────────────────────────────
 
@@ -547,7 +561,7 @@ export default function Purchases({ onNavigate }: PurchasesProps) {
             </div>
           ) : (
             <div className="space-y-3">
-              {filteredPurchases.map((po) => {
+              {paginatedPurchases.map((po) => {
                 const style = statusStyles[po.status] || statusStyles.draft;
                 return (
                   <Card key={po.id} className="hover:shadow-md transition-shadow">
@@ -609,6 +623,18 @@ export default function Purchases({ onNavigate }: PurchasesProps) {
                   </Card>
                 );
               })}
+
+              {/* Pagination */}
+              {filteredPurchases.length > 0 && (
+                <PaginationControls
+                  currentPage={poPage}
+                  totalPages={poTotalPages}
+                  totalItems={filteredPurchases.length}
+                  pageSize={poPageSize}
+                  onPageChange={setPoPage}
+                  onPageSizeChange={(size) => { setPoPageSize(size); setPoPage(1); }}
+                />
+              )}
             </div>
           )}
         </TabsContent>

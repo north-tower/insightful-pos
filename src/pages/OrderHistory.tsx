@@ -1,9 +1,10 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { PageLayout } from '@/components/pos/PageLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PaginationControls } from '@/components/ui/pagination-controls';
 import { Search, RotateCcw, Eye, Printer, X, Loader2, DollarSign, ShoppingBag, AlertTriangle, FileText, CreditCard, Banknote, CircleDollarSign, Pencil, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -103,6 +104,8 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
   const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
   const [voidingOrderId, setVoidingOrderId] = useState<string | null>(null);
   const [refundingOrderId, setRefundingOrderId] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
 
   const filteredOrders = useMemo(() => {
     let result = orders;
@@ -128,6 +131,18 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
 
     return result;
   }, [orders, searchQuery, statusFilter, saleTypeFilter]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, statusFilter, saleTypeFilter]);
+
+  // Paginated slice
+  const totalPages = Math.ceil(filteredOrders.length / pageSize);
+  const paginatedOrders = useMemo(
+    () => filteredOrders.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [filteredOrders, currentPage, pageSize],
+  );
 
   // Computed stats — use getOrderBalanceDue for single source of truth
   const unpaidCreditOrders = useMemo(
@@ -353,7 +368,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
           {/* Orders List */}
           {!loading && (
           <div className="space-y-4">
-              {filteredOrders.length === 0 && (
+              {filteredOrders.length === 0 && !loading && (
                 <div className="text-center py-16 text-muted-foreground">
                   <ShoppingBag className="w-12 h-12 mx-auto mb-4 opacity-50" />
                   <p className="text-lg">No orders found</p>
@@ -365,7 +380,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                 </div>
               )}
 
-              {filteredOrders.map((order) => {
+              {paginatedOrders.map((order) => {
                 const primaryPayment =
                   order.payments.length > 1
                     ? 'split'
@@ -559,6 +574,17 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
               </Card>
                 );
               })}
+            {/* Pagination */}
+            {filteredOrders.length > 0 && (
+              <PaginationControls
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={filteredOrders.length}
+                pageSize={pageSize}
+                onPageChange={setCurrentPage}
+                onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
+              />
+            )}
           </div>
           )}
 

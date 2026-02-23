@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Search,
   Package,
@@ -27,6 +27,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PageLayout } from '@/components/pos/PageLayout';
+import { PaginationControls } from '@/components/ui/pagination-controls';
 import { cn } from '@/lib/utils';
 import { useProducts } from '@/hooks/useProducts';
 import type { Product } from '@/hooks/useProducts';
@@ -34,6 +35,7 @@ import { useStockAdjustments, type StockAdjustmentRow } from '@/hooks/useStockAd
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import { formatCurrency } from '@/lib/currency';
+import { generatePlaceholderUrl } from '@/lib/product-images';
 
 interface RetailInventoryProps {
   onNavigate: (tab: string) => void;
@@ -72,6 +74,8 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
   const [adjustQty, setAdjustQty] = useState('');
   const [adjustNote, setAdjustNote] = useState('');
   const [isAdjusting, setIsAdjusting] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
 
   // Stock summary
   const stockSummary = useMemo(() => {
@@ -121,6 +125,15 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
 
     return products;
   }, [stockFilter, searchQuery, retailProducts]);
+
+  // Reset page when filters change
+  useEffect(() => { setCurrentPage(1); }, [searchQuery, stockFilter]);
+
+  const totalPages = Math.ceil(filteredProducts.length / pageSize);
+  const paginatedProducts = useMemo(
+    () => filteredProducts.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [filteredProducts, currentPage, pageSize],
+  );
 
   const openAdjustDialog = (product: Product) => {
     setAdjustProduct(product);
@@ -292,7 +305,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                     </div>
 
                     {/* Rows */}
-                    {filteredProducts.map((product) => (
+                    {paginatedProducts.map((product) => (
                         <div
                           key={product.id}
                           className="grid grid-cols-12 gap-3 items-center px-3 py-3 rounded hover:bg-muted/30 transition-colors"
@@ -300,7 +313,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                           {/* Product */}
                           <div className="col-span-5 flex items-center gap-3">
                             <img
-                              src={product.image}
+                              src={product.image || generatePlaceholderUrl(product.name)}
                               alt={product.name}
                               className="w-9 h-9 rounded object-cover"
                             />
@@ -350,6 +363,18 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                         <Package className="w-10 h-10 mx-auto mb-3 opacity-50" />
                         <p className="text-sm">No products match this filter</p>
                       </div>
+                    )}
+
+                    {/* Pagination */}
+                    {filteredProducts.length > 0 && (
+                      <PaginationControls
+                        currentPage={currentPage}
+                        totalPages={totalPages}
+                        totalItems={filteredProducts.length}
+                        pageSize={pageSize}
+                        onPageChange={setCurrentPage}
+                        onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
+                      />
                     )}
                   </div>
                   )}
