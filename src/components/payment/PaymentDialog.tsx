@@ -181,11 +181,9 @@ export function PaymentDialog({
       if (companyName) {
         const phone = customer?.phone || order.customer_phone;
         if (phone) {
-          // Total balance remaining across all affected invoices
-          const totalBalanceAfter = distribution.reduce(
-            (sum, line) => sum + line.balanceAfter,
-            0,
-          );
+          // Total cumulative balance remaining across the customer's account
+          // (primary invoice + all other unpaid invoices in this dialog)
+          const totalBalanceAfter = Math.max(totalCustomerBalance - totalApplied, 0);
           notifyPaymentReceived(
             order,
             enteredAmount,

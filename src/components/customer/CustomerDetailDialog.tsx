@@ -181,7 +181,7 @@ export function CustomerDetailDialog({
             </Card>
 
             {/* Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
               <Card>
                 <CardContent className="p-4 text-center min-w-0">
                   <ShoppingBag className="w-6 h-6 mx-auto mb-2 text-muted-foreground" />
@@ -238,7 +238,7 @@ export function CustomerDetailDialog({
               <Card>
                 <CardContent className="p-4">
                   <h3 className="font-semibold mb-2">Credit Details</h3>
-                  <div className="grid grid-cols-3 gap-4 text-sm">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
                     <div className="min-w-0">
                       <p className="text-muted-foreground">Credit Limit</p>
                       <p className="font-medium tabular-nums truncate">

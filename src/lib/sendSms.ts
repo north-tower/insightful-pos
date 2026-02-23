@@ -28,16 +28,22 @@ async function sendSms(mobile: string, message: string): Promise<void> {
  *
  * @param order        The newly created order
  * @param companyName  Business name to include in the message
+ * @param previousBalance  Customer balance before this invoice
+ * @param overallBalance   Customer cumulative balance after this invoice
  */
 export function notifyInvoiceCreated(
   order: SaleOrder,
   companyName: string,
+  previousBalance?: number,
+  overallBalance?: number,
 ): void {
   const phone = order.customer_phone;
   if (!phone) return; // No phone → no SMS
 
   const invoiceNo = order.invoice_number || order.order_number;
   const amount = formatCurrency(order.total);
+  const prevBalanceAmount = formatCurrency(Math.max(previousBalance || 0, 0));
+  const overallBalanceAmount = formatCurrency(Math.max(overallBalance || order.total, 0));
   const dueDate = order.due_date
     ? new Date(order.due_date).toLocaleDateString('en-KE', {
         day: '2-digit',
@@ -50,7 +56,7 @@ export function notifyInvoiceCreated(
   const duePart = dueDate ? ` Due: ${dueDate}.` : '';
 
   const msg =
-    `Dear ${name}, your invoice #${invoiceNo} of ${amount} from ${companyName} has been created.${duePart} Thank you for your business.`;
+    `Dear ${name}, your invoice #${invoiceNo} of ${amount} from ${companyName} has been created. Previous balance: ${prevBalanceAmount}. Overall balance: ${overallBalanceAmount}.${duePart} Thank you for your business.`;
 
   // Fire and forget
   sendSms(phone, msg);

@@ -270,7 +270,9 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
 
         // Send SMS notification for credit invoices (fire-and-forget)
         if (saleType === 'credit') {
-          notifyInvoiceCreated(order, companyName);
+          const overallBalance = freshCustomer?.credit_balance ?? order.total;
+          const previousBalance = Math.max(overallBalance - order.total, 0);
+          notifyInvoiceCreated(order, companyName, previousBalance, overallBalance);
         }
 
         setIsInvoiceOpen(true);

@@ -298,7 +298,7 @@ export function CustomerStatement({
 
         {/* Summary Cards */}
         <div className="px-6 pt-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
             <Card>
               <CardContent className="p-3 text-center min-w-0">
                 <p className="text-[11px] text-muted-foreground uppercase tracking-wide">
