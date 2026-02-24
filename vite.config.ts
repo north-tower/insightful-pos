@@ -15,7 +15,12 @@ export default defineConfig(({ mode }) => ({
     mode === "development" && componentTagger(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.ico", "robots.txt", "placeholder.svg"],
+      includeAssets: [
+        "favicon.ico",
+        "apple-touch-icon.png",
+        "robots.txt",
+        "placeholder.svg",
+      ],
       manifest: {
         name: "Insightful POS",
         short_name: "InsightfulPOS",
@@ -40,7 +45,7 @@ export default defineConfig(({ mode }) => ({
             src: "pwa-512x512-maskable.png",
             sizes: "512x512",
             type: "image/png",
-            purpose: "maskable",
+            purpose: "any maskable",
           },
         ],
       },

@@ -15,6 +15,7 @@ export interface Customer {
   city?: string;
   postal_code?: string;
   country?: string;
+  opening_balance: number;
   credit_balance: number;
   credit_limit: number;
   total_spent: number;
@@ -36,6 +37,7 @@ export interface CreateCustomerParams {
   city?: string;
   postal_code?: string;
   country?: string;
+  opening_balance?: number;
   credit_limit?: number;
   status?: string;
   notes?: string;
@@ -66,6 +68,7 @@ export function useCustomers() {
 
       const mapped: Customer[] = (data || []).map((c: any) => ({
         ...c,
+        opening_balance: Number(c.opening_balance || 0),
         credit_balance: Number(c.credit_balance),
         credit_limit: Number(c.credit_limit),
         total_spent: Number(c.total_spent),
@@ -91,10 +94,14 @@ export function useCustomers() {
   const createCustomer = useCallback(
     async (params: CreateCustomerParams): Promise<Customer | null> => {
       try {
+        const openingBalance = Number(params.opening_balance || 0);
+
         const { data, error: err } = await supabase
           .from('customers')
           .insert({
             ...params,
+            opening_balance: openingBalance,
+            credit_balance: openingBalance,
             business_mode: mode,
           })
           .select()
@@ -117,9 +124,42 @@ export function useCustomers() {
   const updateCustomer = useCallback(
     async (id: string, updates: Partial<CreateCustomerParams>) => {
       try {
+        const payload: Partial<CreateCustomerParams> & {
+          credit_balance?: number;
+        } = { ...updates };
+
+        if (typeof updates.opening_balance === 'number') {
+          let existingCustomer = customers.find((c) => c.id === id) || null;
+
+          if (!existingCustomer) {
+            const { data: existing, error: existingErr } = await supabase
+              .from('customers')
+              .select('opening_balance, credit_balance')
+              .eq('id', id)
+              .single();
+
+            if (existingErr) throw existingErr;
+
+            existingCustomer = {
+              ...existing,
+              id,
+              opening_balance: Number(existing.opening_balance || 0),
+              credit_balance: Number(existing.credit_balance || 0),
+            } as Customer;
+          }
+
+          const previousOpening = Number(existingCustomer.opening_balance || 0);
+          const openingDelta = Number(updates.opening_balance) - previousOpening;
+
+          payload.credit_balance = Math.max(
+            Number(existingCustomer.credit_balance || 0) + openingDelta,
+            0,
+          );
+        }
+
         const { error: err } = await supabase
           .from('customers')
-          .update(updates)
+          .update(payload)
           .eq('id', id);
         if (err) throw err;
         await fetchCustomers();
@@ -128,7 +168,7 @@ export function useCustomers() {
         setError(err.message);
       }
     },
-    [fetchCustomers],
+    [customers, fetchCustomers],
   );
 
   // ── Make payment against customer balance ───────────────────────────────

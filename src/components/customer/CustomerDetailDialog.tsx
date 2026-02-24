@@ -234,11 +234,17 @@ export function CustomerDetailDialog({
             </div>
 
             {/* Credit limit */}
-            {customer.credit_limit > 0 && (
+            {(customer.credit_limit > 0 || customer.opening_balance > 0 || customer.credit_balance > 0) && (
               <Card>
                 <CardContent className="p-4">
                   <h3 className="font-semibold mb-2">Credit Details</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 text-sm">
+                    <div className="min-w-0">
+                      <p className="text-muted-foreground">Opening Balance</p>
+                      <p className="font-medium tabular-nums truncate">
+                        {formatCurrency(customer.opening_balance || 0)}
+                      </p>
+                    </div>
                     <div className="min-w-0">
                       <p className="text-muted-foreground">Credit Limit</p>
                       <p className="font-medium tabular-nums truncate">

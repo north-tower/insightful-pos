@@ -32,16 +32,17 @@ interface CustomerDialogProps {
 const emptyForm: CreateCustomerParams = {
   first_name: '',
   last_name: '',
-    email: '',
-    phone: '',
-    address: '',
-    city: '',
+  email: '',
+  phone: '',
+  address: '',
+  city: '',
   postal_code: '',
-    country: 'USA',
+  country: 'USA',
+  opening_balance: 0,
   credit_limit: 0,
-    status: 'active',
-    notes: '',
-    tags: [],
+  status: 'active',
+  notes: '',
+  tags: [],
 };
 
 export function CustomerDialog({
@@ -65,6 +66,7 @@ export function CustomerDialog({
         city: customer.city || '',
         postal_code: customer.postal_code || '',
         country: customer.country || 'USA',
+        opening_balance: customer.opening_balance || 0,
         credit_limit: customer.credit_limit,
         status: customer.status,
         notes: customer.notes || '',
@@ -181,6 +183,25 @@ export function CustomerDialog({
                     <SelectItem value="suspended">Suspended</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+              <div>
+                <Label htmlFor="opening_balance">Opening Balance ($)</Label>
+                <Input
+                  id="opening_balance"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={formData.opening_balance ?? 0}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      opening_balance: parseFloat(e.target.value) || 0,
+                    })
+                  }
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Useful when migrating existing customer dues from another system.
+                </p>
               </div>
               <div>
                 <Label htmlFor="credit_limit">Credit Limit ($)</Label>
