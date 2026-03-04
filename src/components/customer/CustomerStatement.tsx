@@ -35,7 +35,7 @@ import { fc } from '@/lib/currency';
 interface StatementEntry {
   id: string;
   date: Date;
-  type: 'invoice' | 'payment';
+  type: 'opening' | 'invoice' | 'payment';
   reference: string;
   description: string;
   debit: number; // amount owed (invoices)
@@ -82,6 +82,19 @@ export function CustomerStatement({
 
     const raw: Omit<StatementEntry, 'balance'>[] = [];
 
+    // Opening balance (migration/import baseline)
+    if ((customer.opening_balance || 0) > 0) {
+      raw.push({
+        id: `opening-${customer.id}`,
+        date: new Date(customer.created_at),
+        type: 'opening',
+        reference: 'OPENING',
+        description: 'Opening Balance',
+        debit: customer.opening_balance,
+        credit: 0,
+      });
+    }
+
     // Add invoice entries
     creditOrders.forEach((order) => {
       raw.push({
@@ -114,41 +127,60 @@ export function CustomerStatement({
     // Sort by date ascending
     raw.sort((a, b) => a.date.getTime() - b.date.getTime());
 
-    // Apply date filter
     const now = new Date();
-    const filtered = raw.filter((entry) => {
-      switch (dateRange) {
-        case '30':
-          return now.getTime() - entry.date.getTime() <= 30 * 86400000;
-        case '60':
-          return now.getTime() - entry.date.getTime() <= 60 * 86400000;
-        case '90':
-          return now.getTime() - entry.date.getTime() <= 90 * 86400000;
-        case 'this-month':
-          return (
-            entry.date.getMonth() === now.getMonth() &&
-            entry.date.getFullYear() === now.getFullYear()
-          );
-        case 'this-year':
-          return entry.date.getFullYear() === now.getFullYear();
-        default:
-          return true;
-      }
-    });
+    // Build period start for filtering while preserving accurate running balance.
+    const periodStart =
+      dateRange === '30'
+        ? new Date(now.getTime() - 30 * 86400000)
+        : dateRange === '60'
+          ? new Date(now.getTime() - 60 * 86400000)
+          : dateRange === '90'
+            ? new Date(now.getTime() - 90 * 86400000)
+            : dateRange === 'this-month'
+              ? new Date(now.getFullYear(), now.getMonth(), 1)
+              : dateRange === 'this-year'
+                ? new Date(now.getFullYear(), 0, 1)
+                : null;
+
+    const openingCarriedForward = periodStart
+      ? raw
+          .filter((entry) => entry.date.getTime() < periodStart.getTime())
+          .reduce((sum, entry) => sum + entry.debit - entry.credit, 0)
+      : 0;
+
+    const filtered = raw.filter(
+      (entry) =>
+        !periodStart || entry.date.getTime() >= periodStart.getTime(),
+    );
 
     // Compute running balance (ascending order for correctness)
-    let runningBalance = 0;
-    const withBalance: StatementEntry[] = filtered.map((entry) => {
+    let runningBalance = openingCarriedForward;
+    const withBalance: StatementEntry[] = [];
+
+    if (periodStart && openingCarriedForward !== 0) {
+      withBalance.push({
+        id: `bf-${dateRange}`,
+        date: periodStart,
+        type: 'opening',
+        reference: 'B/F',
+        description: 'Balance Brought Forward',
+        debit: openingCarriedForward > 0 ? openingCarriedForward : 0,
+        credit: openingCarriedForward < 0 ? Math.abs(openingCarriedForward) : 0,
+        balance: openingCarriedForward,
+      });
+    }
+
+    filtered.forEach((entry) => {
       runningBalance += entry.debit - entry.credit;
-      return { ...entry, balance: runningBalance };
+      withBalance.push({ ...entry, balance: runningBalance });
     });
 
     // Reverse to show newest first
     withBalance.reverse();
 
     // Compute totals
-    const totalDebit = filtered.reduce((s, e) => s + e.debit, 0);
-    const totalCredit = filtered.reduce((s, e) => s + e.credit, 0);
+    const totalDebit = withBalance.reduce((s, e) => s + e.debit, 0);
+    const totalCredit = withBalance.reduce((s, e) => s + e.credit, 0);
     const closingBalance = runningBalance;
 
     return {
@@ -161,7 +193,7 @@ export function CustomerStatement({
         closingBalance,
       },
     };
-  }, [orders, dateRange]);
+  }, [orders, dateRange, customer.id, customer.created_at, customer.opening_balance]);
 
   const handlePrint = () => {
     const content = printRef.current;
@@ -407,10 +439,10 @@ export function CustomerStatement({
                         </td>
                         <td className="py-2.5 px-3">
                           <div className="flex items-center gap-2">
-                            {entry.type === 'invoice' ? (
-                              <ArrowUpRight className="w-3.5 h-3.5 text-destructive shrink-0" />
-                            ) : (
+                            {entry.type === 'payment' ? (
                               <ArrowDownRight className="w-3.5 h-3.5 text-success shrink-0" />
+                            ) : (
+                              <ArrowUpRight className="w-3.5 h-3.5 text-destructive shrink-0" />
                             )}
                             {entry.description}
                           </div>
@@ -478,15 +510,15 @@ export function CustomerStatement({
                       <div
                         className={cn(
                           'w-8 h-8 rounded-full flex items-center justify-center shrink-0',
-                          entry.type === 'invoice'
-                            ? 'bg-destructive/10'
-                            : 'bg-success/10',
+                          entry.type === 'payment'
+                            ? 'bg-success/10'
+                            : 'bg-destructive/10',
                         )}
                       >
-                        {entry.type === 'invoice' ? (
-                          <FileText className="w-3.5 h-3.5 text-destructive" />
-                        ) : (
+                        {entry.type === 'payment' ? (
                           <CircleDollarSign className="w-3.5 h-3.5 text-success" />
+                        ) : (
+                          <FileText className="w-3.5 h-3.5 text-destructive" />
                         )}
                       </div>
                       {index < entries.length - 1 && (
@@ -504,12 +536,16 @@ export function CustomerStatement({
                           variant="outline"
                           className={cn(
                             'text-xs',
-                            entry.type === 'invoice'
-                              ? 'border-destructive/30 text-destructive'
-                              : 'border-success/30 text-success',
+                            entry.type === 'payment'
+                              ? 'border-success/30 text-success'
+                              : 'border-destructive/30 text-destructive',
                           )}
                         >
-                          {entry.type === 'invoice' ? 'Invoice' : 'Payment'}
+                          {entry.type === 'opening'
+                            ? 'Opening'
+                            : entry.type === 'invoice'
+                              ? 'Invoice'
+                              : 'Payment'}
                         </Badge>
                       </div>
                       <p className="text-xs text-muted-foreground mb-1.5">
@@ -520,13 +556,13 @@ export function CustomerStatement({
                       </p>
                       <div className="flex items-center justify-between text-sm gap-3">
                         <span className="tabular-nums">
-                          {entry.type === 'invoice' ? (
+                          {entry.type !== 'payment' ? (
                             <span className="text-destructive font-semibold">
-                              +{fc(entry.debit)}
+                              +{fc(entry.debit > 0 ? entry.debit : 0)}
                             </span>
                           ) : (
                             <span className="text-success font-semibold">
-                              −{fc(entry.credit)}
+                              −{fc(entry.credit > 0 ? entry.credit : 0)}
                             </span>
                           )}
                         </span>

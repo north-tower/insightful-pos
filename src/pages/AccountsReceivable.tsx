@@ -5,6 +5,21 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Search,
   Loader2,
   CreditCard,
@@ -28,6 +43,7 @@ import { ReceiptData } from '@/data/receiptData';
 import { toast } from 'sonner';
 import { formatCurrency } from '@/lib/currency';
 import { useCompanySettings } from '@/context/BusinessSettingsContext';
+import { PaymentMethod } from '@/hooks/useOrders';
 
 interface AccountsReceivableProps {
   onNavigate: (tab: string) => void;
@@ -75,6 +91,8 @@ interface CustomerAccount {
   customerId: string | null;
   customerName: string;
   orders: SaleOrder[];
+  invoiceOwed: number;
+  openingOwed: number;
   totalOwed: number;
   oldestDue: Date | null;
   isOverdue: boolean;
@@ -87,11 +105,15 @@ export default function AccountsReceivable({
     orders,
     loading: ordersLoading,
     unpaidCreditOrders,
-    totalOutstandingCredit,
     recordPayment,
     getOrderBalanceDue,
   } = useOrders();
-  const { customers, getCustomerById, totalOutstanding } = useCustomers();
+  const {
+    customers,
+    getCustomerById,
+    totalOutstanding,
+    makePaymentOnAccount,
+  } = useCustomers();
   const { companyName } = useCompanySettings();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -114,6 +136,13 @@ export default function AccountsReceivable({
   const [statementCustomer, setStatementCustomer] = useState<Customer | null>(null);
   const [statementOrders, setStatementOrders] = useState<SaleOrder[]>([]);
 
+  // Account-level payment dialog (for balances without open invoices)
+  const [isAccountPaymentOpen, setIsAccountPaymentOpen] = useState(false);
+  const [accountPaymentCustomer, setAccountPaymentCustomer] = useState<Customer | null>(null);
+  const [accountPaymentAmount, setAccountPaymentAmount] = useState('');
+  const [accountPaymentMethod, setAccountPaymentMethod] = useState<PaymentMethod>('cash');
+  const [isAccountPaymentSaving, setIsAccountPaymentSaving] = useState(false);
+
   // Group unpaid orders by customer
   const customerAccounts = useMemo(() => {
     const accountMap = new Map<string, CustomerAccount>();
@@ -132,6 +161,7 @@ export default function AccountsReceivable({
 
       if (existing) {
         existing.orders.push(order);
+        existing.invoiceOwed += balanceDue;
         existing.totalOwed += balanceDue;
         if (dueDate && (!existing.oldestDue || dueDate < existing.oldestDue)) {
           existing.oldestDue = dueDate;
@@ -145,11 +175,43 @@ export default function AccountsReceivable({
             ? `${cust.first_name} ${cust.last_name}`.trim()
             : order.customer_name || 'Walk-in',
           orders: [order],
+          invoiceOwed: balanceDue,
+          openingOwed: 0,
           totalOwed: balanceDue,
           oldestDue: dueDate,
           isOverdue,
         });
       }
+    });
+
+    // Align account balances to the customer ledger and include opening balances.
+    accountMap.forEach((account) => {
+      if (!account.customer) return;
+      const customerBalance = Math.max(account.customer.credit_balance || 0, 0);
+      account.totalOwed = customerBalance;
+      account.openingOwed = Math.max(customerBalance - account.invoiceOwed, 0);
+    });
+
+    // Include customers with balance but no currently unpaid invoices
+    // (e.g., imported opening balance carried from a previous system).
+    customers.forEach((customer) => {
+      const customerBalance = Math.max(customer.credit_balance || 0, 0);
+      if (customerBalance <= 0) return;
+
+      const key = customer.id;
+      if (accountMap.has(key)) return;
+
+      accountMap.set(key, {
+        customer,
+        customerId: customer.id,
+        customerName: `${customer.first_name} ${customer.last_name}`.trim(),
+        orders: [],
+        invoiceOwed: 0,
+        openingOwed: customerBalance,
+        totalOwed: customerBalance,
+        oldestDue: null,
+        isOverdue: false,
+      });
     });
 
     // Sort: overdue first, then by total owed descending
@@ -158,7 +220,7 @@ export default function AccountsReceivable({
       if (!a.isOverdue && b.isOverdue) return 1;
       return b.totalOwed - a.totalOwed;
     });
-  }, [unpaidCreditOrders, getCustomerById, getOrderBalanceDue]);
+  }, [unpaidCreditOrders, getCustomerById, getOrderBalanceDue, customers]);
 
   // Filtered accounts
   const filteredAccounts = useMemo(() => {
@@ -193,8 +255,16 @@ export default function AccountsReceivable({
     () =>
       customerAccounts
         .filter((a) => a.isOverdue)
-        .reduce((sum, a) => sum + a.totalOwed, 0),
-    [customerAccounts],
+        .reduce(
+          (sum, a) =>
+            sum +
+            a.orders.reduce(
+              (orderSum, order) => orderSum + getOrderBalanceDue(order),
+              0,
+            ),
+          0,
+        ),
+    [customerAccounts, getOrderBalanceDue],
   );
 
   const handleRecordPayment = (order: SaleOrder, account: CustomerAccount) => {
@@ -213,6 +283,45 @@ export default function AccountsReceivable({
 
   const handlePaymentComplete = () => {
     toast.success('Payment recorded successfully');
+  };
+
+  const handleOpenAccountPayment = (customer: Customer) => {
+    setAccountPaymentCustomer(customer);
+    setAccountPaymentAmount('');
+    setAccountPaymentMethod('cash');
+    setIsAccountPaymentOpen(true);
+  };
+
+  const handleSubmitAccountPayment = async () => {
+    if (!accountPaymentCustomer) return;
+    const amount = parseFloat(accountPaymentAmount);
+    if (!amount || amount <= 0) {
+      toast.error('Enter a valid payment amount');
+      return;
+    }
+
+    const payable = Math.min(amount, accountPaymentCustomer.credit_balance);
+    if (payable <= 0) {
+      toast.error('This account has no balance to pay');
+      return;
+    }
+
+    setIsAccountPaymentSaving(true);
+    const result = await makePaymentOnAccount(
+      accountPaymentCustomer.id,
+      payable,
+      accountPaymentMethod,
+    );
+    setIsAccountPaymentSaving(false);
+
+    if (result.success) {
+      toast.success('Payment applied to customer account');
+      setIsAccountPaymentOpen(false);
+      setAccountPaymentCustomer(null);
+      setAccountPaymentAmount('');
+    } else {
+      toast.error(result.error || 'Failed to apply payment');
+    }
   };
 
   const handleViewStatement = (account: CustomerAccount) => {
@@ -252,7 +361,7 @@ export default function AccountsReceivable({
                     Total Outstanding
                   </p>
                   <p className="text-lg font-bold text-warning tabular-nums truncate">
-                    {formatCurrency(totalOutstandingCredit)}
+                    {formatCurrency(totalOutstanding)}
                   </p>
                 </div>
               </CardContent>
@@ -397,6 +506,12 @@ export default function AccountsReceivable({
                             <p className="text-sm text-muted-foreground">
                               {account.orders.length} unpaid invoice
                               {account.orders.length > 1 ? 's' : ''}
+                              {account.openingOwed > 0 && (
+                                <>
+                                  {' '}
+                                  · Opening: {formatCurrency(account.openingOwed)}
+                                </>
+                              )}
                               {account.oldestDue && (
                                 <>
                                   {' '}
@@ -421,6 +536,19 @@ export default function AccountsReceivable({
                             >
                               <ScrollText className="w-3.5 h-3.5" />
                               Statement
+                            </Button>
+                          )}
+                          {account.customer && account.orders.length === 0 && (
+                            <Button
+                              size="sm"
+                              className="gap-1.5 bg-success hover:bg-success/90 text-white hidden sm:flex"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenAccountPayment(account.customer!);
+                              }}
+                            >
+                              <CircleDollarSign className="w-3.5 h-3.5" />
+                              Pay
                             </Button>
                           )}
                           <div className="text-right min-w-0">
@@ -461,6 +589,24 @@ export default function AccountsReceivable({
                                 <ScrollText className="w-3.5 h-3.5" />
                                 View Statement
                               </Button>
+                            </div>
+                          )}
+                          {account.orders.length === 0 && (
+                            <div className="p-4 rounded-lg border bg-muted/30 text-sm text-muted-foreground flex items-center justify-between gap-3">
+                              <p>
+                                No unpaid credit invoices. Current receivable balance is from
+                                opening balance/imported prior dues.
+                              </p>
+                              {account.customer && (
+                                <Button
+                                  size="sm"
+                                  className="gap-1.5 bg-success hover:bg-success/90 text-white shrink-0"
+                                  onClick={() => handleOpenAccountPayment(account.customer!)}
+                                >
+                                  <CircleDollarSign className="w-3.5 h-3.5" />
+                                  Pay
+                                </Button>
+                              )}
                             </div>
                           )}
                           {account.orders
@@ -654,6 +800,92 @@ export default function AccountsReceivable({
           orders={statementOrders}
         />
       )}
+
+      {/* Account-level payment dialog */}
+      <Dialog
+        open={isAccountPaymentOpen}
+        onOpenChange={(open) => {
+          if (isAccountPaymentSaving) return;
+          setIsAccountPaymentOpen(open);
+          if (!open) {
+            setAccountPaymentCustomer(null);
+            setAccountPaymentAmount('');
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Pay on Account</DialogTitle>
+            <DialogDescription>
+              {accountPaymentCustomer
+                ? `Apply payment to ${accountPaymentCustomer.first_name} ${accountPaymentCustomer.last_name}`
+                : 'Apply payment to customer account'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="p-3 rounded-lg bg-muted/40 text-sm flex items-center justify-between">
+              <span className="text-muted-foreground">Current Balance</span>
+              <span className="font-semibold tabular-nums text-warning">
+                {formatCurrency(accountPaymentCustomer?.credit_balance || 0)}
+              </span>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="account-payment-method">Method</Label>
+              <Select
+                value={accountPaymentMethod}
+                onValueChange={(value) => setAccountPaymentMethod(value as PaymentMethod)}
+              >
+                <SelectTrigger id="account-payment-method">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cash">Cash</SelectItem>
+                  <SelectItem value="card">Card</SelectItem>
+                  <SelectItem value="qr">QR / Mobile</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="account-payment-amount">Amount</Label>
+              <Input
+                id="account-payment-amount"
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={accountPaymentAmount}
+                onChange={(e) => setAccountPaymentAmount(e.target.value)}
+                placeholder="0.00"
+              />
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setIsAccountPaymentOpen(false)}
+                disabled={isAccountPaymentSaving}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="flex-1 gap-1.5 bg-success hover:bg-success/90 text-white"
+                onClick={handleSubmitAccountPayment}
+                disabled={isAccountPaymentSaving}
+              >
+                {isAccountPaymentSaving ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <CircleDollarSign className="w-4 h-4" />
+                )}
+                Apply Payment
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </PageLayout>
   );
 }

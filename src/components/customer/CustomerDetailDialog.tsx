@@ -181,7 +181,7 @@ export function CustomerDetailDialog({
             </Card>
 
             {/* Stats */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 gap-4">
               <Card>
                 <CardContent className="p-4 text-center min-w-0">
                   <ShoppingBag className="w-6 h-6 mx-auto mb-2 text-muted-foreground" />
@@ -430,6 +430,56 @@ export function CustomerDetailDialog({
                                 </div>
                               )}
                             </div>
+
+                            {order.payments.length > 0 && (
+                              <div className="mt-3 pt-3 border-t border-border/50 space-y-2">
+                                <div className="flex items-center justify-between text-xs">
+                                  <span className="text-muted-foreground">
+                                    Payments ({order.payments.length})
+                                  </span>
+                                  <span className="font-semibold text-success tabular-nums">
+                                    {formatCurrency(
+                                      order.payments.reduce((sum, p) => sum + p.amount, 0),
+                                    )}
+                                  </span>
+                                </div>
+                                <div className="space-y-1.5">
+                                  {[...order.payments]
+                                    .sort(
+                                      (a, b) =>
+                                        new Date(b.paid_at).getTime() -
+                                        new Date(a.paid_at).getTime(),
+                                    )
+                                    .map((payment) => (
+                                      <div
+                                        key={payment.id}
+                                        className="flex items-center justify-between text-xs bg-muted/40 rounded px-2 py-1.5 gap-2"
+                                      >
+                                        <div className="min-w-0">
+                                          <p className="capitalize font-medium">
+                                            {payment.method}
+                                            {payment.reference && (
+                                              <span className="text-muted-foreground font-mono">
+                                                {' '}
+                                                ({payment.reference})
+                                              </span>
+                                            )}
+                                          </p>
+                                          <p className="text-muted-foreground">
+                                            {format(
+                                              new Date(payment.paid_at),
+                                              'MMM dd, yyyy HH:mm',
+                                            )}
+                                          </p>
+                                        </div>
+                                        <span className="font-medium tabular-nums shrink-0">
+                                          {formatCurrency(payment.amount)}
+                                        </span>
+                                      </div>
+                                    ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
                           {isUnpaid && (
                             <Button

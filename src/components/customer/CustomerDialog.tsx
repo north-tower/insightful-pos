@@ -32,17 +32,17 @@ interface CustomerDialogProps {
 const emptyForm: CreateCustomerParams = {
   first_name: '',
   last_name: '',
-  email: '',
-  phone: '',
-  address: '',
-  city: '',
+    email: '',
+    phone: '',
+    address: '',
+    city: '',
   postal_code: '',
-  country: 'USA',
+    country: 'USA',
   opening_balance: 0,
   credit_limit: 0,
-  status: 'active',
-  notes: '',
-  tags: [],
+    status: 'active',
+    notes: '',
+    tags: [],
 };
 
 export function CustomerDialog({
