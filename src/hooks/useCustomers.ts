@@ -178,22 +178,36 @@ export function useCustomers() {
       customerId: string,
       amount: number,
       method: 'cash' | 'card' | 'qr',
+      reference?: string,
     ) => {
       try {
-        // Reduce customer balance directly
         const customer = customers.find((c) => c.id === customerId);
         if (!customer) throw new Error('Customer not found');
 
-        const { error: err } = await supabase
-          .from('customers')
-          .update({
-            credit_balance: Math.max(customer.credit_balance - amount, 0),
-          })
-          .eq('id', customerId);
+        const { data, error: err } = await supabase.rpc(
+          'record_customer_account_payment',
+          {
+            p_customer_id: customerId,
+            p_amount: amount,
+            p_method: method,
+            p_reference: reference || null,
+            p_notes: null,
+          },
+        );
 
         if (err) throw err;
         await fetchCustomers();
-        return { success: true };
+
+        const row = Array.isArray(data) ? data[0] : data;
+        return {
+          success: true,
+          appliedAmount: Number(row?.applied_amount ?? Math.min(amount, customer.credit_balance)),
+          balanceBefore: Number(row?.balance_before ?? customer.credit_balance),
+          balanceAfter: Number(
+            row?.balance_after ??
+              Math.max(customer.credit_balance - Math.min(amount, customer.credit_balance), 0),
+          ),
+        };
       } catch (err: any) {
         console.error('Failed to process payment:', err);
         return { success: false, error: err.message };

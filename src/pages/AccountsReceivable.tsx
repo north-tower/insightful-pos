@@ -44,6 +44,7 @@ import { toast } from 'sonner';
 import { formatCurrency } from '@/lib/currency';
 import { useCompanySettings } from '@/context/BusinessSettingsContext';
 import { PaymentMethod } from '@/hooks/useOrders';
+import { notifyAccountPaymentReceived } from '@/lib/sendSms';
 
 interface AccountsReceivableProps {
   onNavigate: (tab: string) => void;
@@ -105,7 +106,6 @@ export default function AccountsReceivable({
     orders,
     loading: ordersLoading,
     unpaidCreditOrders,
-    recordPayment,
     getOrderBalanceDue,
   } = useOrders();
   const {
@@ -114,7 +114,8 @@ export default function AccountsReceivable({
     totalOutstanding,
     makePaymentOnAccount,
   } = useCustomers();
-  const { companyName } = useCompanySettings();
+  const { companyName, settings } = useCompanySettings();
+  const smsShopName = settings.fullName || settings.name || companyName;
 
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedCustomer, setExpandedCustomer] = useState<string | null>(null);
@@ -300,21 +301,30 @@ export default function AccountsReceivable({
       return;
     }
 
-    const payable = Math.min(amount, accountPaymentCustomer.credit_balance);
-    if (payable <= 0) {
+    if (amount <= 0) {
       toast.error('This account has no balance to pay');
       return;
     }
+    const previousBalance = accountPaymentCustomer.credit_balance;
+    const balanceAfter = Math.max(previousBalance - amount, 0);
 
     setIsAccountPaymentSaving(true);
     const result = await makePaymentOnAccount(
       accountPaymentCustomer.id,
-      payable,
+      amount,
       accountPaymentMethod,
     );
     setIsAccountPaymentSaving(false);
 
     if (result.success) {
+      notifyAccountPaymentReceived(
+        `${accountPaymentCustomer.first_name} ${accountPaymentCustomer.last_name}`.trim(),
+        Number(result.appliedAmount ?? amount),
+        Number(result.balanceBefore ?? previousBalance),
+        Number(result.balanceAfter ?? balanceAfter),
+        smsShopName,
+        accountPaymentCustomer.phone,
+      );
       toast.success('Payment applied to customer account');
       setIsAccountPaymentOpen(false);
       setAccountPaymentCustomer(null);
@@ -761,9 +771,9 @@ export default function AccountsReceivable({
           order={paymentOrder}
           customer={paymentCustomer}
           otherUnpaidOrders={paymentOtherOrders}
-          onRecordPayment={recordPayment}
+          onRecordAccountPayment={makePaymentOnAccount}
           onPaymentComplete={handlePaymentComplete}
-          companyName={companyName}
+          companyName={smsShopName}
         />
       )}
 

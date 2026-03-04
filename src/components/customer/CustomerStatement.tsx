@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef } from 'react';
+import { useMemo, useState, useRef, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { fc } from '@/lib/currency';
+import { supabase } from '@/lib/supabase';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -54,6 +55,15 @@ interface CustomerStatementProps {
   loading?: boolean;
 }
 
+interface AccountPaymentEntry {
+  id: string;
+  customer_id: string;
+  method: string;
+  amount: number;
+  reference?: string;
+  created_at: string;
+}
+
 type DateRange = 'all' | '30' | '60' | '90' | 'this-month' | 'this-year';
 
 // ─── Component ──────────────────────────────────────────────────────────────
@@ -67,8 +77,42 @@ export function CustomerStatement({
 }: CustomerStatementProps) {
   const [dateRange, setDateRange] = useState<DateRange>('all');
   const printRef = useRef<HTMLDivElement>(null);
+  const [accountPayments, setAccountPayments] = useState<AccountPaymentEntry[]>([]);
+  const [accountPaymentsLoading, setAccountPaymentsLoading] = useState(false);
 
   const displayName = `${customer.first_name} ${customer.last_name}`.trim();
+
+  useEffect(() => {
+    const fetchAccountPayments = async () => {
+      if (!open || !customer.id) return;
+      setAccountPaymentsLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('customer_account_payments')
+          .select('id, customer_id, method, amount, reference, created_at')
+          .eq('customer_id', customer.id)
+          .order('created_at', { ascending: true });
+        if (error) throw error;
+        setAccountPayments(
+          (data || []).map((p: any) => ({
+            id: p.id,
+            customer_id: p.customer_id,
+            method: p.method,
+            amount: Number(p.amount || 0),
+            reference: p.reference || undefined,
+            created_at: p.created_at,
+          })),
+        );
+      } catch (err) {
+        console.error('Failed to fetch customer account payments:', err);
+        setAccountPayments([]);
+      } finally {
+        setAccountPaymentsLoading(false);
+      }
+    };
+
+    fetchAccountPayments();
+  }, [open, customer.id]);
 
   // Build the statement entries from orders + payments
   const { entries, summary } = useMemo(() => {
@@ -121,6 +165,22 @@ export function CustomerStatement({
           orderId: order.id,
           paymentMethod: payment.method,
         });
+      });
+    });
+
+    // Add account-level payments (not tied to specific invoices).
+    accountPayments.forEach((payment) => {
+      raw.push({
+        id: `acct-pay-${payment.id}`,
+        date: new Date(payment.created_at),
+        type: 'payment',
+        reference:
+          payment.reference ||
+          `APAY-${payment.id.slice(0, 8).toUpperCase()}`,
+        description: `Account Payment (${payment.method.charAt(0).toUpperCase() + payment.method.slice(1)})`,
+        debit: 0,
+        credit: payment.amount,
+        paymentMethod: payment.method,
       });
     });
 
@@ -193,7 +253,14 @@ export function CustomerStatement({
         closingBalance,
       },
     };
-  }, [orders, dateRange, customer.id, customer.created_at, customer.opening_balance]);
+  }, [
+    orders,
+    accountPayments,
+    dateRange,
+    customer.id,
+    customer.created_at,
+    customer.opening_balance,
+  ]);
 
   const handlePrint = () => {
     const content = printRef.current;
@@ -384,7 +451,7 @@ export function CustomerStatement({
 
         {/* Timeline / Ledger */}
         <div className="flex-1 overflow-y-auto px-6 py-4" ref={printRef}>
-          {loading ? (
+          {loading || accountPaymentsLoading ? (
             <div className="flex items-center justify-center py-16">
               <Loader2 className="w-6 h-6 animate-spin text-primary" />
             </div>

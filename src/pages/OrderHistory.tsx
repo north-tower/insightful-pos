@@ -4,6 +4,14 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { PaginationControls } from '@/components/ui/pagination-controls';
 import { Search, RotateCcw, Eye, Printer, X, Loader2, DollarSign, ShoppingBag, AlertTriangle, FileText, CreditCard, Banknote, CircleDollarSign, Pencil, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -24,9 +32,20 @@ import { useCustomers, Customer } from '@/hooks/useCustomers';
 import { toast } from 'sonner';
 import { fc } from '@/lib/currency';
 import { useCompanySettings } from '@/context/BusinessSettingsContext';
+import { notifyAccountPaymentReceived } from '@/lib/sendSms';
+import { supabase } from '@/lib/supabase';
 
 interface OrderHistoryProps {
   onNavigate: (tab: string) => void;
+}
+
+interface CustomerAccountPayment {
+  id: string;
+  customer_id: string;
+  method: 'cash' | 'card' | 'qr';
+  amount: number;
+  reference?: string;
+  created_at: string;
 }
 
 const statusColors: Record<string, string> = {
@@ -87,9 +106,10 @@ function orderToReceiptData(order: SaleOrder): ReceiptData {
 }
 
 export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
-  const { orders, loading, voidOrder, refundOrder, recordPayment, updatePayment, deletePayment, todaysOrders, todaysRevenue, getOrderBalanceDue } = useOrders();
-  const { customers, getCustomerById } = useCustomers();
-  const { companyName } = useCompanySettings();
+  const { orders, loading, voidOrder, refundOrder, updatePayment, deletePayment, todaysOrders, todaysRevenue, getOrderBalanceDue } = useOrders();
+  const { customers, getCustomerById, makePaymentOnAccount, totalOutstanding } = useCustomers();
+  const { companyName, settings } = useCompanySettings();
+  const smsShopName = settings.fullName || settings.name || companyName;
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [saleTypeFilter, setSaleTypeFilter] = useState<string>('all');
@@ -108,6 +128,14 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
   const [refundingOrderId, setRefundingOrderId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
+  const [isTopPayOpen, setIsTopPayOpen] = useState(false);
+  const [topPayCustomerId, setTopPayCustomerId] = useState<string>('');
+  const [topPayAmount, setTopPayAmount] = useState('');
+  const [topPayMethod, setTopPayMethod] = useState<'cash' | 'card' | 'qr'>('cash');
+  const [topPayReference, setTopPayReference] = useState('');
+  const [isTopPaySaving, setIsTopPaySaving] = useState(false);
+  const [accountPayments, setAccountPayments] = useState<CustomerAccountPayment[]>([]);
+  const [accountPaymentsLoading, setAccountPaymentsLoading] = useState(false);
 
   const filteredOrders = useMemo(() => {
     let result = orders;
@@ -158,10 +186,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
       ),
     [orders],
   );
-  const totalCreditBalance = useMemo(
-    () => unpaidCreditOrders.reduce((sum, o) => sum + getOrderBalanceDue(o), 0),
-    [unpaidCreditOrders, getOrderBalanceDue],
-  );
+  const totalCreditBalance = totalOutstanding;
 
   const handleViewOrder = (order: SaleOrder) => {
     setSelectedOrder(order);
@@ -256,12 +281,125 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
     }
   };
 
+  const customersWithOutstanding = useMemo(
+    () =>
+      customers
+        .filter((c) => c.credit_balance > 0)
+        .sort((a, b) => b.credit_balance - a.credit_balance),
+    [customers],
+  );
+
+  const selectedTopPayCustomer = useMemo(
+    () => customers.find((c) => c.id === topPayCustomerId) || null,
+    [customers, topPayCustomerId],
+  );
+
+  useEffect(() => {
+    const fetchAccountPayments = async () => {
+      if (!isTopPayOpen || !topPayCustomerId) {
+        setAccountPayments([]);
+        return;
+      }
+      setAccountPaymentsLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('customer_account_payments')
+          .select('id, customer_id, method, amount, reference, created_at')
+          .eq('customer_id', topPayCustomerId)
+          .order('created_at', { ascending: false })
+          .limit(50);
+        if (error) throw error;
+        setAccountPayments(
+          (data || []).map((p: any) => ({
+            id: p.id,
+            customer_id: p.customer_id,
+            method: p.method,
+            amount: Number(p.amount),
+            reference: p.reference || undefined,
+            created_at: p.created_at,
+          })),
+        );
+      } catch (err) {
+        console.error('Failed to fetch account payments:', err);
+        setAccountPayments([]);
+      } finally {
+        setAccountPaymentsLoading(false);
+      }
+    };
+    fetchAccountPayments();
+  }, [isTopPayOpen, topPayCustomerId]);
+
+  const handleSubmitTopPay = async () => {
+    if (!selectedTopPayCustomer) {
+      toast.error('Select a customer');
+      return;
+    }
+    const amount = parseFloat(topPayAmount);
+    if (!amount || amount <= 0) {
+      toast.error('Enter a valid amount');
+      return;
+    }
+
+    setIsTopPaySaving(true);
+    const result = await makePaymentOnAccount(
+      selectedTopPayCustomer.id,
+      amount,
+      topPayMethod,
+      topPayReference.trim() || undefined,
+    );
+    setIsTopPaySaving(false);
+
+    if (result.success) {
+      notifyAccountPaymentReceived(
+        `${selectedTopPayCustomer.first_name} ${selectedTopPayCustomer.last_name}`.trim(),
+        Number(result.appliedAmount ?? amount),
+        Number(result.balanceBefore ?? selectedTopPayCustomer.credit_balance),
+        Number(result.balanceAfter ?? Math.max(selectedTopPayCustomer.credit_balance - amount, 0)),
+        smsShopName,
+        selectedTopPayCustomer.phone,
+      );
+      toast.success('Payment recorded');
+      setTopPayAmount('');
+      setTopPayReference('');
+      // refresh recent list
+      if (topPayCustomerId) {
+        const { data } = await supabase
+          .from('customer_account_payments')
+          .select('id, customer_id, method, amount, reference, created_at')
+          .eq('customer_id', topPayCustomerId)
+          .order('created_at', { ascending: false })
+          .limit(50);
+        setAccountPayments(
+          (data || []).map((p: any) => ({
+            id: p.id,
+            customer_id: p.customer_id,
+            method: p.method,
+            amount: Number(p.amount),
+            reference: p.reference || undefined,
+            created_at: p.created_at,
+          })),
+        );
+      }
+    } else {
+      toast.error(result.error || 'Failed to record payment');
+    }
+  };
+
   return (
     <PageLayout activeTab="order-history" onNavigate={onNavigate}>
           {/* Page Header with Stats */}
-          <div className="mb-6">
+          <div className="mb-6 flex items-start justify-between gap-3">
+            <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">Order History</h1>
             <p className="text-muted-foreground">View and manage past orders</p>
+            </div>
+            <Button
+              className="gap-2 bg-success hover:bg-success/90 text-white"
+              onClick={() => setIsTopPayOpen(true)}
+            >
+              <CircleDollarSign className="w-4 h-4" />
+              Pay
+            </Button>
           </div>
 
           {/* Quick Stats */}
@@ -414,14 +552,6 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                             <Badge className={cn('text-xs', statusColors[order.status] || '')}>
                           {order.status}
                         </Badge>
-                            <Badge
-                              className={cn(
-                                'text-xs',
-                                paymentStatusColors[order.payment_status] || '',
-                              )}
-                            >
-                              {order.payment_status}
-                            </Badge>
                             <Badge className={cn('text-xs gap-1', saleConfig?.className || '')}>
                               <SaleIcon className="w-3 h-3" />
                               {saleConfig?.label || 'Cash Sale'}
@@ -913,9 +1043,9 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
           order={paymentOrder}
           customer={paymentCustomer}
           otherUnpaidOrders={getOtherUnpaidOrders(paymentOrder)}
-          onRecordPayment={recordPayment}
+          onRecordAccountPayment={makePaymentOnAccount}
           onPaymentComplete={handlePaymentComplete}
-          companyName={companyName}
+          companyName={smsShopName}
         />
       )}
 
@@ -933,6 +1063,150 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
           onUpdateComplete={handleEditPaymentComplete}
         />
       )}
+
+      {/* Top Pay + Customer Payment History */}
+      <Dialog
+        open={isTopPayOpen}
+        onOpenChange={(open) => {
+          if (!isTopPaySaving) setIsTopPayOpen(open);
+          if (!open) {
+            setTopPayCustomerId('');
+            setTopPayAmount('');
+            setTopPayReference('');
+            setAccountPayments([]);
+          }
+        }}
+      >
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Record Customer Payment</DialogTitle>
+            <DialogDescription>
+              Best view for a particular customer: keep payments in chronological order with method, reference and amount.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Customer</Label>
+                <Select value={topPayCustomerId} onValueChange={setTopPayCustomerId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select customer with balance" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {customersWithOutstanding.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {`${c.first_name} ${c.last_name}`.trim()} ({fc(c.credit_balance)})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Method</Label>
+                <Select
+                  value={topPayMethod}
+                  onValueChange={(v) => setTopPayMethod(v as 'cash' | 'card' | 'qr')}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cash">Cash</SelectItem>
+                    <SelectItem value="card">Card</SelectItem>
+                    <SelectItem value="qr">QR / Mobile</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {selectedTopPayCustomer && (
+              <div className="p-3 rounded-lg bg-muted/40 text-sm flex items-center justify-between">
+                <span className="text-muted-foreground">Current Account Balance</span>
+                <span className="font-semibold text-warning tabular-nums">
+                  {fc(selectedTopPayCustomer.credit_balance)}
+                </span>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Amount</Label>
+                <Input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={topPayAmount}
+                  onChange={(e) => setTopPayAmount(e.target.value)}
+                  placeholder="0.00"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Reference (optional)</Label>
+                <Input
+                  value={topPayReference}
+                  onChange={(e) => setTopPayReference(e.target.value)}
+                  placeholder="Txn ID / receipt no."
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end">
+              <Button
+                onClick={handleSubmitTopPay}
+                disabled={isTopPaySaving || !topPayCustomerId}
+                className="gap-2 bg-success hover:bg-success/90 text-white"
+              >
+                {isTopPaySaving ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <CircleDollarSign className="w-4 h-4" />
+                )}
+                Record Payment
+              </Button>
+            </div>
+
+            <div className="border-t pt-4">
+              <h4 className="font-semibold mb-2">Payments Received (Selected Customer)</h4>
+              {accountPaymentsLoading ? (
+                <div className="py-8 flex items-center justify-center">
+                  <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                </div>
+              ) : accountPayments.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4">
+                  {topPayCustomerId
+                    ? 'No recorded account payments yet.'
+                    : 'Select a customer to view payment history.'}
+                </p>
+              ) : (
+                <div className="space-y-2 max-h-[280px] overflow-y-auto">
+                  {accountPayments.map((p) => (
+                    <div
+                      key={p.id}
+                      className="flex items-center justify-between p-2.5 rounded border bg-muted/30"
+                    >
+                      <div>
+                        <p className="text-sm capitalize font-medium">
+                          {p.method}
+                          {p.reference && (
+                            <span className="text-xs text-muted-foreground font-mono ml-2">
+                              ({p.reference})
+                            </span>
+                          )}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {format(new Date(p.created_at), 'MMM dd, yyyy · HH:mm')}
+                        </p>
+                      </div>
+                      <p className="font-semibold text-success tabular-nums">{fc(p.amount)}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </PageLayout>
   );
 }

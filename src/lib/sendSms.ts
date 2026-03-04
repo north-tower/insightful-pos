@@ -8,6 +8,8 @@ import { supabase } from '@/lib/supabase';
 import { formatCurrency } from '@/lib/currency';
 import { SaleOrder } from '@/hooks/useOrders';
 
+const APP_SIGNATURE = 'Generated from Insightful POS.';
+
 // ─── Low-level send ────────────────────────────────────────────────────────
 
 async function sendSms(mobile: string, message: string): Promise<void> {
@@ -56,7 +58,7 @@ export function notifyInvoiceCreated(
   const duePart = dueDate ? ` Due: ${dueDate}.` : '';
 
   const msg =
-    `Dear ${name}, your invoice #${invoiceNo} of ${amount} from ${companyName} has been created. Previous balance: ${prevBalanceAmount}. Overall balance: ${overallBalanceAmount}.${duePart} Thank you for your business.`;
+    `Dear ${name}, your invoice #${invoiceNo} of ${amount} from ${companyName} has been created. Previous balance: ${prevBalanceAmount}. Overall balance: ${overallBalanceAmount}.${duePart} Thank you for your business. ${APP_SIGNATURE}`;
 
   // Fire and forget
   sendSms(phone, msg);
@@ -69,13 +71,15 @@ export function notifyInvoiceCreated(
  *
  * @param order        The order the payment was applied to
  * @param paidAmount   How much was paid in this transaction
- * @param balanceAfter Remaining balance on the order after payment
+ * @param previousBalance Balance before this payment (account level)
+ * @param balanceAfter Remaining balance after payment (account level)
  * @param companyName  Business name to include in the message
  * @param customerPhone  Override phone (e.g. from customer object)
  */
 export function notifyPaymentReceived(
   order: SaleOrder,
   paidAmount: number,
+  previousBalance: number,
   balanceAfter: number,
   companyName: string,
   customerPhone?: string,
@@ -85,11 +89,38 @@ export function notifyPaymentReceived(
 
   const invoiceNo = order.invoice_number || order.order_number;
   const paid = formatCurrency(paidAmount);
-  const balance = formatCurrency(balanceAfter);
+  const previous = formatCurrency(Math.max(previousBalance, 0));
+  const balance = formatCurrency(Math.max(balanceAfter, 0));
   const name = order.customer_name || 'Customer';
+  const shopName = companyName?.trim() || 'Our Shop';
 
   const msg =
-    `Dear ${name}, we have received your payment of ${paid} for invoice #${invoiceNo}. Balance: ${balance}. Thank you! - ${companyName}`;
+    `Dear ${name}, payment received for invoice #${invoiceNo} at ${shopName}. Statement: Previous ${previous} | Paid ${paid} | Balance ${balance}. Thank you for choosing ${shopName}. ${APP_SIGNATURE}`;
 
   sendSms(phone, msg);
+}
+
+/**
+ * Notify a customer that a payment has been applied directly to account balance
+ * (not tied to a specific open invoice).
+ */
+export function notifyAccountPaymentReceived(
+  customerName: string,
+  paidAmount: number,
+  previousBalance: number,
+  balanceAfter: number,
+  companyName: string,
+  customerPhone?: string,
+): void {
+  if (!customerPhone) return;
+  const paid = formatCurrency(Math.max(paidAmount, 0));
+  const previous = formatCurrency(Math.max(previousBalance, 0));
+  const balance = formatCurrency(Math.max(balanceAfter, 0));
+  const name = customerName || 'Customer';
+  const shopName = companyName?.trim() || 'Our Shop';
+
+  const msg =
+    `Dear ${name}, payment received at ${shopName}. Statement: Previous ${previous} | Paid ${paid} | Balance ${balance}. Thank you for choosing ${shopName}. ${APP_SIGNATURE}`;
+
+  sendSms(customerPhone, msg);
 }

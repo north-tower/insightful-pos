@@ -35,10 +35,17 @@ interface PaymentDialogProps {
   /** Other unpaid credit orders for the same customer (excluding the primary order) */
   otherUnpaidOrders?: SaleOrder[];
   /** Record a single payment against an order — DB trigger handles customer balance */
-  onRecordPayment: (
+  onRecordPayment?: (
     orderId: string,
     payment: { method: PaymentMethod; amount: number; reference?: string },
   ) => Promise<any>;
+  /** Record a payment directly on customer account (no invoice allocation). */
+  onRecordAccountPayment?: (
+    customerId: string,
+    amount: number,
+    method: PaymentMethod,
+    reference?: string,
+  ) => Promise<{ success: boolean; error?: string } | any>;
   /** Called after everything is done */
   onPaymentComplete?: () => void;
   /** Company name for SMS notifications */
@@ -119,6 +126,7 @@ export function PaymentDialog({
   customer,
   otherUnpaidOrders = [],
   onRecordPayment,
+  onRecordAccountPayment,
   onPaymentComplete,
   companyName,
 }: PaymentDialogProps) {
@@ -145,8 +153,13 @@ export function PaymentDialog({
   );
 
   const willSpillOver = distribution.length > 1;
-  const totalApplied = distribution.reduce((s, d) => s + d.applied, 0);
+  const totalApplied = Math.min(enteredAmount, totalCustomerBalance);
   const excessAfterAll = Math.max(enteredAmount - totalCustomerBalance, 0);
+  const accountBalanceBefore = Math.max(
+    customer?.credit_balance ?? totalCustomerBalance,
+    0,
+  );
+  const isAccountPaymentMode = Boolean(customer && onRecordAccountPayment);
 
   const customerName = customer
     ? `${customer.first_name} ${customer.last_name}`.trim()
@@ -157,20 +170,47 @@ export function PaymentDialog({
       setError('Please enter a valid amount');
       return;
     }
+    if (!isAccountPaymentMode && !onRecordPayment) {
+      setError('Unable to record payment in this context');
+      return;
+    }
 
     setIsProcessing(true);
     setError(null);
 
     try {
-      // Apply payment to each order in the distribution
-      for (const line of distribution) {
-        if (line.applied <= 0) continue;
-        await onRecordPayment(line.order.id, {
-        method,
-          amount: line.applied,
-        reference: reference.trim() || undefined,
-      });
+      if (isAccountPaymentMode) {
+        const res = await onRecordAccountPayment!(
+          customer!.id,
+          enteredAmount,
+          method,
+          reference.trim() || undefined,
+        );
+        if (res && res.success === false) {
+          throw new Error(res.error || 'Payment failed');
         }
+      } else {
+        // Legacy order-allocation fallback for contexts not yet migrated.
+        let recordedAmount = 0;
+        for (const line of distribution) {
+          if (line.applied <= 0) continue;
+          await onRecordPayment?.(line.order.id, {
+            method,
+            amount: line.applied,
+            reference: reference.trim() || undefined,
+          });
+          recordedAmount += line.applied;
+        }
+
+        const remainder = Math.max(enteredAmount - recordedAmount, 0);
+        if (remainder > 0) {
+          await onRecordPayment?.(order.id, {
+            method,
+            amount: remainder,
+            reference: reference.trim() || undefined,
+          });
+        }
+      }
 
       // DB triggers have already:
       // 1. Reduced customer.credit_balance for each payment
@@ -181,12 +221,16 @@ export function PaymentDialog({
       if (companyName) {
         const phone = customer?.phone || order.customer_phone;
         if (phone) {
-          // Total cumulative balance remaining across the customer's account
-          // (primary invoice + all other unpaid invoices in this dialog)
-          const totalBalanceAfter = Math.max(totalCustomerBalance - totalApplied, 0);
+          // Use customer account balance when available so opening balance is included.
+          const totalBalanceBefore = accountBalanceBefore;
+          const totalBalanceAfter = Math.max(
+            totalBalanceBefore - enteredAmount,
+            0,
+          );
           notifyPaymentReceived(
             order,
             enteredAmount,
+            totalBalanceBefore,
             totalBalanceAfter,
             companyName,
             phone,
@@ -265,7 +309,15 @@ export function PaymentDialog({
                 <span className="shrink-0">This Invoice Balance</span>
                 <span className="text-warning tabular-nums text-right">{fc(balanceDue)}</span>
               </div>
-              {otherUnpaidOrders.length > 0 && (
+            {isAccountPaymentMode && (
+              <div className="flex justify-between text-sm font-medium gap-4">
+                <span className="shrink-0">Current Account Balance</span>
+                <span className="text-warning tabular-nums text-right">
+                  {fc(accountBalanceBefore)}
+                </span>
+              </div>
+            )}
+            {!isAccountPaymentMode && otherUnpaidOrders.length > 0 && (
                 <div className="flex justify-between text-sm text-muted-foreground gap-4">
                   <span className="shrink-0">
                     + {otherUnpaidOrders.length} other unpaid invoice{otherUnpaidOrders.length > 1 ? 's' : ''}
@@ -275,7 +327,7 @@ export function PaymentDialog({
                   </span>
                 </div>
               )}
-              {otherUnpaidOrders.length > 0 && (
+            {!isAccountPaymentMode && otherUnpaidOrders.length > 0 && (
                 <div className="flex justify-between text-sm font-medium gap-4">
                   <span className="shrink-0">Total Account Balance</span>
                   <span className="text-warning tabular-nums text-right">{fc(totalCustomerBalance)}</span>
@@ -343,7 +395,17 @@ export function PaymentDialog({
                 >
                   This Invoice ({fc(balanceDue)})
                 </Button>
-                {otherUnpaidOrders.length > 0 && totalCustomerBalance > balanceDue && (
+                {isAccountPaymentMode && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setAmount(accountBalanceBefore.toFixed(2))}
+                    className="text-xs tabular-nums"
+                  >
+                    Account Balance ({fc(accountBalanceBefore)})
+                  </Button>
+                )}
+                {!isAccountPaymentMode && otherUnpaidOrders.length > 0 && totalCustomerBalance > balanceDue && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -396,8 +458,32 @@ export function PaymentDialog({
             {/* Distribution Preview */}
             {enteredAmount > 0 && (
               <div className="p-3 bg-muted/30 rounded-lg text-sm space-y-3">
-                {/* Show distribution when it spills over to multiple orders */}
-                {willSpillOver ? (
+                {/* Account-level mode: show simple before/after account balance */}
+                {isAccountPaymentMode ? (
+                  <>
+                    <div className="flex justify-between gap-4">
+                      <span className="text-muted-foreground shrink-0">
+                        Account Balance Before
+                      </span>
+                      <span className="font-medium tabular-nums text-right">
+                        {fc(accountBalanceBefore)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between font-medium gap-4">
+                      <span className="shrink-0">Account Balance After</span>
+                      <span
+                        className={cn(
+                          'tabular-nums text-right',
+                          accountBalanceBefore - enteredAmount <= 0
+                            ? 'text-success'
+                            : 'text-warning',
+                        )}
+                      >
+                        {fc(Math.max(accountBalanceBefore - enteredAmount, 0))}
+                      </span>
+                    </div>
+                  </>
+                ) : willSpillOver ? (
                   <>
                     <div className="flex items-center gap-2 text-primary font-medium">
                       <ArrowRight className="w-4 h-4" />
@@ -480,7 +566,7 @@ export function PaymentDialog({
                 )}
 
                 {/* Total account balance after payment */}
-                {otherUnpaidOrders.length > 0 && (
+                {!isAccountPaymentMode && otherUnpaidOrders.length > 0 && (
                   <div className="flex justify-between font-medium gap-4 border-t pt-2">
                     <span className="shrink-0">Account Balance After</span>
                     <span

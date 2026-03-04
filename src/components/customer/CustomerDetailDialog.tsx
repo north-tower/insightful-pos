@@ -26,18 +26,28 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { PaymentDialog } from '@/components/payment/PaymentDialog';
 import { CustomerStatement } from '@/components/customer/CustomerStatement';
 import { toast } from 'sonner';
 import { formatCurrency } from '@/lib/currency';
 import { useCompanySettings } from '@/context/BusinessSettingsContext';
+import { useCustomers } from '@/hooks/useCustomers';
+import { supabase } from '@/lib/supabase';
 
 interface CustomerDetailDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   customer: Customer;
   onEdit: () => void;
+}
+
+interface CustomerAccountPayment {
+  id: string;
+  method: 'cash' | 'card' | 'qr';
+  amount: number;
+  reference?: string;
+  created_at: string;
 }
 
 const statusColors: Record<string, string> = {
@@ -62,12 +72,16 @@ export function CustomerDetailDialog({
   customer,
   onEdit,
 }: CustomerDetailDialogProps) {
-  const { orders, loading: ordersLoading, recordPayment, getOrderBalanceDue } = useOrders();
-  const { companyName } = useCompanySettings();
+  const { orders, loading: ordersLoading, getOrderBalanceDue } = useOrders();
+  const { makePaymentOnAccount } = useCustomers();
+  const { companyName, settings } = useCompanySettings();
+  const smsShopName = settings.fullName || settings.name || companyName;
 
   const [paymentOrder, setPaymentOrder] = useState<SaleOrder | null>(null);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [isStatementOpen, setIsStatementOpen] = useState(false);
+  const [accountPayments, setAccountPayments] = useState<CustomerAccountPayment[]>([]);
+  const [accountPaymentsLoading, setAccountPaymentsLoading] = useState(false);
 
   // Filter orders for this customer
   const customerOrders = useMemo(() => {
@@ -97,6 +111,47 @@ export function CustomerDetailDialog({
     setPaymentOrder(order);
     setIsPaymentOpen(true);
   };
+
+  const handlePayFromTabHeader = () => {
+    const anchorOrder = unpaidOrders[0] || customerOrders[0] || null;
+    if (!anchorOrder) {
+      toast.error('No order found to anchor this payment dialog');
+      return;
+    }
+    setPaymentOrder(anchorOrder);
+    setIsPaymentOpen(true);
+  };
+
+  useEffect(() => {
+    const fetchAccountPayments = async () => {
+      if (!open || !customer.id) return;
+      setAccountPaymentsLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('customer_account_payments')
+          .select('id, method, amount, reference, created_at')
+          .eq('customer_id', customer.id)
+          .order('created_at', { ascending: false })
+          .limit(25);
+        if (error) throw error;
+        setAccountPayments(
+          (data || []).map((p: any) => ({
+            id: p.id,
+            method: p.method,
+            amount: Number(p.amount || 0),
+            reference: p.reference || undefined,
+            created_at: p.created_at,
+          })),
+        );
+      } catch (err) {
+        console.error('Failed to fetch customer account payments:', err);
+        setAccountPayments([]);
+      } finally {
+        setAccountPaymentsLoading(false);
+      }
+    };
+    fetchAccountPayments();
+  }, [open, customer.id]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -337,16 +392,69 @@ export function CustomerDetailDialog({
           {/* Order History Tab */}
           <TabsContent value="orders" className="space-y-4">
             {/* Unpaid invoices banner */}
-            {unpaidOrders.length > 0 && (
+            {(unpaidOrders.length > 0 || customer.credit_balance > 0) && (
               <div className="p-3 bg-warning/5 border border-warning/20 rounded-lg">
-                <div className="flex items-center gap-2 text-warning font-medium text-sm flex-wrap">
-                  <CreditCard className="w-4 h-4 shrink-0" />
-                  <span>{unpaidOrders.length} unpaid invoice{unpaidOrders.length > 1 ? 's' : ''}</span>
-                  <span className="tabular-nums">— Total: {formatCurrency(unpaidOrders
-                    .reduce((sum, o) => sum + getOrderBalanceDue(o), 0))}</span>
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div className="flex items-center gap-2 text-warning font-medium text-sm flex-wrap">
+                    <CreditCard className="w-4 h-4 shrink-0" />
+                    <span>{unpaidOrders.length} unpaid invoice{unpaidOrders.length > 1 ? 's' : ''}</span>
+                    <span className="tabular-nums">— Account balance: {formatCurrency(customer.credit_balance)}</span>
+                  </div>
+                  {customer.credit_balance > 0 && (
+                    <Button
+                      size="sm"
+                      onClick={handlePayFromTabHeader}
+                      className="gap-1.5 bg-success hover:bg-success/90 text-white"
+                    >
+                      <CircleDollarSign className="w-4 h-4" />
+                      Pay
+                    </Button>
+                  )}
                 </div>
               </div>
             )}
+
+            {/* Payments received for this customer (account-level ledger) */}
+            <Card>
+              <CardContent className="p-4">
+                <h3 className="font-semibold mb-3">Payments Received</h3>
+                {accountPaymentsLoading ? (
+                  <div className="flex items-center justify-center py-6">
+                    <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                  </div>
+                ) : accountPayments.length > 0 ? (
+                  <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                    {accountPayments.map((payment) => (
+                      <div
+                        key={payment.id}
+                        className="flex items-center justify-between p-2.5 rounded border bg-muted/40"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium capitalize">
+                            {payment.method}
+                            {payment.reference && (
+                              <span className="text-xs text-muted-foreground font-mono ml-1.5">
+                                ({payment.reference})
+                              </span>
+                            )}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {format(new Date(payment.created_at), 'MMM dd, yyyy · HH:mm')}
+                          </p>
+                        </div>
+                        <p className="font-semibold text-success tabular-nums shrink-0">
+                          {formatCurrency(payment.amount)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No payments recorded yet for this customer.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
 
             {ordersLoading ? (
               <div className="flex items-center justify-center py-12">
@@ -402,7 +510,7 @@ export function CustomerDetailDialog({
                                 )}
                               </Badge>
                             </div>
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
                               <div className="min-w-0">
                                 <p className="text-muted-foreground">Items</p>
                                 <p className="font-medium tabular-nums">
@@ -413,12 +521,6 @@ export function CustomerDetailDialog({
                                 <p className="text-muted-foreground">Total</p>
                                 <p className="font-medium tabular-nums truncate">
                                   {formatCurrency(order.total)}
-                                </p>
-                              </div>
-                              <div className="min-w-0">
-                                <p className="text-muted-foreground">Payment</p>
-                                <p className="font-medium capitalize truncate">
-                                  {order.payment_status}
                                 </p>
                               </div>
                               {isUnpaid && (
@@ -553,11 +655,11 @@ export function CustomerDetailDialog({
           order={paymentOrder}
           customer={customer}
           otherUnpaidOrders={unpaidOrders.filter((o) => o.id !== paymentOrder.id)}
-          onRecordPayment={recordPayment}
+          onRecordAccountPayment={makePaymentOnAccount}
           onPaymentComplete={() => {
             toast.success('Payment recorded successfully');
           }}
-          companyName={companyName}
+          companyName={smsShopName}
         />
       )}
 
