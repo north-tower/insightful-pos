@@ -61,6 +61,7 @@ interface AccountPaymentEntry {
   method: string;
   amount: number;
   reference?: string;
+  notes?: string;
   created_at: string;
 }
 
@@ -89,7 +90,7 @@ export function CustomerStatement({
       try {
         const { data, error } = await supabase
           .from('customer_account_payments')
-          .select('id, customer_id, method, amount, reference, created_at')
+          .select('id, customer_id, method, amount, reference, notes, created_at')
           .eq('customer_id', customer.id)
           .order('created_at', { ascending: true });
         if (error) throw error;
@@ -100,6 +101,7 @@ export function CustomerStatement({
             method: p.method,
             amount: Number(p.amount || 0),
             reference: p.reference || undefined,
+            notes: p.notes || undefined,
             created_at: p.created_at,
           })),
         );
@@ -154,12 +156,16 @@ export function CustomerStatement({
 
       // Add payment entries for each payment on this order
       order.payments.forEach((payment) => {
+        const paymentDescription =
+          payment.description?.trim() ||
+          `Payment (${payment.method.charAt(0).toUpperCase() + payment.method.slice(1)})`;
+
         raw.push({
           id: `pay-${payment.id}`,
           date: new Date(payment.paid_at),
           type: 'payment',
           reference: payment.reference || `PAY-${payment.id.slice(0, 8).toUpperCase()}`,
-          description: `Payment (${payment.method.charAt(0).toUpperCase() + payment.method.slice(1)})`,
+          description: paymentDescription,
           debit: 0,
           credit: payment.amount,
           orderId: order.id,
@@ -177,7 +183,9 @@ export function CustomerStatement({
         reference:
           payment.reference ||
           `APAY-${payment.id.slice(0, 8).toUpperCase()}`,
-        description: `Account Payment (${payment.method.charAt(0).toUpperCase() + payment.method.slice(1)})`,
+        description:
+          payment.notes?.trim() ||
+          `Account Payment (${payment.method.charAt(0).toUpperCase() + payment.method.slice(1)})`,
         debit: 0,
         credit: payment.amount,
         paymentMethod: payment.method,

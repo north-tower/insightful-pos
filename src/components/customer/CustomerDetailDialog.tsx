@@ -47,6 +47,7 @@ interface CustomerAccountPayment {
   method: 'cash' | 'card' | 'qr';
   amount: number;
   reference?: string;
+  notes?: string;
   created_at: string;
 }
 
@@ -129,7 +130,7 @@ export function CustomerDetailDialog({
       try {
         const { data, error } = await supabase
           .from('customer_account_payments')
-          .select('id, method, amount, reference, created_at')
+          .select('id, method, amount, reference, notes, created_at')
           .eq('customer_id', customer.id)
           .order('created_at', { ascending: false })
           .limit(25);
@@ -140,6 +141,7 @@ export function CustomerDetailDialog({
             method: p.method,
             amount: Number(p.amount || 0),
             reference: p.reference || undefined,
+            notes: p.notes || undefined,
             created_at: p.created_at,
           })),
         );
@@ -441,6 +443,9 @@ export function CustomerDetailDialog({
                           <p className="text-xs text-muted-foreground">
                             {format(new Date(payment.created_at), 'MMM dd, yyyy · HH:mm')}
                           </p>
+                          {payment.notes && (
+                            <p className="text-xs text-muted-foreground">{payment.notes}</p>
+                          )}
                         </div>
                         <p className="font-semibold text-success tabular-nums shrink-0">
                           {formatCurrency(payment.amount)}

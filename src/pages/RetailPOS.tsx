@@ -58,6 +58,8 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card');
   const [saleType, setSaleType] = useState<SaleType>('cash');
+  const [creditDeposit, setCreditDeposit] = useState('');
+  const [creditPaymentDescription, setCreditPaymentDescription] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [showCustomerPicker, setShowCustomerPicker] = useState(false);
@@ -222,9 +224,20 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
 
     try {
       // For credit sales, no payment upfront
+      const creditDepositAmount =
+        saleType === 'credit'
+          ? Math.min(Math.max(parseFloat(creditDeposit) || 0, 0), total)
+          : 0;
       const payments =
         saleType === 'credit'
-          ? []
+          ? creditDepositAmount > 0
+            ? [{
+                method: paymentMethod,
+                amount: creditDepositAmount,
+                description:
+                  creditPaymentDescription.trim() || 'Deposit at invoice creation',
+              }]
+            : []
           : [{ method: paymentMethod, amount: total }];
 
       const dueDate = saleType === 'credit'
@@ -271,7 +284,9 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
         // Send SMS notification for credit invoices (fire-and-forget)
         if (saleType === 'credit') {
           const overallBalance = freshCustomer?.credit_balance ?? order.total;
-          const previousBalance = Math.max(overallBalance - order.total, 0);
+          const paidAtCreation = order.payments.reduce((s, p) => s + p.amount, 0);
+          const netIncrease = Math.max(order.total - paidAtCreation, 0);
+          const previousBalance = Math.max(overallBalance - netIncrease, 0);
           notifyInvoiceCreated(order, companyName, previousBalance, overallBalance);
         }
 
@@ -279,6 +294,8 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
         clearCart();
         setSelectedCustomer(null);
         setSaleType('cash');
+        setCreditDeposit('');
+        setCreditPaymentDescription('');
         refetchProducts();
       }
     } catch (err: any) {
@@ -505,6 +522,8 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                     <button
                       onClick={() => {
                         setSaleType('cash');
+                        setCreditDeposit('');
+                        setCreditPaymentDescription('');
                         if (saleType === 'credit') setSelectedCustomer(null);
                       }}
                       className={cn(
@@ -736,9 +755,50 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                   )}
 
                   {saleType === 'credit' && (
-                    <div className="p-2 bg-warning/5 border border-warning/20 rounded text-xs text-muted-foreground">
+                    <div className="p-2 bg-warning/5 border border-warning/20 rounded text-xs text-muted-foreground space-y-2">
                       <p className="font-semibold text-warning mb-0.5">Credit Sale</p>
-                      <p>Invoice will be added to customer's balance.</p>
+                      <p>Invoice will be added to customer's balance less any deposit paid now.</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          max={total}
+                          placeholder="Deposit amount"
+                          value={creditDeposit}
+                          onChange={(e) => setCreditDeposit(e.target.value)}
+                          className="h-8 text-xs"
+                        />
+                        <Input
+                          placeholder="Payment description"
+                          value={creditPaymentDescription}
+                          onChange={(e) => setCreditPaymentDescription(e.target.value)}
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        {(
+                          [
+                            { id: 'cash', label: 'Cash', icon: Banknote },
+                            { id: 'card', label: 'Card', icon: CreditCard },
+                            { id: 'qr', label: 'QR', icon: QrCode },
+                          ] as const
+                        ).map(({ id, label, icon: Icon }) => (
+                          <button
+                            key={id}
+                            onClick={() => setPaymentMethod(id)}
+                            className={cn(
+                              'flex items-center justify-center gap-1 py-1.5 rounded text-[11px] font-medium transition-all',
+                              paymentMethod === id
+                                ? 'bg-primary text-primary-foreground'
+                                : 'bg-muted text-muted-foreground hover:bg-muted/80',
+                            )}
+                          >
+                            <Icon className="w-3 h-3" />
+                            {label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   )}
 
@@ -805,6 +865,8 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                 <button
                   onClick={() => {
                     setSaleType('cash');
+                    setCreditDeposit('');
+                    setCreditPaymentDescription('');
                     if (saleType === 'credit') setSelectedCustomer(null);
                   }}
                   className={cn(
@@ -1053,9 +1115,48 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
 
                 {/* Credit sale info */}
                 {saleType === 'credit' && (
-                  <div className="p-2 bg-warning/5 border border-warning/20 rounded text-xs text-muted-foreground">
+                  <div className="p-2 bg-warning/5 border border-warning/20 rounded text-xs text-muted-foreground space-y-2">
                     <p className="font-semibold text-warning mb-0.5">Credit Sale</p>
-                    <p>Invoice will be added to customer's balance.</p>
+                    <p>Invoice will be added to customer's balance less any deposit paid now.</p>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max={total}
+                      placeholder="Deposit amount"
+                      value={creditDeposit}
+                      onChange={(e) => setCreditDeposit(e.target.value)}
+                      className="h-8 text-xs"
+                    />
+                    <Input
+                      placeholder="Payment description"
+                      value={creditPaymentDescription}
+                      onChange={(e) => setCreditPaymentDescription(e.target.value)}
+                      className="h-8 text-xs"
+                    />
+                    <div className="grid grid-cols-3 gap-2">
+                      {(
+                        [
+                          { id: 'cash', label: 'Cash', icon: Banknote },
+                          { id: 'card', label: 'Card', icon: CreditCard },
+                          { id: 'qr', label: 'QR', icon: QrCode },
+                        ] as const
+                      ).map(({ id, label, icon: Icon }) => (
+                        <button
+                          key={id}
+                          onClick={() => setPaymentMethod(id)}
+                          className={cn(
+                            'flex items-center justify-center gap-1 py-1.5 rounded text-[11px] font-medium transition-all',
+                            paymentMethod === id
+                              ? 'bg-primary text-primary-foreground'
+                              : 'bg-muted text-muted-foreground hover:bg-muted/80',
+                          )}
+                        >
+                          <Icon className="w-3 h-3" />
+                          {label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
 

@@ -52,6 +52,8 @@ export function CartPanelEnhanced() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card');
   const [orderType, setOrderType] = useState<OrderType>('dine-in');
   const [saleType, setSaleType] = useState<SaleType>('cash');
+  const [creditDeposit, setCreditDeposit] = useState('');
+  const [creditPaymentDescription, setCreditPaymentDescription] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [showCustomerPicker, setShowCustomerPicker] = useState(false);
@@ -140,9 +142,20 @@ export function CartPanelEnhanced() {
 
     try {
       // For credit sales, no payment is made upfront
+      const creditDepositAmount =
+        saleType === 'credit'
+          ? Math.min(Math.max(parseFloat(creditDeposit) || 0, 0), total)
+          : 0;
       const payments =
         saleType === 'credit'
-          ? []
+          ? creditDepositAmount > 0
+            ? [{
+                method: paymentMethod as 'cash' | 'card' | 'qr',
+                amount: creditDepositAmount,
+                description:
+                  creditPaymentDescription.trim() || 'Deposit at invoice creation',
+              }]
+            : []
           : paymentMethod === 'split'
           ? splitPaymentMethods.map((sp: any) => ({
               method: sp.method as 'cash' | 'card' | 'qr',
@@ -200,7 +213,9 @@ export function CartPanelEnhanced() {
         // Send SMS notification for credit invoices (fire-and-forget)
         if (saleType === 'credit') {
           const overallBalance = freshCustomer?.credit_balance ?? order.total;
-          const previousBalance = Math.max(overallBalance - order.total, 0);
+          const paidAtCreation = order.payments.reduce((s, p) => s + p.amount, 0);
+          const netIncrease = Math.max(order.total - paidAtCreation, 0);
+          const previousBalance = Math.max(overallBalance - netIncrease, 0);
           notifyInvoiceCreated(order, companyName, previousBalance, overallBalance);
         }
 
@@ -210,6 +225,8 @@ export function CartPanelEnhanced() {
         setSplitPaymentMethods([]);
         setSelectedCustomer(null);
         setSaleType('cash');
+        setCreditDeposit('');
+        setCreditPaymentDescription('');
       }
     } catch (err: any) {
       toast.error(err.message || 'Failed to place order');
@@ -338,6 +355,8 @@ export function CartPanelEnhanced() {
             <button
               onClick={() => {
                 setSaleType('cash');
+                setCreditDeposit('');
+                setCreditPaymentDescription('');
                 if (saleType === 'credit') setSelectedCustomer(null);
               }}
               className={cn(
@@ -353,6 +372,7 @@ export function CartPanelEnhanced() {
             <button
               onClick={() => {
                 setSaleType('credit');
+                if (paymentMethod === 'split') setPaymentMethod('cash');
                 if (!selectedCustomer) setShowCustomerPicker(true);
               }}
               className={cn(
@@ -652,12 +672,51 @@ export function CartPanelEnhanced() {
 
           {/* Credit sale info */}
           {saleType === 'credit' && (
-            <div className="p-3 bg-warning/5 border border-warning/20 rounded text-xs">
+            <div className="p-3 bg-warning/5 border border-warning/20 rounded text-xs space-y-2">
               <p className="font-semibold text-warning mb-1">Credit Sale</p>
               <p className="text-muted-foreground">
                 No payment required now. An invoice will be generated and the amount
-                will be added to the customer's account balance.
+                will be added to the customer's account balance less any deposit.
               </p>
+              <Input
+                type="number"
+                min="0"
+                max={total}
+                step="0.01"
+                placeholder="Deposit amount"
+                value={creditDeposit}
+                onChange={(e) => setCreditDeposit(e.target.value)}
+                className="h-8 text-xs"
+              />
+              <Input
+                placeholder="Payment description"
+                value={creditPaymentDescription}
+                onChange={(e) => setCreditPaymentDescription(e.target.value)}
+                className="h-8 text-xs"
+              />
+              <div className="grid grid-cols-3 gap-2">
+                {(
+                  [
+                    { id: 'cash' as const, icon: Banknote, label: 'Cash' },
+                    { id: 'card' as const, icon: CreditCard, label: 'Card' },
+                    { id: 'qr' as const, icon: QrCode, label: 'QR' },
+                  ]
+                ).map(({ id, icon: Icon, label }) => (
+                  <button
+                    key={id}
+                    onClick={() => setPaymentMethod(id)}
+                    className={cn(
+                      'flex items-center justify-center gap-1 py-1.5 rounded text-[11px] font-medium transition-all',
+                      paymentMethod === id
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-muted text-muted-foreground hover:bg-muted/80',
+                    )}
+                  >
+                    <Icon className="w-3 h-3" />
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 

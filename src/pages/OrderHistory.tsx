@@ -45,6 +45,7 @@ interface CustomerAccountPayment {
   method: 'cash' | 'card' | 'qr';
   amount: number;
   reference?: string;
+  notes?: string;
   created_at: string;
 }
 
@@ -133,6 +134,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
   const [topPayAmount, setTopPayAmount] = useState('');
   const [topPayMethod, setTopPayMethod] = useState<'cash' | 'card' | 'qr'>('cash');
   const [topPayReference, setTopPayReference] = useState('');
+  const [topPayDescription, setTopPayDescription] = useState('');
   const [isTopPaySaving, setIsTopPaySaving] = useState(false);
   const [accountPayments, setAccountPayments] = useState<CustomerAccountPayment[]>([]);
   const [accountPaymentsLoading, setAccountPaymentsLoading] = useState(false);
@@ -304,7 +306,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
       try {
         const { data, error } = await supabase
           .from('customer_account_payments')
-          .select('id, customer_id, method, amount, reference, created_at')
+          .select('id, customer_id, method, amount, reference, notes, created_at')
           .eq('customer_id', topPayCustomerId)
           .order('created_at', { ascending: false })
           .limit(50);
@@ -316,6 +318,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
             method: p.method,
             amount: Number(p.amount),
             reference: p.reference || undefined,
+            notes: p.notes || undefined,
             created_at: p.created_at,
           })),
         );
@@ -346,6 +349,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
       amount,
       topPayMethod,
       topPayReference.trim() || undefined,
+      topPayDescription.trim() || undefined,
     );
     setIsTopPaySaving(false);
 
@@ -357,15 +361,17 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
         Number(result.balanceAfter ?? Math.max(selectedTopPayCustomer.credit_balance - amount, 0)),
         smsShopName,
         selectedTopPayCustomer.phone,
+        topPayDescription.trim() || undefined,
       );
       toast.success('Payment recorded');
       setTopPayAmount('');
       setTopPayReference('');
+      setTopPayDescription('');
       // refresh recent list
       if (topPayCustomerId) {
         const { data } = await supabase
           .from('customer_account_payments')
-          .select('id, customer_id, method, amount, reference, created_at')
+          .select('id, customer_id, method, amount, reference, notes, created_at')
           .eq('customer_id', topPayCustomerId)
           .order('created_at', { ascending: false })
           .limit(50);
@@ -376,6 +382,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
             method: p.method,
             amount: Number(p.amount),
             reference: p.reference || undefined,
+            notes: p.notes || undefined,
             created_at: p.created_at,
           })),
         );
@@ -1073,6 +1080,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
             setTopPayCustomerId('');
             setTopPayAmount('');
             setTopPayReference('');
+            setTopPayDescription('');
             setAccountPayments([]);
           }
         }}
@@ -1151,6 +1159,15 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
               </div>
             </div>
 
+            <div className="space-y-2">
+              <Label>Description (optional)</Label>
+              <Input
+                value={topPayDescription}
+                onChange={(e) => setTopPayDescription(e.target.value)}
+                placeholder="e.g. Weekly settlement, bank transfer"
+              />
+            </div>
+
             <div className="flex justify-end">
               <Button
                 onClick={handleSubmitTopPay}
@@ -1197,6 +1214,9 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                         <p className="text-xs text-muted-foreground">
                           {format(new Date(p.created_at), 'MMM dd, yyyy · HH:mm')}
                         </p>
+                        {p.notes && (
+                          <p className="text-xs text-muted-foreground">{p.notes}</p>
+                        )}
                       </div>
                       <p className="font-semibold text-success tabular-nums">{fc(p.amount)}</p>
                     </div>

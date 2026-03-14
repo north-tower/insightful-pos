@@ -50,6 +50,7 @@ export interface Payment {
   method: PaymentMethod;
   amount: number;
   reference?: string;
+  description?: string;
   paid_at: string;
 }
 
@@ -114,6 +115,7 @@ export interface CreateOrderParams {
     method: PaymentMethod;
     amount: number;
     reference?: string;
+    description?: string;
   }>;
 }
 
@@ -198,6 +200,7 @@ export function useOrders() {
           method: p.method,
           amount: Number(p.amount),
           reference: p.reference,
+          description: p.description,
           paid_at: p.paid_at,
         });
         paymentsByOrder.set(p.order_id, list);
@@ -365,6 +368,7 @@ export function useOrders() {
             method: p.method,
             amount: p.amount,
             reference: p.reference || null,
+            description: p.description || null,
           }));
 
           const { data: payData, error: payErr } = await supabase
@@ -424,6 +428,7 @@ export function useOrders() {
             method: p.method,
             amount: Number(p.amount),
             reference: p.reference,
+            description: p.description,
             paid_at: p.paid_at,
           })),
         };
@@ -492,7 +497,12 @@ export function useOrders() {
   const recordPayment = useCallback(
     async (
       orderId: string,
-      payment: { method: PaymentMethod; amount: number; reference?: string },
+      payment: {
+        method: PaymentMethod;
+        amount: number;
+        reference?: string;
+        description?: string;
+      },
     ): Promise<Payment | null> => {
       const order = orders.find((o) => o.id === orderId);
       if (!order) {
@@ -509,6 +519,7 @@ export function useOrders() {
             method: payment.method,
             amount: payment.amount,
             reference: payment.reference || null,
+            description: payment.description || null,
           })
           .select()
           .single();
@@ -524,6 +535,7 @@ export function useOrders() {
           method: data.method,
           amount: Number(data.amount),
           reference: data.reference,
+          description: data.description,
           paid_at: data.paid_at,
         };
       } catch (err: any) {
@@ -579,6 +591,7 @@ export function useOrders() {
           method: data.method,
           amount: Number(data.amount),
           reference: data.reference,
+          description: data.description,
           paid_at: data.paid_at,
         };
       } catch (err: any) {

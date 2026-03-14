@@ -37,7 +37,12 @@ interface PaymentDialogProps {
   /** Record a single payment against an order — DB trigger handles customer balance */
   onRecordPayment?: (
     orderId: string,
-    payment: { method: PaymentMethod; amount: number; reference?: string },
+    payment: {
+      method: PaymentMethod;
+      amount: number;
+      reference?: string;
+      description?: string;
+    },
   ) => Promise<any>;
   /** Record a payment directly on customer account (no invoice allocation). */
   onRecordAccountPayment?: (
@@ -45,6 +50,7 @@ interface PaymentDialogProps {
     amount: number,
     method: PaymentMethod,
     reference?: string,
+    description?: string,
   ) => Promise<{ success: boolean; error?: string } | any>;
   /** Called after everything is done */
   onPaymentComplete?: () => void;
@@ -133,6 +139,7 @@ export function PaymentDialog({
   const [method, setMethod] = useState<PaymentMethod>('cash');
   const [amount, setAmount] = useState('');
   const [reference, setReference] = useState('');
+  const [description, setDescription] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -185,6 +192,7 @@ export function PaymentDialog({
           enteredAmount,
           method,
           reference.trim() || undefined,
+          description.trim() || undefined,
         );
         if (res && res.success === false) {
           throw new Error(res.error || 'Payment failed');
@@ -198,6 +206,7 @@ export function PaymentDialog({
             method,
             amount: line.applied,
             reference: reference.trim() || undefined,
+            description: description.trim() || undefined,
           });
           recordedAmount += line.applied;
         }
@@ -208,6 +217,7 @@ export function PaymentDialog({
             method,
             amount: remainder,
             reference: reference.trim() || undefined,
+            description: description.trim() || undefined,
           });
         }
       }
@@ -234,6 +244,7 @@ export function PaymentDialog({
             totalBalanceAfter,
             companyName,
             phone,
+            description.trim() || undefined,
           );
         }
       }
@@ -243,6 +254,7 @@ export function PaymentDialog({
           setSuccess(false);
           setAmount('');
           setReference('');
+          setDescription('');
           onPaymentComplete?.();
           onOpenChange(false);
         }, 1500);
@@ -257,6 +269,7 @@ export function PaymentDialog({
     if (!isProcessing) {
       setAmount('');
       setReference('');
+      setDescription('');
       setError(null);
       setSuccess(false);
       onOpenChange(open);
@@ -446,6 +459,19 @@ export function PaymentDialog({
                 />
               </div>
             )}
+
+            {/* Description */}
+            <div className="space-y-2">
+              <Label htmlFor="payment-description" className="text-sm font-medium">
+                Payment Description (optional)
+              </Label>
+              <Input
+                id="payment-description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="e.g. Deposit, part payment, transfer note"
+              />
+            </div>
 
             {/* Error */}
             {error && (

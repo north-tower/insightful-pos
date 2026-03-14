@@ -9,6 +9,7 @@ import { formatCurrency } from '@/lib/currency';
 import { SaleOrder } from '@/hooks/useOrders';
 
 const APP_SIGNATURE = 'Generated from Insightful POS.';
+const OWNER_PHONE = '0729690592';
 
 // ─── Low-level send ────────────────────────────────────────────────────────
 
@@ -21,6 +22,11 @@ async function sendSms(mobile: string, message: string): Promise<void> {
   } catch (err) {
     console.error('SMS send failed:', err);
   }
+}
+
+function sendOwnerAlert(message: string): void {
+  // Owner alerts are informational and should never block user operations.
+  sendSms(OWNER_PHONE, message);
 }
 
 // ─── Invoice created notification ──────────────────────────────────────────
@@ -62,6 +68,10 @@ export function notifyInvoiceCreated(
 
   // Fire and forget
   sendSms(phone, msg);
+
+  const ownerMsg =
+    `Owner Alert: New credit invoice ${invoiceNo} has been created for ${name} at ${companyName}. Invoice amount: ${amount}. Previous balance: ${prevBalanceAmount}. Current account balance: ${overallBalanceAmount}.${duePart} ${APP_SIGNATURE}`;
+  sendOwnerAlert(ownerMsg);
 }
 
 // ─── Payment received notification ─────────────────────────────────────────
@@ -83,6 +93,7 @@ export function notifyPaymentReceived(
   balanceAfter: number,
   companyName: string,
   customerPhone?: string,
+  paymentDescription?: string,
 ): void {
   const phone = customerPhone || order.customer_phone;
   if (!phone) return;
@@ -93,11 +104,18 @@ export function notifyPaymentReceived(
   const balance = formatCurrency(Math.max(balanceAfter, 0));
   const name = order.customer_name || 'Customer';
   const shopName = companyName?.trim() || 'Our Shop';
+  const descriptionPart = paymentDescription?.trim()
+    ? ` Description: ${paymentDescription.trim()}.`
+    : '';
 
   const msg =
-    `Dear ${name}, payment received for invoice #${invoiceNo} at ${shopName}. Statement: Previous ${previous} | Paid ${paid} | Balance ${balance}. Thank you for choosing ${shopName}. ${APP_SIGNATURE}`;
+    `Dear ${name}, payment received for invoice #${invoiceNo} at ${shopName}. Statement: Previous ${previous} | Paid ${paid} | Balance ${balance}.${descriptionPart} Thank you for choosing ${shopName}. ${APP_SIGNATURE}`;
 
   sendSms(phone, msg);
+
+  const ownerMsg =
+    `Owner Alert: Payment received at ${shopName} for invoice ${invoiceNo}. Customer: ${name}. Paid: ${paid}. Previous balance: ${previous}. New balance: ${balance}.${descriptionPart} ${APP_SIGNATURE}`;
+  sendOwnerAlert(ownerMsg);
 }
 
 /**
@@ -111,6 +129,7 @@ export function notifyAccountPaymentReceived(
   balanceAfter: number,
   companyName: string,
   customerPhone?: string,
+  paymentDescription?: string,
 ): void {
   if (!customerPhone) return;
   const paid = formatCurrency(Math.max(paidAmount, 0));
@@ -118,9 +137,16 @@ export function notifyAccountPaymentReceived(
   const balance = formatCurrency(Math.max(balanceAfter, 0));
   const name = customerName || 'Customer';
   const shopName = companyName?.trim() || 'Our Shop';
+  const descriptionPart = paymentDescription?.trim()
+    ? ` Description: ${paymentDescription.trim()}.`
+    : '';
 
   const msg =
-    `Dear ${name}, payment received at ${shopName}. Statement: Previous ${previous} | Paid ${paid} | Balance ${balance}. Thank you for choosing ${shopName}. ${APP_SIGNATURE}`;
+    `Dear ${name}, payment received at ${shopName}. Statement: Previous ${previous} | Paid ${paid} | Balance ${balance}.${descriptionPart} Thank you for choosing ${shopName}. ${APP_SIGNATURE}`;
 
   sendSms(customerPhone, msg);
+
+  const ownerMsg =
+    `Owner Alert: Account payment received at ${shopName}. Customer: ${name}. Paid: ${paid}. Previous balance: ${previous}. New balance: ${balance}.${descriptionPart} ${APP_SIGNATURE}`;
+  sendOwnerAlert(ownerMsg);
 }

@@ -142,6 +142,7 @@ export default function AccountsReceivable({
   const [accountPaymentCustomer, setAccountPaymentCustomer] = useState<Customer | null>(null);
   const [accountPaymentAmount, setAccountPaymentAmount] = useState('');
   const [accountPaymentMethod, setAccountPaymentMethod] = useState<PaymentMethod>('cash');
+  const [accountPaymentDescription, setAccountPaymentDescription] = useState('');
   const [isAccountPaymentSaving, setIsAccountPaymentSaving] = useState(false);
 
   // Group unpaid orders by customer
@@ -290,6 +291,7 @@ export default function AccountsReceivable({
     setAccountPaymentCustomer(customer);
     setAccountPaymentAmount('');
     setAccountPaymentMethod('cash');
+    setAccountPaymentDescription('');
     setIsAccountPaymentOpen(true);
   };
 
@@ -313,6 +315,8 @@ export default function AccountsReceivable({
       accountPaymentCustomer.id,
       amount,
       accountPaymentMethod,
+      undefined,
+      accountPaymentDescription.trim() || undefined,
     );
     setIsAccountPaymentSaving(false);
 
@@ -324,11 +328,13 @@ export default function AccountsReceivable({
         Number(result.balanceAfter ?? balanceAfter),
         smsShopName,
         accountPaymentCustomer.phone,
+        accountPaymentDescription.trim() || undefined,
       );
       toast.success('Payment applied to customer account');
       setIsAccountPaymentOpen(false);
       setAccountPaymentCustomer(null);
       setAccountPaymentAmount('');
+      setAccountPaymentDescription('');
     } else {
       toast.error(result.error || 'Failed to apply payment');
     }
@@ -820,6 +826,7 @@ export default function AccountsReceivable({
           if (!open) {
             setAccountPaymentCustomer(null);
             setAccountPaymentAmount('');
+            setAccountPaymentDescription('');
           }
         }}
       >
@@ -868,6 +875,16 @@ export default function AccountsReceivable({
                 value={accountPaymentAmount}
                 onChange={(e) => setAccountPaymentAmount(e.target.value)}
                 placeholder="0.00"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="account-payment-description">Description (optional)</Label>
+              <Input
+                id="account-payment-description"
+                value={accountPaymentDescription}
+                onChange={(e) => setAccountPaymentDescription(e.target.value)}
+                placeholder="e.g. Transfer ref / deposit reason"
               />
             </div>
 
