@@ -70,6 +70,7 @@ export interface SaleOrder {
   table_number?: string;
   invoice_number?: string;
   due_date?: string;
+  consignment_info?: string;
   subtotal: number;
   tax_rate: number;
   tax_amount: number;
@@ -100,6 +101,7 @@ export interface CreateOrderParams {
   notes?: string;
   discount_amount?: number;
   due_date?: string; // ISO string, for credit sales
+  consignment_info?: string;
   items: Array<{
     product_id: string | null;
     product_name: string;
@@ -220,6 +222,7 @@ export function useOrders() {
         table_number: o.table_number,
         invoice_number: o.invoice_number,
         due_date: o.due_date,
+        consignment_info: o.consignment_info,
         subtotal: Number(o.subtotal),
         tax_rate: Number(o.tax_rate),
         tax_amount: Number(o.tax_amount),
@@ -312,6 +315,7 @@ export function useOrders() {
             table_number: params.table_number || null,
             invoice_number: invoiceNumber,
             due_date: params.due_date || null,
+            consignment_info: params.consignment_info || null,
             subtotal,
             tax_rate: taxRate,
             tax_amount: taxAmount,
@@ -395,6 +399,7 @@ export function useOrders() {
           table_number: params.table_number,
           invoice_number: invoiceNumber,
           due_date: params.due_date,
+          consignment_info: params.consignment_info,
           subtotal,
           tax_rate: taxRate,
           tax_amount: taxAmount,

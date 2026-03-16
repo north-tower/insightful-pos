@@ -54,6 +54,7 @@ export function CartPanelEnhanced() {
   const [saleType, setSaleType] = useState<SaleType>('cash');
   const [creditDeposit, setCreditDeposit] = useState('');
   const [creditPaymentDescription, setCreditPaymentDescription] = useState('');
+  const [consignmentInfo, setConsignmentInfo] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [showCustomerPicker, setShowCustomerPicker] = useState(false);
@@ -180,6 +181,7 @@ export function CartPanelEnhanced() {
         table_number: orderType === 'dine-in' ? tableNumber : undefined,
         notes: orderNotes || undefined,
         due_date: dueDate,
+        consignment_info: saleType === 'credit' ? consignmentInfo.trim() || undefined : undefined,
         items: items.map((item) => ({
           product_id: item.id,
           product_name: item.name,
@@ -216,7 +218,13 @@ export function CartPanelEnhanced() {
           const paidAtCreation = order.payments.reduce((s, p) => s + p.amount, 0);
           const netIncrease = Math.max(order.total - paidAtCreation, 0);
           const previousBalance = Math.max(overallBalance - netIncrease, 0);
-          notifyInvoiceCreated(order, companyName, previousBalance, overallBalance);
+          notifyInvoiceCreated(
+            order,
+            companyName,
+            previousBalance,
+            overallBalance,
+            consignmentInfo,
+          );
         }
 
         setIsInvoiceOpen(true);
@@ -227,6 +235,7 @@ export function CartPanelEnhanced() {
         setSaleType('cash');
         setCreditDeposit('');
         setCreditPaymentDescription('');
+        setConsignmentInfo('');
       }
     } catch (err: any) {
       toast.error(err.message || 'Failed to place order');
@@ -357,6 +366,7 @@ export function CartPanelEnhanced() {
                 setSaleType('cash');
                 setCreditDeposit('');
                 setCreditPaymentDescription('');
+                setConsignmentInfo('');
                 if (saleType === 'credit') setSelectedCustomer(null);
               }}
               className={cn(
@@ -692,6 +702,12 @@ export function CartPanelEnhanced() {
                 placeholder="Payment description"
                 value={creditPaymentDescription}
                 onChange={(e) => setCreditPaymentDescription(e.target.value)}
+                className="h-8 text-xs"
+              />
+              <Input
+                placeholder="Consignment / plate no."
+                value={consignmentInfo}
+                onChange={(e) => setConsignmentInfo(e.target.value)}
                 className="h-8 text-xs"
               />
               <div className="grid grid-cols-3 gap-2">

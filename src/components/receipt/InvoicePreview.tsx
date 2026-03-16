@@ -172,6 +172,12 @@ export function InvoicePreview({ order, customer }: InvoicePreviewProps) {
                 <span className="font-medium">{order.staff_name}</span>
               </div>
             )}
+            {order.consignment_info && (
+              <div className="flex gap-2 sm:gap-4">
+                <span className="text-gray-500 w-20 sm:w-24 shrink-0">Consignment:</span>
+                <span className="font-medium">{order.consignment_info}</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -326,15 +332,17 @@ export function InvoicePreview({ order, customer }: InvoicePreviewProps) {
                   Payments
                 </p>
                 {order.payments.map((payment, idx) => (
-                  <div
-                    key={idx}
-                    className="flex justify-between text-gray-600 text-sm"
-                  >
-                    <span className="capitalize">
-                      {payment.method}
-                      {payment.reference ? ` (${payment.reference})` : ''}
-                    </span>
-                    <span>{fc(payment.amount)}</span>
+                  <div key={idx} className="text-gray-600 text-sm mb-1">
+                    <div className="flex justify-between">
+                      <span className="capitalize">
+                        {payment.method}
+                        {payment.reference ? ` (${payment.reference})` : ''}
+                      </span>
+                      <span>{fc(payment.amount)}</span>
+                    </div>
+                    {payment.description && (
+                      <p className="text-xs text-gray-500">{payment.description}</p>
+                    )}
                   </div>
                 ))}
                 <div className="flex justify-between text-gray-500 text-sm mt-1">

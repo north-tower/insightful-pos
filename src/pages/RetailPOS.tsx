@@ -60,6 +60,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
   const [saleType, setSaleType] = useState<SaleType>('cash');
   const [creditDeposit, setCreditDeposit] = useState('');
   const [creditPaymentDescription, setCreditPaymentDescription] = useState('');
+  const [consignmentInfo, setConsignmentInfo] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [showCustomerPicker, setShowCustomerPicker] = useState(false);
@@ -254,6 +255,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
         customer_email: selectedCustomer?.email,
         customer_phone: selectedCustomer?.phone,
         due_date: dueDate,
+        consignment_info: saleType === 'credit' ? consignmentInfo.trim() || undefined : undefined,
         items: cart.map((item) => ({
           product_id: item.product.id,
           product_name: item.product.name,
@@ -287,7 +289,13 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
           const paidAtCreation = order.payments.reduce((s, p) => s + p.amount, 0);
           const netIncrease = Math.max(order.total - paidAtCreation, 0);
           const previousBalance = Math.max(overallBalance - netIncrease, 0);
-          notifyInvoiceCreated(order, companyName, previousBalance, overallBalance);
+          notifyInvoiceCreated(
+            order,
+            companyName,
+            previousBalance,
+            overallBalance,
+            consignmentInfo,
+          );
         }
 
         setIsInvoiceOpen(true);
@@ -296,6 +304,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
         setSaleType('cash');
         setCreditDeposit('');
         setCreditPaymentDescription('');
+        setConsignmentInfo('');
         refetchProducts();
       }
     } catch (err: any) {
@@ -524,6 +533,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                         setSaleType('cash');
                         setCreditDeposit('');
                         setCreditPaymentDescription('');
+                        setConsignmentInfo('');
                         if (saleType === 'credit') setSelectedCustomer(null);
                       }}
                       className={cn(
@@ -775,6 +785,12 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                           onChange={(e) => setCreditPaymentDescription(e.target.value)}
                           className="h-8 text-xs"
                         />
+                        <Input
+                          placeholder="Consignment / plate no."
+                          value={consignmentInfo}
+                          onChange={(e) => setConsignmentInfo(e.target.value)}
+                          className="h-8 text-xs col-span-2"
+                        />
                       </div>
                       <div className="grid grid-cols-3 gap-2">
                         {(
@@ -867,6 +883,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                     setSaleType('cash');
                     setCreditDeposit('');
                     setCreditPaymentDescription('');
+                    setConsignmentInfo('');
                     if (saleType === 'credit') setSelectedCustomer(null);
                   }}
                   className={cn(
@@ -1132,6 +1149,12 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                       placeholder="Payment description"
                       value={creditPaymentDescription}
                       onChange={(e) => setCreditPaymentDescription(e.target.value)}
+                      className="h-8 text-xs"
+                    />
+                    <Input
+                      placeholder="Consignment / plate no."
+                      value={consignmentInfo}
+                      onChange={(e) => setConsignmentInfo(e.target.value)}
                       className="h-8 text-xs"
                     />
                     <div className="grid grid-cols-3 gap-2">

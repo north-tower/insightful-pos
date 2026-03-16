@@ -876,6 +876,11 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                               </span>
                             )}
                           </div>
+                          {payment.description && (
+                            <p className="text-xs text-muted-foreground">
+                              {payment.description}
+                            </p>
+                          )}
                           <span className="text-xs text-muted-foreground">
                             {format(new Date(payment.paid_at), 'MMM dd, yyyy · HH:mm')}
                           </span>

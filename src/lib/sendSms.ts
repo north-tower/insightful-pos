@@ -44,6 +44,7 @@ export function notifyInvoiceCreated(
   companyName: string,
   previousBalance?: number,
   overallBalance?: number,
+  consignmentInfo?: string,
 ): void {
   const phone = order.customer_phone;
   if (!phone) return; // No phone → no SMS
@@ -62,15 +63,19 @@ export function notifyInvoiceCreated(
 
   const name = order.customer_name || 'Customer';
   const duePart = dueDate ? ` Due: ${dueDate}.` : '';
+  const resolvedConsignment = consignmentInfo?.trim() || order.consignment_info?.trim();
+  const consignmentPart = resolvedConsignment
+    ? ` Consignment: ${resolvedConsignment}.`
+    : '';
 
   const msg =
-    `Dear ${name}, your invoice #${invoiceNo} of ${amount} from ${companyName} has been created. Previous balance: ${prevBalanceAmount}. Overall balance: ${overallBalanceAmount}.${duePart} Thank you for your business. ${APP_SIGNATURE}`;
+    `Dear ${name}, your invoice #${invoiceNo} of ${amount} from ${companyName} has been created. Previous balance: ${prevBalanceAmount}. Overall balance: ${overallBalanceAmount}.${duePart}${consignmentPart} Thank you for your business. ${APP_SIGNATURE}`;
 
   // Fire and forget
   sendSms(phone, msg);
 
   const ownerMsg =
-    `Owner Alert: New credit invoice ${invoiceNo} has been created for ${name} at ${companyName}. Invoice amount: ${amount}. Previous balance: ${prevBalanceAmount}. Current account balance: ${overallBalanceAmount}.${duePart} ${APP_SIGNATURE}`;
+    `Owner Alert: New credit invoice ${invoiceNo} has been created for ${name} at ${companyName}. Invoice amount: ${amount}. Previous balance: ${prevBalanceAmount}. Current account balance: ${overallBalanceAmount}.${duePart}${consignmentPart} ${APP_SIGNATURE}`;
   sendOwnerAlert(ownerMsg);
 }
 
