@@ -58,9 +58,6 @@ export function CartPanelEnhanced() {
   const [invoiceDate, setInvoiceDate] = useState(
     () => new Date().toISOString().slice(0, 10),
   );
-  const [invoiceDueDate, setInvoiceDueDate] = useState(
-    () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
-  );
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [showCustomerPicker, setShowCustomerPicker] = useState(false);
@@ -176,9 +173,9 @@ export function CartPanelEnhanced() {
               paid_at: paymentTimestamp,
             }];
 
-      // Calculate due date for credit sales (30 days from now)
+      // Keep due date internal (30 days from invoice date); no manual due-date entry.
       const dueDate = saleType === 'credit'
-        ? new Date(`${invoiceDueDate}T12:00:00`).toISOString()
+        ? new Date(new Date(`${invoiceDate}T12:00:00`).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
         : undefined;
 
       const order = await createOrder({
@@ -250,9 +247,6 @@ export function CartPanelEnhanced() {
         setCreditPaymentDescription('');
         setConsignmentInfo('');
         setInvoiceDate(new Date().toISOString().slice(0, 10));
-        setInvoiceDueDate(
-          new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
-        );
       }
     } catch (err: any) {
       toast.error(err.message || 'Failed to place order');
@@ -385,9 +379,6 @@ export function CartPanelEnhanced() {
                 setCreditPaymentDescription('');
                 setConsignmentInfo('');
                 setInvoiceDate(new Date().toISOString().slice(0, 10));
-                setInvoiceDueDate(
-                  new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
-                );
                 if (saleType === 'credit') setSelectedCustomer(null);
               }}
               className={cn(
@@ -731,23 +722,12 @@ export function CartPanelEnhanced() {
                 onChange={(e) => setConsignmentInfo(e.target.value)}
                 className="h-8 text-xs"
               />
-              <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <p className="text-[11px] text-muted-foreground">Invoice Date</p>
                 <Input
                   type="date"
                   value={invoiceDate}
-                  onChange={(e) => {
-                    const nextInvoiceDate = e.target.value;
-                    setInvoiceDate(nextInvoiceDate);
-                    const nextDueDate = new Date(`${nextInvoiceDate}T12:00:00`);
-                    nextDueDate.setDate(nextDueDate.getDate() + 30);
-                    setInvoiceDueDate(nextDueDate.toISOString().slice(0, 10));
-                  }}
-                  className="h-8 text-xs"
-                />
-                <Input
-                  type="date"
-                  value={invoiceDueDate}
-                  onChange={(e) => setInvoiceDueDate(e.target.value)}
+                  onChange={(e) => setInvoiceDate(e.target.value)}
                   className="h-8 text-xs"
                 />
               </div>

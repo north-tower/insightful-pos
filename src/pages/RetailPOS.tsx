@@ -64,9 +64,6 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
   const [invoiceDate, setInvoiceDate] = useState(
     () => new Date().toISOString().slice(0, 10),
   );
-  const [invoiceDueDate, setInvoiceDueDate] = useState(
-    () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
-  );
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [showCustomerPicker, setShowCustomerPicker] = useState(false);
@@ -250,7 +247,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
           : [{ method: paymentMethod, amount: total, paid_at: paymentTimestamp }];
 
       const dueDate = saleType === 'credit'
-        ? new Date(`${invoiceDueDate}T12:00:00`).toISOString()
+        ? new Date(new Date(`${invoiceDate}T12:00:00`).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
         : undefined;
 
       const order = await createOrder({
@@ -315,9 +312,6 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
         setCreditPaymentDescription('');
         setConsignmentInfo('');
         setInvoiceDate(new Date().toISOString().slice(0, 10));
-        setInvoiceDueDate(
-          new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
-        );
         refetchProducts();
       }
     } catch (err: any) {
@@ -548,9 +542,6 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                         setCreditPaymentDescription('');
                         setConsignmentInfo('');
                         setInvoiceDate(new Date().toISOString().slice(0, 10));
-                        setInvoiceDueDate(
-                          new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
-                        );
                         if (saleType === 'credit') setSelectedCustomer(null);
                       }}
                       className={cn(
@@ -808,24 +799,15 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                           onChange={(e) => setConsignmentInfo(e.target.value)}
                           className="h-8 text-xs col-span-2"
                         />
-                        <Input
-                          type="date"
-                          value={invoiceDate}
-                          onChange={(e) => {
-                            const nextInvoiceDate = e.target.value;
-                            setInvoiceDate(nextInvoiceDate);
-                            const nextDueDate = new Date(`${nextInvoiceDate}T12:00:00`);
-                            nextDueDate.setDate(nextDueDate.getDate() + 30);
-                            setInvoiceDueDate(nextDueDate.toISOString().slice(0, 10));
-                          }}
-                          className="h-8 text-xs"
-                        />
-                        <Input
-                          type="date"
-                          value={invoiceDueDate}
-                          onChange={(e) => setInvoiceDueDate(e.target.value)}
-                          className="h-8 text-xs"
-                        />
+                        <div className="col-span-2 space-y-1">
+                          <p className="text-[11px] text-muted-foreground">Invoice Date</p>
+                          <Input
+                            type="date"
+                            value={invoiceDate}
+                            onChange={(e) => setInvoiceDate(e.target.value)}
+                            className="h-8 text-xs"
+                          />
+                        </div>
                       </div>
                       <div className="grid grid-cols-3 gap-2">
                         {(
@@ -920,9 +902,6 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                     setCreditPaymentDescription('');
                     setConsignmentInfo('');
                     setInvoiceDate(new Date().toISOString().slice(0, 10));
-                    setInvoiceDueDate(
-                      new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
-                    );
                     if (saleType === 'credit') setSelectedCustomer(null);
                   }}
                   className={cn(
@@ -1196,23 +1175,12 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                       onChange={(e) => setConsignmentInfo(e.target.value)}
                       className="h-8 text-xs"
                     />
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <p className="text-[11px] text-muted-foreground">Invoice Date</p>
                       <Input
                         type="date"
                         value={invoiceDate}
-                        onChange={(e) => {
-                          const nextInvoiceDate = e.target.value;
-                          setInvoiceDate(nextInvoiceDate);
-                          const nextDueDate = new Date(`${nextInvoiceDate}T12:00:00`);
-                          nextDueDate.setDate(nextDueDate.getDate() + 30);
-                          setInvoiceDueDate(nextDueDate.toISOString().slice(0, 10));
-                        }}
-                        className="h-8 text-xs"
-                      />
-                      <Input
-                        type="date"
-                        value={invoiceDueDate}
-                        onChange={(e) => setInvoiceDueDate(e.target.value)}
+                        onChange={(e) => setInvoiceDate(e.target.value)}
                         className="h-8 text-xs"
                       />
                     </div>

@@ -11,6 +11,20 @@ import { SaleOrder } from '@/hooks/useOrders';
 const APP_SIGNATURE = 'Generated from Insightful POS.';
 const OWNER_PHONE = '0729690592';
 
+function buildOrderItemsSummary(order: SaleOrder): string {
+  if (!order.items || order.items.length === 0) return '';
+  const maxItems = 4;
+  const items = order.items.slice(0, maxItems).map((item) => {
+    const name = item.product_name || 'Item';
+    const qty = Number(item.quantity || 0);
+    const unit = formatCurrency(Number(item.unit_price || 0));
+    return `${name} x${qty} @ ${unit}`;
+  });
+  const remaining = order.items.length - maxItems;
+  const more = remaining > 0 ? ` +${remaining} more` : '';
+  return `${items.join('; ')}${more}`;
+}
+
 // ─── Low-level send ────────────────────────────────────────────────────────
 
 async function sendSms(mobile: string, message: string): Promise<void> {
@@ -67,15 +81,17 @@ export function notifyInvoiceCreated(
   const consignmentPart = resolvedConsignment
     ? ` Consignment: ${resolvedConsignment}.`
     : '';
+  const itemsSummary = buildOrderItemsSummary(order);
+  const itemsPart = itemsSummary ? ` Items: ${itemsSummary}.` : '';
 
   const msg =
-    `Dear ${name}, your invoice #${invoiceNo} of ${amount} from ${companyName} has been created. Previous balance: ${prevBalanceAmount}. Overall balance: ${overallBalanceAmount}.${duePart}${consignmentPart} Thank you for your business. ${APP_SIGNATURE}`;
+    `Dear ${name}, your invoice #${invoiceNo} of ${amount} from ${companyName} has been created. Previous balance: ${prevBalanceAmount}. Overall balance: ${overallBalanceAmount}.${itemsPart}${duePart}${consignmentPart} Thank you for your business. ${APP_SIGNATURE}`;
 
   // Fire and forget
   sendSms(phone, msg);
 
   const ownerMsg =
-    `Owner Alert: New credit invoice ${invoiceNo} has been created for ${name} at ${companyName}. Invoice amount: ${amount}. Previous balance: ${prevBalanceAmount}. Current account balance: ${overallBalanceAmount}.${duePart}${consignmentPart} ${APP_SIGNATURE}`;
+    `Owner Alert: New credit invoice ${invoiceNo} has been created for ${name} at ${companyName}. Invoice amount: ${amount}. Previous balance: ${prevBalanceAmount}. Current account balance: ${overallBalanceAmount}.${itemsPart}${duePart}${consignmentPart} ${APP_SIGNATURE}`;
   sendOwnerAlert(ownerMsg);
 }
 
