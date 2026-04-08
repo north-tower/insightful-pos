@@ -55,6 +55,12 @@ export function CartPanelEnhanced() {
   const [creditDeposit, setCreditDeposit] = useState('');
   const [creditPaymentDescription, setCreditPaymentDescription] = useState('');
   const [consignmentInfo, setConsignmentInfo] = useState('');
+  const [invoiceDate, setInvoiceDate] = useState(
+    () => new Date().toISOString().slice(0, 10),
+  );
+  const [invoiceDueDate, setInvoiceDueDate] = useState(
+    () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+  );
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [showCustomerPicker, setShowCustomerPicker] = useState(false);
@@ -147,6 +153,7 @@ export function CartPanelEnhanced() {
         saleType === 'credit'
           ? Math.min(Math.max(parseFloat(creditDeposit) || 0, 0), total)
           : 0;
+      const paymentTimestamp = new Date(`${invoiceDate}T12:00:00`).toISOString();
       const payments =
         saleType === 'credit'
           ? creditDepositAmount > 0
@@ -155,6 +162,7 @@ export function CartPanelEnhanced() {
                 amount: creditDepositAmount,
                 description:
                   creditPaymentDescription.trim() || 'Deposit at invoice creation',
+                paid_at: paymentTimestamp,
               }]
             : []
           : paymentMethod === 'split'
@@ -162,11 +170,15 @@ export function CartPanelEnhanced() {
               method: sp.method as 'cash' | 'card' | 'qr',
               amount: sp.amount,
             }))
-          : [{ method: paymentMethod as 'cash' | 'card' | 'qr', amount: total }];
+          : [{
+              method: paymentMethod as 'cash' | 'card' | 'qr',
+              amount: total,
+              paid_at: paymentTimestamp,
+            }];
 
       // Calculate due date for credit sales (30 days from now)
       const dueDate = saleType === 'credit'
-        ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+        ? new Date(`${invoiceDueDate}T12:00:00`).toISOString()
         : undefined;
 
       const order = await createOrder({
@@ -181,6 +193,7 @@ export function CartPanelEnhanced() {
         table_number: orderType === 'dine-in' ? tableNumber : undefined,
         notes: orderNotes || undefined,
         due_date: dueDate,
+        created_at: paymentTimestamp,
         consignment_info: saleType === 'credit' ? consignmentInfo.trim() || undefined : undefined,
         items: items.map((item) => ({
           product_id: item.id,
@@ -236,6 +249,10 @@ export function CartPanelEnhanced() {
         setCreditDeposit('');
         setCreditPaymentDescription('');
         setConsignmentInfo('');
+        setInvoiceDate(new Date().toISOString().slice(0, 10));
+        setInvoiceDueDate(
+          new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+        );
       }
     } catch (err: any) {
       toast.error(err.message || 'Failed to place order');
@@ -367,6 +384,10 @@ export function CartPanelEnhanced() {
                 setCreditDeposit('');
                 setCreditPaymentDescription('');
                 setConsignmentInfo('');
+                setInvoiceDate(new Date().toISOString().slice(0, 10));
+                setInvoiceDueDate(
+                  new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+                );
                 if (saleType === 'credit') setSelectedCustomer(null);
               }}
               className={cn(
@@ -710,6 +731,26 @@ export function CartPanelEnhanced() {
                 onChange={(e) => setConsignmentInfo(e.target.value)}
                 className="h-8 text-xs"
               />
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  type="date"
+                  value={invoiceDate}
+                  onChange={(e) => {
+                    const nextInvoiceDate = e.target.value;
+                    setInvoiceDate(nextInvoiceDate);
+                    const nextDueDate = new Date(`${nextInvoiceDate}T12:00:00`);
+                    nextDueDate.setDate(nextDueDate.getDate() + 30);
+                    setInvoiceDueDate(nextDueDate.toISOString().slice(0, 10));
+                  }}
+                  className="h-8 text-xs"
+                />
+                <Input
+                  type="date"
+                  value={invoiceDueDate}
+                  onChange={(e) => setInvoiceDueDate(e.target.value)}
+                  className="h-8 text-xs"
+                />
+              </div>
               <div className="grid grid-cols-3 gap-2">
                 {(
                   [

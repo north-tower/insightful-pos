@@ -102,6 +102,7 @@ export interface CreateOrderParams {
   discount_amount?: number;
   due_date?: string; // ISO string, for credit sales
   consignment_info?: string;
+  created_at?: string; // Optional invoice/order datetime (supports backdating)
   items: Array<{
     product_id: string | null;
     product_name: string;
@@ -118,6 +119,7 @@ export interface CreateOrderParams {
     amount: number;
     reference?: string;
     description?: string;
+    paid_at?: string; // Optional payment datetime (supports backdating)
   }>;
 }
 
@@ -272,6 +274,7 @@ export function useOrders() {
       const total = subtotal;
 
       const saleType = params.sale_type || 'cash';
+      const orderCreatedAt = params.created_at || new Date().toISOString();
       const totalPaid = params.payments.reduce((s, p) => s + p.amount, 0);
       const paymentStatus: PaymentStatus =
         saleType === 'credit'
@@ -326,7 +329,8 @@ export function useOrders() {
             notes: params.notes || null,
             staff_id: user?.id || null,
             staff_name: user?.full_name || null,
-            completed_at: saleType === 'cash' ? new Date().toISOString() : null,
+            created_at: orderCreatedAt,
+            completed_at: saleType === 'cash' ? orderCreatedAt : null,
           })
           .select()
           .single();
@@ -373,6 +377,7 @@ export function useOrders() {
             amount: p.amount,
             reference: p.reference || null,
             description: p.description || null,
+            paid_at: p.paid_at || orderCreatedAt,
           }));
 
           const { data: payData, error: payErr } = await supabase
@@ -507,6 +512,7 @@ export function useOrders() {
         amount: number;
         reference?: string;
         description?: string;
+        paid_at?: string;
       },
     ): Promise<Payment | null> => {
       const order = orders.find((o) => o.id === orderId);
@@ -525,6 +531,7 @@ export function useOrders() {
             amount: payment.amount,
             reference: payment.reference || null,
             description: payment.description || null,
+            paid_at: payment.paid_at || null,
           })
           .select()
           .single();
@@ -557,7 +564,12 @@ export function useOrders() {
   const updatePayment = useCallback(
     async (
       paymentId: string,
-      updates: { method?: PaymentMethod; amount?: number; reference?: string },
+      updates: {
+        method?: PaymentMethod;
+        amount?: number;
+        reference?: string;
+        paid_at?: string;
+      },
     ): Promise<Payment | null> => {
       // Find the order this payment belongs to
       const order = orders.find((o) => o.payments.some((p) => p.id === paymentId));
@@ -577,6 +589,7 @@ export function useOrders() {
         if (updates.method !== undefined) updateData.method = updates.method;
         if (updates.amount !== undefined) updateData.amount = updates.amount;
         if (updates.reference !== undefined) updateData.reference = updates.reference || null;
+        if (updates.paid_at !== undefined) updateData.paid_at = updates.paid_at;
 
         const { data, error: payErr } = await supabase
           .from('payments')

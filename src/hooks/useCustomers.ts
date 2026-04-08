@@ -180,6 +180,7 @@ export function useCustomers() {
       method: 'cash' | 'card' | 'qr',
       reference?: string,
       description?: string,
+      paidAt?: string,
     ) => {
       try {
         const customer = customers.find((c) => c.id === customerId);
@@ -193,6 +194,7 @@ export function useCustomers() {
             p_method: method,
             p_reference: reference || null,
             p_notes: description || null,
+            p_created_at: paidAt || null,
           },
         );
 

@@ -42,6 +42,7 @@ interface PaymentDialogProps {
       amount: number;
       reference?: string;
       description?: string;
+      paid_at?: string;
     },
   ) => Promise<any>;
   /** Record a payment directly on customer account (no invoice allocation). */
@@ -51,6 +52,7 @@ interface PaymentDialogProps {
     method: PaymentMethod,
     reference?: string,
     description?: string,
+    paidAt?: string,
   ) => Promise<{ success: boolean; error?: string } | any>;
   /** Called after everything is done */
   onPaymentComplete?: () => void;
@@ -143,6 +145,9 @@ export function PaymentDialog({
   const [isProcessing, setIsProcessing] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [paymentDate, setPaymentDate] = useState(() =>
+    new Date().toISOString().slice(0, 10),
+  );
 
   const balanceDue = orderBalanceDue(order);
   const enteredAmount = parseFloat(amount) || 0;
@@ -193,6 +198,7 @@ export function PaymentDialog({
           method,
           reference.trim() || undefined,
           description.trim() || undefined,
+          new Date(`${paymentDate}T12:00:00`).toISOString(),
         );
         if (res && res.success === false) {
           throw new Error(res.error || 'Payment failed');
@@ -207,6 +213,7 @@ export function PaymentDialog({
             amount: line.applied,
             reference: reference.trim() || undefined,
             description: description.trim() || undefined,
+            paid_at: new Date(`${paymentDate}T12:00:00`).toISOString(),
           });
           recordedAmount += line.applied;
         }
@@ -218,6 +225,7 @@ export function PaymentDialog({
             amount: remainder,
             reference: reference.trim() || undefined,
             description: description.trim() || undefined,
+            paid_at: new Date(`${paymentDate}T12:00:00`).toISOString(),
           });
         }
       }
@@ -255,6 +263,7 @@ export function PaymentDialog({
           setAmount('');
           setReference('');
           setDescription('');
+          setPaymentDate(new Date().toISOString().slice(0, 10));
           onPaymentComplete?.();
           onOpenChange(false);
         }, 1500);
@@ -270,6 +279,7 @@ export function PaymentDialog({
       setAmount('');
       setReference('');
       setDescription('');
+      setPaymentDate(new Date().toISOString().slice(0, 10));
       setError(null);
       setSuccess(false);
       onOpenChange(open);
@@ -470,6 +480,18 @@ export function PaymentDialog({
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="e.g. Deposit, part payment, transfer note"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="payment-date" className="text-sm font-medium">
+                Payment Date
+              </Label>
+              <Input
+                id="payment-date"
+                type="date"
+                value={paymentDate}
+                onChange={(e) => setPaymentDate(e.target.value)}
               />
             </div>
 

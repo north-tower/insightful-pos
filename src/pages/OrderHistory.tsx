@@ -135,6 +135,9 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
   const [topPayMethod, setTopPayMethod] = useState<'cash' | 'card' | 'qr'>('cash');
   const [topPayReference, setTopPayReference] = useState('');
   const [topPayDescription, setTopPayDescription] = useState('');
+  const [topPayDate, setTopPayDate] = useState(
+    () => new Date().toISOString().slice(0, 10),
+  );
   const [isTopPaySaving, setIsTopPaySaving] = useState(false);
   const [accountPayments, setAccountPayments] = useState<CustomerAccountPayment[]>([]);
   const [accountPaymentsLoading, setAccountPaymentsLoading] = useState(false);
@@ -350,6 +353,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
       topPayMethod,
       topPayReference.trim() || undefined,
       topPayDescription.trim() || undefined,
+      new Date(`${topPayDate}T12:00:00`).toISOString(),
     );
     setIsTopPaySaving(false);
 
@@ -367,6 +371,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
       setTopPayAmount('');
       setTopPayReference('');
       setTopPayDescription('');
+      setTopPayDate(new Date().toISOString().slice(0, 10));
       // refresh recent list
       if (topPayCustomerId) {
         const { data } = await supabase
@@ -1086,6 +1091,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
             setTopPayAmount('');
             setTopPayReference('');
             setTopPayDescription('');
+            setTopPayDate(new Date().toISOString().slice(0, 10));
             setAccountPayments([]);
           }
         }}
@@ -1152,6 +1158,14 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                   value={topPayAmount}
                   onChange={(e) => setTopPayAmount(e.target.value)}
                   placeholder="0.00"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Payment Date</Label>
+                <Input
+                  type="date"
+                  value={topPayDate}
+                  onChange={(e) => setTopPayDate(e.target.value)}
                 />
               </div>
               <div className="space-y-2">

@@ -31,7 +31,12 @@ interface EditPaymentDialogProps {
   order?: SaleOrder;
   onUpdate: (
     paymentId: string,
-    updates: { method?: PaymentMethod; amount?: number; reference?: string },
+    updates: {
+      method?: PaymentMethod;
+      amount?: number;
+      reference?: string;
+      paid_at?: string;
+    },
   ) => Promise<Payment | null>;
   onUpdateComplete?: () => void;
 }
@@ -57,6 +62,9 @@ export function EditPaymentDialog({
   const [method, setMethod] = useState<PaymentMethod>(payment.method);
   const [amount, setAmount] = useState(payment.amount.toFixed(2));
   const [reference, setReference] = useState(payment.reference || '');
+  const [paymentDate, setPaymentDate] = useState(
+    new Date(payment.paid_at).toISOString().slice(0, 10),
+  );
   const [isProcessing, setIsProcessing] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -66,6 +74,7 @@ export function EditPaymentDialog({
     setMethod(payment.method);
     setAmount(payment.amount.toFixed(2));
     setReference(payment.reference || '');
+    setPaymentDate(new Date(payment.paid_at).toISOString().slice(0, 10));
     setError(null);
     setSuccess(false);
   }, [payment]);
@@ -75,7 +84,8 @@ export function EditPaymentDialog({
   const hasChanges =
     method !== payment.method ||
     enteredAmount !== payment.amount ||
-    (reference || '') !== (payment.reference || '');
+    (reference || '') !== (payment.reference || '') ||
+    paymentDate !== new Date(payment.paid_at).toISOString().slice(0, 10);
 
   const handleSubmit = async () => {
     if (enteredAmount <= 0) {
@@ -91,6 +101,9 @@ export function EditPaymentDialog({
       if (method !== payment.method) updates.method = method;
       if (enteredAmount !== payment.amount) updates.amount = enteredAmount;
       if ((reference || '') !== (payment.reference || '')) updates.reference = reference;
+      if (paymentDate !== new Date(payment.paid_at).toISOString().slice(0, 10)) {
+        updates.paid_at = new Date(`${paymentDate}T12:00:00`).toISOString();
+      }
 
       const result = await onUpdate(payment.id, updates);
 
@@ -209,6 +222,18 @@ export function EditPaymentDialog({
                 value={reference}
                 onChange={(e) => setReference(e.target.value)}
                 placeholder="Optional reference"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-payment-date" className="text-sm font-medium">
+                Payment Date
+              </Label>
+              <Input
+                id="edit-payment-date"
+                type="date"
+                value={paymentDate}
+                onChange={(e) => setPaymentDate(e.target.value)}
               />
             </div>
 
