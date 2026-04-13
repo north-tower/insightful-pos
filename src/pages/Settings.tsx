@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { PageLayout } from '@/components/pos/PageLayout';
 import { useCompanySettings } from '@/context/BusinessSettingsContext';
+import { useAuth } from '@/context/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { Building2, Save, Loader2 } from 'lucide-react';
+import { Building2, Save, Loader2, Shield } from 'lucide-react';
 
 interface SettingsProps {
   onNavigate: (tab: string) => void;
@@ -14,6 +16,7 @@ interface SettingsProps {
 
 export default function Settings({ onNavigate }: SettingsProps) {
   const { settings, loading, saveSettings } = useCompanySettings();
+  const { isAdmin } = useAuth();
 
   const [form, setForm] = useState({
     name: '',
@@ -221,6 +224,25 @@ export default function Settings({ onNavigate }: SettingsProps) {
             </div>
           </CardContent>
         </Card>
+
+        {isAdmin && (
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="w-5 h-5" />
+                Admin Controls
+              </CardTitle>
+              <CardDescription>
+                Manage stores and user assignments for multi-store operations.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button asChild variant="outline">
+                <Link to="/admin/stores">Open Store Management</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </PageLayout>
   );
