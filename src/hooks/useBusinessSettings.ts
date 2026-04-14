@@ -45,7 +45,8 @@ export function useBusinessSettings() {
       const { data, error } = await supabase
         .from('business_settings')
         .select('*')
-        .eq('user_id', user.id)
+        .order('created_at', { ascending: true })
+        .limit(1)
         .maybeSingle();
 
       if (error) throw error;
@@ -94,15 +95,18 @@ export function useBusinessSettings() {
           tax_id: updates.tax_id ?? settings.tax_id,
         };
 
-        // Upsert: insert if not exists, update if it does
-        const { data, error } = await supabase
-          .from('business_settings')
-          .upsert(
-            { ...payload },
-            { onConflict: 'user_id' }
-          )
-          .select()
-          .single();
+        const { data, error } = settings.id
+          ? await supabase
+              .from('business_settings')
+              .update({ ...payload })
+              .eq('id', settings.id)
+              .select()
+              .single()
+          : await supabase
+              .from('business_settings')
+              .insert({ ...payload })
+              .select()
+              .single();
 
         if (error) throw error;
 

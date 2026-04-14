@@ -66,7 +66,7 @@ const retailNavItems: NavItem[] = [
 ];
 
 const bottomNavItems: NavItem[] = [
-  { id: 'settings', label: 'Settings', icon: Settings, roles: ['admin'] },
+  { id: 'settings', label: 'Settings', icon: Settings, roles: ['admin', 'manager'] },
   { id: 'help', label: 'Help Center', icon: HelpCircle },
 ];
 
