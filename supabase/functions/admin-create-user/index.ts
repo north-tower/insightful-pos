@@ -24,11 +24,10 @@ serve(async (req) => {
   }
 
   try {
-    const SUPABASE_URL = Deno.env.get('VITE_SUPABASE_URL');
-    const SUPABASE_ANON_KEY = Deno.env.get('VITE_SUPABASE_ANON_KEY');
+    const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
-    if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY) {
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
       return new Response(JSON.stringify({ error: 'Missing Supabase environment configuration' }), {
         status: 500,
         headers: { 'Content-Type': 'application/json', ...corsHeaders },
@@ -36,28 +35,46 @@ serve(async (req) => {
     }
 
     const authHeader = req.headers.get('Authorization');
+    const hasAuthorizationHeader = Boolean(authHeader);
+    const hasBearerPrefix = authHeader?.startsWith('Bearer ') ?? false;
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Missing Authorization header' }), {
+      return new Response(
+        JSON.stringify({
+          error: 'Missing Authorization header',
+          debug: {
+            has_authorization_header: hasAuthorizationHeader,
+            has_bearer_prefix: hasBearerPrefix,
+          },
+        }),
+        {
         status: 401,
         headers: { 'Content-Type': 'application/json', ...corsHeaders },
-      });
+        }
+      );
     }
 
-    const requesterClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      global: { headers: { Authorization: authHeader } },
-    });
     const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const accessToken = authHeader.replace('Bearer ', '').trim();
 
-    const {
-      data: { user: requester },
-      error: requesterError,
-    } = await requesterClient.auth.getUser();
+    const { data: requesterData, error: requesterError } = await adminClient.auth.getUser(accessToken);
+    const requester = requesterData.user;
 
     if (requesterError || !requester) {
-      return new Response(JSON.stringify({ error: 'Unauthorized request' }), {
+      return new Response(
+        JSON.stringify({
+          error: 'Unauthorized request',
+          debug: {
+            has_authorization_header: hasAuthorizationHeader,
+            has_bearer_prefix: hasBearerPrefix,
+            auth_error: requesterError?.message ?? null,
+            requester_found: Boolean(requester),
+          },
+        }),
+        {
         status: 401,
         headers: { 'Content-Type': 'application/json', ...corsHeaders },
-      });
+        }
+      );
     }
 
     const { data: requesterProfile, error: roleError } = await adminClient

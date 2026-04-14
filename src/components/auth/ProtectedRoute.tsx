@@ -9,7 +9,7 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
-  const { isAuthenticated, isLoading, user } = useAuth();
+  const { isAuthenticated, isLoading, user, hasAssignedStore, signOut } = useAuth();
 
   // Show spinner while checking session
   if (isLoading) {
@@ -26,6 +26,42 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
   // Not logged in → show login page
   if (!isAuthenticated) {
     return <Login />;
+  }
+
+  // Logged in but no store membership yet → wait for admin assignment
+  if (!hasAssignedStore) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center max-w-md px-6">
+          <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+            <span className="text-3xl">🏪</span>
+          </div>
+          <h1 className="text-xl font-bold text-foreground mb-2">Account Pending Approval</h1>
+          <p className="text-sm text-muted-foreground mb-6">
+            Your account is active, but no store has been assigned yet.
+            Please wait for an administrator to approve your account and assign a store.
+          </p>
+          <div className="mb-6 rounded-md border bg-muted/30 p-3 text-left">
+            <p className="text-xs font-semibold text-foreground mb-2">Admin hint</p>
+            <p className="text-xs text-muted-foreground">
+              Share these details with your administrator for faster assignment.
+            </p>
+            <p className="text-xs text-muted-foreground mt-2">
+              Email: <span className="font-mono text-foreground">{user?.email || 'Unavailable'}</span>
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              User ID: <span className="font-mono text-foreground break-all">{user?.id || 'Unavailable'}</span>
+            </p>
+          </div>
+          <button
+            onClick={() => { void signOut(); }}
+            className="text-sm text-primary hover:underline"
+          >
+            Sign out
+          </button>
+        </div>
+      </div>
+    );
   }
 
   // Logged in but role not allowed → show access denied

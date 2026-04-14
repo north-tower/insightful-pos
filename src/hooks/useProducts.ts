@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useBusinessMode } from '@/context/BusinessModeContext';
+import { useAuth } from '@/context/AuthContext';
 
 // ── Re-export types consumers already rely on ────────────────────────────────
 import type { MenuItem, Category } from '@/data/menuData';
@@ -50,6 +51,12 @@ interface SupabaseVariant {
   price: number;
   cost: number | null;
   stock: number;
+}
+
+interface CashierAllocationRow {
+  product_id: string;
+  assigned_qty: number;
+  sold_qty: number;
 }
 
 // ─── Transform helpers ───────────────────────────────────────────────────────
@@ -106,6 +113,7 @@ function toProduct(
 
 export function useProducts() {
   const { mode } = useBusinessMode();
+  const { user } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -114,6 +122,7 @@ export function useProducts() {
   const [supaCategories, setSupaCategories] = useState<SupabaseCategory[]>([]);
   const [supaProducts, setSupaProducts] = useState<SupabaseProduct[]>([]);
   const [supaVariants, setSupaVariants] = useState<SupabaseVariant[]>([]);
+  const [cashierAllocations, setCashierAllocations] = useState<CashierAllocationRow[]>([]);
 
   // ── Fetch ──────────────────────────────────────────────────────────────
 
@@ -144,6 +153,7 @@ export function useProducts() {
 
       // Variants (retail only)
       let variantData: SupabaseVariant[] = [];
+      let allocationData: CashierAllocationRow[] = [];
       if (mode === 'retail' && prodData && prodData.length > 0) {
         const productIds = prodData.map((p: SupabaseProduct) => p.id);
         const { data: vData, error: vErr } = await supabase
@@ -154,18 +164,30 @@ export function useProducts() {
 
         if (vErr) throw vErr;
         variantData = vData || [];
+
+        if (user?.role === 'cashier') {
+          const { data: aData, error: aErr } = await supabase
+            .from('cashier_stock_allocations')
+            .select('product_id, assigned_qty, sold_qty')
+            .eq('cashier_id', user.id)
+            .eq('is_active', true)
+            .in('product_id', productIds);
+          if (aErr) throw aErr;
+          allocationData = aData || [];
+        }
       }
 
       setSupaCategories(catData || []);
       setSupaProducts(prodData || []);
       setSupaVariants(variantData);
+      setCashierAllocations(allocationData);
     } catch (err: any) {
       console.error('Failed to fetch products:', err);
       setError(err.message || 'Failed to load products');
     } finally {
       setLoading(false);
     }
-  }, [mode]);
+  }, [mode, user?.id, user?.role]);
 
   useEffect(() => {
     fetchData();
@@ -220,14 +242,26 @@ export function useProducts() {
       variantsByProduct.set(v.product_id, list);
     });
 
-    return supaProducts.map((p) =>
-      toProduct(
+    const allocationMap = new Map(
+      cashierAllocations.map((a) => [a.product_id, Math.max(a.assigned_qty - a.sold_qty, 0)]),
+    );
+
+    return supaProducts.map((p) => {
+      const product = toProduct(
         p,
         categoryMap.get(p.category_id || '') || 'uncategorized',
         variantsByProduct.get(p.id),
-      ),
-    );
-  }, [supaProducts, supaVariants, categoryMap]);
+      );
+
+      // Cashiers can only sell quantities assigned to them by manager/admin.
+      if (mode === 'retail' && user?.role === 'cashier') {
+        const remaining = allocationMap.get(p.id) ?? 0;
+        product.stock = Math.min(product.stock, remaining);
+      }
+
+      return product;
+    });
+  }, [supaProducts, supaVariants, categoryMap, cashierAllocations, mode, user?.role]);
 
   const retailCategories: ProductCategory[] = useMemo(() => {
     const counts = new Map<string, number>();

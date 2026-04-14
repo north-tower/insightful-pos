@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   Search,
   Package,
@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PageLayout } from '@/components/pos/PageLayout';
 import { PaginationControls } from '@/components/ui/pagination-controls';
 import { cn } from '@/lib/utils';
@@ -36,6 +37,8 @@ import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import { formatCurrency } from '@/lib/currency';
 import { generatePlaceholderUrl } from '@/lib/product-images';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/context/AuthContext';
 
 interface RetailInventoryProps {
   onNavigate: (tab: string) => void;
@@ -59,6 +62,7 @@ const adjustmentTypeStyles: Record<
 };
 
 export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
+  const { user } = useAuth();
   const { retailProducts, loading, refetch: refetchProducts } = useProducts();
   const {
     adjustments,
@@ -76,6 +80,64 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
   const [isAdjusting, setIsAdjusting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
+  const [cashiers, setCashiers] = useState<Array<{ id: string; full_name: string; email: string }>>([]);
+  const [storeId, setStoreId] = useState<string | null>(null);
+  const [allocations, setAllocations] = useState<Array<{
+    id: string;
+    cashier_id: string;
+    product_id: string;
+    assigned_qty: number;
+    sold_qty: number;
+    is_active: boolean;
+  }>>([]);
+  const [selectedCashierId, setSelectedCashierId] = useState('');
+  const [selectedProductId, setSelectedProductId] = useState('');
+  const [assignedQty, setAssignedQty] = useState('');
+  const [isAssigning, setIsAssigning] = useState(false);
+  const canManageCashierStock = user?.role === 'admin' || user?.role === 'manager';
+
+  const loadCashierData = useCallback(async () => {
+    if (!canManageCashierStock) return;
+    const { data: storeData, error: storeError } = await supabase.rpc('current_store_id');
+    if (storeError || !storeData) {
+      return;
+    }
+    setStoreId(storeData);
+
+    const [cashierRes, allocationRes] = await Promise.all([
+      supabase
+        .from('profile_stores')
+        .select('profile_id, profiles!inner(id, full_name, email)')
+        .eq('store_id', storeData)
+        .eq('role_in_store', 'cashier'),
+      supabase
+        .from('cashier_stock_allocations')
+        .select('id, cashier_id, product_id, assigned_qty, sold_qty, is_active')
+        .eq('store_id', storeData)
+        .eq('is_active', true)
+        .order('updated_at', { ascending: false }),
+    ]);
+
+    if (!cashierRes.error) {
+      type CashierJoinRow = {
+        profiles: { id: string; full_name: string; email: string };
+      };
+      const mapped = ((cashierRes.data || []) as CashierJoinRow[]).map((row) => ({
+        id: row.profiles.id,
+        full_name: row.profiles.full_name,
+        email: row.profiles.email,
+      }));
+      setCashiers(mapped);
+    }
+
+    if (!allocationRes.error) {
+      setAllocations(allocationRes.data || []);
+    }
+  }, [canManageCashierStock]);
+
+  useEffect(() => {
+    void loadCashierData();
+  }, [loadCashierData]);
 
   // Stock summary
   const stockSummary = useMemo(() => {
@@ -177,6 +239,43 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
     }
   };
 
+  const handleAssignCashierStock = async () => {
+    if (!storeId || !selectedCashierId || !selectedProductId || !assignedQty) {
+      toast.error('Select cashier, product and quantity');
+      return;
+    }
+    const qty = parseInt(assignedQty, 10);
+    if (isNaN(qty) || qty < 0) {
+      toast.error('Enter a valid quantity');
+      return;
+    }
+
+    setIsAssigning(true);
+    const { error } = await supabase
+      .from('cashier_stock_allocations')
+      .upsert(
+        [{
+          store_id: storeId,
+          cashier_id: selectedCashierId,
+          product_id: selectedProductId,
+          assigned_qty: qty,
+          assigned_by: user?.id,
+          is_active: true,
+        }],
+        { onConflict: 'store_id,cashier_id,product_id' },
+      );
+    setIsAssigning(false);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    toast.success('Cashier stock assigned');
+    setAssignedQty('');
+    loadCashierData();
+  };
+
   return (
     <PageLayout activeTab="inventory" onNavigate={onNavigate}>
           {/* Header */}
@@ -267,6 +366,82 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
               </CardContent>
             </Card>
           </div>
+
+          {canManageCashierStock && (
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle>Assign Cashier Inventory</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <div>
+                    <Label>Cashier</Label>
+                    <Select value={selectedCashierId} onValueChange={setSelectedCashierId}>
+                      <SelectTrigger><SelectValue placeholder="Select cashier" /></SelectTrigger>
+                      <SelectContent>
+                        {cashiers.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.full_name || c.email}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Product</Label>
+                    <Select value={selectedProductId} onValueChange={setSelectedProductId}>
+                      <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
+                      <SelectContent>
+                        {retailProducts.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Assigned Qty</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={assignedQty}
+                      onChange={(e) => setAssignedQty(e.target.value)}
+                      placeholder="0"
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <Button className="w-full" onClick={handleAssignCashierStock} disabled={isAssigning}>
+                      {isAssigning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                      Save Assignment
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  {allocations.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No cashier allocations yet.</p>
+                  ) : (
+                    allocations.slice(0, 10).map((a) => {
+                      const cashier = cashiers.find((c) => c.id === a.cashier_id);
+                      const product = retailProducts.find((p) => p.id === a.product_id);
+                      const remaining = Math.max(a.assigned_qty - a.sold_qty, 0);
+                      return (
+                        <div key={a.id} className="rounded border px-3 py-2 text-sm flex items-center justify-between">
+                          <span>
+                            {(cashier?.full_name || cashier?.email || a.cashier_id)} - {product?.name || a.product_id}
+                          </span>
+                          <span className="text-muted-foreground">
+                            Assigned {a.assigned_qty} | Sold {a.sold_qty} | Remaining {remaining}
+                          </span>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Stock Levels Table - 2 cols */}

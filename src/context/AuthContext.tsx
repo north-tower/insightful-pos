@@ -28,7 +28,6 @@ interface SignUpParams {
   email: string;
   password: string;
   fullName: string;
-  businessMode: BusinessMode;
 }
 
 interface AuthContextType {
@@ -37,6 +36,7 @@ interface AuthContextType {
   session: Session | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  hasAssignedStore: boolean;
 
   // Actions
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
@@ -70,7 +70,7 @@ function profileFromMetadata(supaUser: User): UserProfile {
       supaUser.email?.split('@')[0] ||
       'User',
     role: (meta.role as UserRole) || 'cashier',
-    business_mode: (meta.business_mode as BusinessMode) || 'restaurant',
+    business_mode: (meta.business_mode as BusinessMode) || 'retail',
     avatar_url: meta.avatar_url as string | undefined,
   };
 }
@@ -81,17 +81,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasAssignedStore, setHasAssignedStore] = useState(false);
 
   // ── Enrich profile from the `profiles` table (best-effort) ────────────
   // This is called AFTER the user is already set from metadata, so the app
   // is already in authenticated state. If this fails, nothing breaks.
   const enrichProfile = useCallback(async (supaUser: User) => {
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', supaUser.id)
-        .single();
+      const [{ data, error }, { count, error: membershipError }] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', supaUser.id)
+          .single(),
+        supabase
+          .from('profile_stores')
+          .select('id', { count: 'exact', head: true })
+          .eq('profile_id', supaUser.id)
+          .eq('is_default_store', true),
+      ]);
+
+      if (!membershipError) {
+        setHasAssignedStore((count ?? 0) > 0);
+      }
 
       if (error || !data) return; // Keep the metadata-based profile
 
@@ -101,7 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         full_name: data.full_name,
         avatar_url: data.avatar_url,
         role: data.role || 'cashier',
-        business_mode: data.business_mode || 'restaurant',
+        business_mode: data.business_mode || 'retail',
         business_name: data.business_name,
       });
     } catch {
@@ -119,10 +131,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(s);
       if (s?.user) {
         setUser(profileFromMetadata(s.user));
+        setHasAssignedStore(false);
         // Fire-and-forget: try to get the full profile from the DB
         enrichProfile(s.user);
       } else {
         setUser(null);
+        setHasAssignedStore(false);
       }
       setIsLoading(false);
     };
@@ -169,12 +183,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // ── Sign up ─────────────────────────────────────────────────────────────
   const signUp = useCallback(
-    async ({ email, password, fullName, businessMode }: SignUpParams): Promise<{ error: string | null }> => {
+    async ({ email, password, fullName }: SignUpParams): Promise<{ error: string | null }> => {
       const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          data: { full_name: fullName, role: 'admin', business_mode: businessMode },
+          data: { full_name: fullName, role: 'cashier', business_mode: 'retail' },
         },
       });
       if (error) return { error: error.message };
@@ -188,6 +202,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
     setUser(null);
     setSession(null);
+    setHasAssignedStore(false);
   }, []);
 
   // ── Role helpers ────────────────────────────────────────────────────────
@@ -207,6 +222,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         session,
         isLoading,
         isAuthenticated: !!user,
+        hasAssignedStore,
         signIn,
         signUp,
         signOut,

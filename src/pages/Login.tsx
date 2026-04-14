@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
-import type { BusinessMode } from '@/types/business';
 import { supabase } from '@/lib/supabase';
 import {
   LogIn,
@@ -14,16 +13,9 @@ import {
   Store,
   AlertCircle,
   Loader2,
-  UtensilsCrossed,
-  Check,
 } from 'lucide-react';
 
 type AuthTab = 'login' | 'signup';
-
-const businessModes: { value: BusinessMode; label: string; icon: typeof Store; desc: string }[] = [
-  { value: 'restaurant', label: 'Restaurant', icon: UtensilsCrossed, desc: 'Café, bar, food truck' },
-  { value: 'retail', label: 'Retail Shop', icon: Store, desc: 'Store, boutique, electronics' },
-];
 
 export default function Login() {
   const { signIn, signUp } = useAuth();
@@ -45,7 +37,6 @@ export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
-  const [businessMode, setBusinessMode] = useState<BusinessMode>('restaurant');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -65,7 +56,7 @@ export default function Login() {
         setLoading(false);
         return;
       }
-      const result = await signUp({ email, password, fullName, businessMode });
+      const result = await signUp({ email, password, fullName });
       if (result.error) {
         setError(result.error);
       } else {
@@ -153,39 +144,6 @@ export default function Login() {
                 />
               </div>
 
-              {/* Business Mode Selector */}
-              <div>
-                <Label>Business Type</Label>
-                <div className="grid grid-cols-2 gap-2 mt-1.5">
-                  {businessModes.map(({ value, label, icon: Icon, desc }) => {
-                    const selected = businessMode === value;
-                    return (
-                      <button
-                        key={value}
-                        type="button"
-                        onClick={() => setBusinessMode(value)}
-                        className={cn(
-                          'relative flex items-center gap-3 p-3 rounded border-2 text-left transition-all',
-                          selected
-                            ? 'border-primary bg-primary/5'
-                            : 'border-border bg-card hover:border-primary/40'
-                        )}
-                      >
-                        {selected && (
-                          <div className="absolute top-2 right-2 w-4 h-4 bg-primary rounded-full flex items-center justify-center">
-                            <Check className="w-3 h-3 text-primary-foreground" />
-                          </div>
-                        )}
-                        <Icon className={cn('w-5 h-5 shrink-0', selected ? 'text-primary' : 'text-muted-foreground')} />
-                        <div>
-                          <p className="text-sm font-semibold">{label}</p>
-                          <p className="text-[10px] text-muted-foreground">{desc}</p>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
             </>
           )}
 
