@@ -44,14 +44,25 @@ export function ReceiptDialog({ open, onOpenChange, receiptData, defaultTemplate
           <title>Receipt - ${receiptData.orderNumber}</title>
           <style>
             body {
-              font-family: 'Courier New', monospace;
-              padding: 20px;
-              max-width: 300px;
+              font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif;
+              padding: 2mm;
+              width: 58mm;
+              max-width: 58mm;
               margin: 0 auto;
+              font-size: 12px;
+              line-height: 1.35;
+              color: #000;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+            .receipt-content, .receipt-content * {
+              color: #000 !important;
+              border-color: #000 !important;
+              text-shadow: none !important;
             }
             @media print {
-              body { margin: 0; padding: 10px; }
-              @page { size: auto; margin: 0; }
+              body { margin: 0; padding: 2mm; }
+              @page { size: 58mm auto; margin: 0; }
             }
             ${receiptElement.innerHTML.includes('KITCHEN TICKET') ? `
               body { font-family: monospace; }

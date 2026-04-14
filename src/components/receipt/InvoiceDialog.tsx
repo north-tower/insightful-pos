@@ -89,20 +89,41 @@ export function InvoiceDialog({
                 max-width: 58mm;
                 padding: 2mm;
                 margin: 0 auto;
-                font-size: 11px;
-                line-height: 1.25;
+                font-size: 12px;
+                line-height: 1.35;
               }
               .receipt-content, .receipt-content * {
                 box-sizing: border-box;
+                color: #000 !important;
+                border-color: #000 !important;
+                text-shadow: none !important;
               }
               .receipt-content {
                 width: 54mm;
                 max-width: 54mm;
                 margin: 0 auto;
+                font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif !important;
+                font-size: 12px;
+                line-height: 1.35;
               }
               .receipt-content img {
                 max-width: 100%;
                 height: auto;
+              }
+              .receipt-content .text-muted-foreground,
+              .receipt-content .text-gray-400,
+              .receipt-content .text-gray-500,
+              .receipt-content .text-gray-600 {
+                color: #000 !important;
+              }
+              .receipt-content .text-lg,
+              .receipt-content .text-xl {
+                font-size: 16px !important;
+                font-weight: 800 !important;
+              }
+              .receipt-content .font-bold,
+              .receipt-content .font-semibold {
+                font-weight: 700 !important;
               }
               .receipt-content .break-words {
                 word-break: break-word;
