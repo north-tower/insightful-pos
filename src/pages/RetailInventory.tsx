@@ -194,11 +194,17 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
           .in('id', cashierIds);
 
         if (profileData && profileData.length > 0) {
-          mapped = profileData.map((p) => ({
-            id: p.id,
-            full_name: p.full_name,
-            email: p.email,
-          }));
+          const profileMap = new Map(
+            profileData.map((p) => [p.id, { full_name: p.full_name, email: p.email }]),
+          );
+          mapped = cashierIds.map((id) => {
+            const prof = profileMap.get(id);
+            return {
+              id,
+              full_name: prof?.full_name || id,
+              email: prof?.email || '',
+            };
+          });
         } else {
           // If profile rows are not readable by policy, still show selectable IDs.
           mapped = cashierIds.map((id) => ({
