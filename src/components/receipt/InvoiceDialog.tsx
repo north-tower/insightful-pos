@@ -89,8 +89,8 @@ export function InvoiceDialog({
                 max-width: 58mm;
                 padding: 2mm;
                 margin: 0 auto;
-                font-size: 12px;
-                line-height: 1.35;
+                font-size: 10px;
+                line-height: 1.2;
               }
               body, body * {
                 box-sizing: border-box;
@@ -103,8 +103,8 @@ export function InvoiceDialog({
                 max-width: 54mm;
                 margin: 0 auto;
                 font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif !important;
-                font-size: 12px;
-                line-height: 1.35;
+                font-size: 10px;
+                line-height: 1.2;
               }
               body img {
                 max-width: 100%;
@@ -118,7 +118,7 @@ export function InvoiceDialog({
               }
               body .text-lg,
               body .text-xl {
-                font-size: 16px !important;
+                font-size: 14px !important;
                 font-weight: 800 !important;
               }
               body .font-bold,

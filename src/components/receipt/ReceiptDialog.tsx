@@ -49,8 +49,8 @@ export function ReceiptDialog({ open, onOpenChange, receiptData, defaultTemplate
               width: 58mm;
               max-width: 58mm;
               margin: 0 auto;
-              font-size: 12px;
-              line-height: 1.35;
+              font-size: 10px;
+              line-height: 1.2;
               color: #000;
               -webkit-print-color-adjust: exact;
               print-color-adjust: exact;

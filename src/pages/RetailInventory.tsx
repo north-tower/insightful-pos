@@ -337,19 +337,47 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
     }
 
     setIsAssigning(true);
+    // Keep issuance history:
+    // always create a NEW allocation record on assignment.
+    // If there is an existing active allocation for this cashier/product/store,
+    // mark it inactive first so the partial unique index stays valid.
+    const { data: activeAllocation, error: activeLookupError } = await supabase
+      .from('cashier_stock_allocations')
+      .select('id')
+      .eq('store_id', storeId)
+      .eq('cashier_id', selectedCashierId)
+      .eq('product_id', selectedProductId)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (activeLookupError) {
+      setIsAssigning(false);
+      toast.error(activeLookupError.message);
+      return;
+    }
+
+    if (activeAllocation) {
+      const { error: deactivateError } = await supabase
+        .from('cashier_stock_allocations')
+        .update({ is_active: false })
+        .eq('id', activeAllocation.id);
+      if (deactivateError) {
+        setIsAssigning(false);
+        toast.error(deactivateError.message);
+        return;
+      }
+    }
+
     const { error } = await supabase
       .from('cashier_stock_allocations')
-      .upsert(
-        [{
-          store_id: storeId,
-          cashier_id: selectedCashierId,
-          product_id: selectedProductId,
-          assigned_qty: qty,
-          assigned_by: user?.id,
-          is_active: true,
-        }],
-        { onConflict: 'store_id,cashier_id,product_id' },
-      );
+      .insert([{
+        store_id: storeId,
+        cashier_id: selectedCashierId,
+        product_id: selectedProductId,
+        assigned_qty: qty,
+        assigned_by: user?.id,
+        is_active: true,
+      }]);
     setIsAssigning(false);
 
     if (error) {

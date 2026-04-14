@@ -27,12 +27,15 @@ export function ReceiptPreview({
   showActions = true,
 }: ReceiptPreviewProps) {
   const { settings: company } = useCompanySettings();
+  const amountOnly = (value: number) =>
+    fc(value).replace(/^([A-Za-z]{2,4}|\p{Sc})\s*/u, '');
+  const dateTimeOneLine = `${format(receiptData.date, 'dd/MM/yy')}\u00A0${format(receiptData.date, 'HH:mm')}`;
 
   const renderCompact = () => (
-    <div className="space-y-2 text-[12px] leading-tight thermal-58">
+    <div className="space-y-2 text-[10px] leading-tight thermal-58">
       {/* Header */}
       <div className="text-center border-b border-dashed pb-2">
-        <h2 className="font-bold text-base">{company.fullName}</h2>
+        <h2 className="font-bold text-[13px]">{company.fullName}</h2>
         <p className="text-[10px] text-black">{company.address}</p>
         <p className="text-[10px] text-black">{company.city}</p>
       </div>
@@ -40,12 +43,8 @@ export function ReceiptPreview({
       {/* Order Info */}
       <div className="space-y-0.5">
         <div className="flex justify-between">
-          <span className="text-black">Order:</span>
-          <span className="font-semibold">#{receiptData.orderNumber}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-black">Date:</span>
-          <span>{format(receiptData.date, 'dd/MM/yy HH:mm')}</span>
+          <span className="text-black">Order #{receiptData.orderNumber}</span>
+          <span className="whitespace-nowrap">{dateTimeOneLine}</span>
         </div>
         {receiptData.tableNumber && (
           <div className="flex justify-between">
@@ -56,21 +55,30 @@ export function ReceiptPreview({
       </div>
 
       {/* Items */}
-      <div className="border-t border-dashed pt-2 space-y-1">
-        {receiptData.items.map((item, index) => (
-          <div key={index} className="flex justify-between gap-2 text-[11px]">
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <span>{item.quantity}x</span>
-                <span className="font-medium break-words">{item.name}</span>
+      <div className="border-t border-dashed pt-2 font-mono">
+        <div className="grid grid-cols-[18px_minmax(0,1fr)_44px_56px] gap-x-0.5 text-[9px] font-bold uppercase tracking-wide border-b border-dashed pb-1 mb-1">
+          <span>Qty</span>
+          <span>Item</span>
+          <span className="text-right">@Price</span>
+          <span className="text-right">Amount</span>
+        </div>
+        <div className="space-y-1">
+          {receiptData.items.map((item, index) => (
+            <div key={index} className="space-y-0.5">
+              <div className="grid grid-cols-[18px_minmax(0,1fr)_44px_56px] gap-x-0.5 text-[10px] items-start">
+                <span className="tabular-nums">{item.quantity}</span>
+                <span className="font-medium leading-tight uppercase whitespace-normal break-words">{item.name}</span>
+                <span className="text-right tabular-nums">{amountOnly(item.price)}</span>
+                <span className="text-right font-medium tabular-nums">
+                  {amountOnly(item.price * item.quantity)}
+                </span>
               </div>
               {item.notes && (
-                <p className="text-black ml-4 italic break-words">Note: {item.notes}</p>
+                <p className="text-black italic text-[9px] pl-[18px] break-words">Note: {item.notes}</p>
               )}
             </div>
-            <span className="font-medium tabular-nums shrink-0">{fc(item.price * item.quantity)}</span>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
 
       {/* Totals */}
@@ -115,27 +123,19 @@ export function ReceiptPreview({
       </div>
 
       {/* Order Info */}
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <p className="text-muted-foreground">Order #</p>
-          <p className="font-semibold">{receiptData.orderNumber}</p>
-        </div>
-        <div className="text-right">
-          <p className="text-muted-foreground">Date</p>
-          <p>{format(receiptData.date, 'MMM dd, yyyy')}</p>
-        </div>
-        <div>
-          <p className="text-muted-foreground">Time</p>
-          <p>{format(receiptData.date, 'HH:mm')}</p>
+      <div className="space-y-1">
+        <div className="flex justify-between items-start gap-2">
+          <span className="font-semibold">Order #{receiptData.orderNumber}</span>
+          <span className="whitespace-nowrap">{dateTimeOneLine}</span>
         </div>
         {receiptData.tableNumber && (
-          <div className="text-right">
-            <p className="text-muted-foreground">Table</p>
-            <p>#{receiptData.tableNumber}</p>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Table</span>
+            <span>#{receiptData.tableNumber}</span>
           </div>
         )}
         {receiptData.customerName && (
-          <div className="col-span-2">
+          <div>
             <p className="text-muted-foreground">Customer</p>
             <p>{receiptData.customerName}</p>
           </div>
@@ -143,36 +143,41 @@ export function ReceiptPreview({
       </div>
 
       {/* Items */}
-      <div className="border-t pt-3 space-y-3">
-        {receiptData.items.map((item, index) => {
-          const itemTotal = item.price * item.quantity;
-          return (
-            <div key={index} className="space-y-1">
-              <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">{item.quantity}x</span>
-                    <span className="font-semibold">{item.name}</span>
-                  </div>
-                  {item.modifiers && item.modifiers.length > 0 && (
-                    <div className="ml-6 mt-1 space-y-0.5">
-                      {item.modifiers.map((mod) => (
-                        <p key={mod.id} className="text-xs text-muted-foreground">
-                          {mod.type === 'add-on' && '+'} {mod.name}
-                          {mod.price && mod.price > 0 && ` (+${fc(mod.price)})`}
-                        </p>
-                      ))}
-                    </div>
-                  )}
-                  {item.notes && (
-                    <p className="ml-6 text-xs text-muted-foreground italic">Note: {item.notes}</p>
-                  )}
+      <div className="border-t border-dashed pt-3 font-mono">
+        <div className="grid grid-cols-[20px_minmax(0,1fr)_52px_64px] gap-x-1 text-[9px] font-bold uppercase tracking-wide border-b border-dashed pb-1 mb-2">
+          <span>Qty</span>
+          <span>Item</span>
+          <span className="text-right">@Price</span>
+          <span className="text-right">Amount</span>
+        </div>
+        <div className="space-y-2">
+          {receiptData.items.map((item, index) => {
+            const itemTotal = item.price * item.quantity;
+            return (
+              <div key={index} className="space-y-1">
+                <div className="grid grid-cols-[20px_minmax(0,1fr)_52px_64px] gap-x-1 text-[10px] items-start">
+                  <span className="tabular-nums">{item.quantity}</span>
+                  <span className="font-semibold leading-tight uppercase whitespace-normal break-words">{item.name}</span>
+                  <span className="text-right tabular-nums">{amountOnly(item.price)}</span>
+                  <span className="text-right font-medium tabular-nums">{amountOnly(itemTotal)}</span>
                 </div>
-                <span className="font-medium">{fc(itemTotal)}</span>
+                {item.modifiers && item.modifiers.length > 0 && (
+                  <div className="pl-[20px] space-y-0.5">
+                    {item.modifiers.map((mod) => (
+                      <p key={mod.id} className="text-[9px] text-black">
+                        {mod.type === 'add-on' && '+'} {mod.name}
+                        {mod.price && mod.price > 0 && ` (+${amountOnly(mod.price)})`}
+                      </p>
+                    ))}
+                  </div>
+                )}
+                {item.notes && (
+                  <p className="pl-[20px] text-[9px] text-black italic">Note: {item.notes}</p>
+                )}
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
 
       {/* Totals */}
