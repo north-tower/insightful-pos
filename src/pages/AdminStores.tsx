@@ -1,11 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, Building2, Loader2, Plus } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { ArrowLeft, Building2, Loader2, Plus, UserPlus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 type Store = {
@@ -37,12 +39,37 @@ export default function AdminStores() {
 
   const [loading, setLoading] = useState(true);
   const [savingStore, setSavingStore] = useState(false);
+  const [savingMembership, setSavingMembership] = useState(false);
 
   const [stores, setStores] = useState<Store[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [memberships, setMemberships] = useState<StoreMembership[]>([]);
 
   const [storeForm, setStoreForm] = useState(defaultCreateStoreForm);
+  const [membershipForm, setMembershipForm] = useState({
+    profile_id: '',
+    store_id: '',
+    role_in_store: 'cashier' as 'admin' | 'manager' | 'cashier',
+    is_default_store: false,
+  });
+
+  const profileOptions = useMemo(
+    () =>
+      profiles.map((p) => ({
+        value: p.id,
+        label: `${p.full_name || p.email} (${p.email})`,
+      })),
+    [profiles]
+  );
+
+  const storeOptions = useMemo(
+    () =>
+      stores.map((s) => ({
+        value: s.id,
+        label: `${s.name} (${s.code})`,
+      })),
+    [stores]
+  );
 
   const loadData = async () => {
     setLoading(true);
@@ -107,6 +134,61 @@ export default function AdminStores() {
     loadData();
   };
 
+  const handleAssignMembership = async () => {
+    if (!membershipForm.profile_id || !membershipForm.store_id) {
+      toast({
+        title: 'Missing fields',
+        description: 'Select both a user and a store.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSavingMembership(true);
+
+    if (membershipForm.is_default_store) {
+      const { error: resetError } = await supabase
+        .from('profile_stores')
+        .update({ is_default_store: false })
+        .eq('profile_id', membershipForm.profile_id);
+      if (resetError) {
+        setSavingMembership(false);
+        toast({
+          title: 'Failed to update default store',
+          description: resetError.message,
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
+    const { error } = await supabase.from('profile_stores').upsert(
+      [
+        {
+          profile_id: membershipForm.profile_id,
+          store_id: membershipForm.store_id,
+          role_in_store: membershipForm.role_in_store,
+          is_default_store: membershipForm.is_default_store,
+        },
+      ],
+      { onConflict: 'profile_id,store_id' }
+    );
+
+    setSavingMembership(false);
+
+    if (error) {
+      toast({
+        title: 'Failed to assign user',
+        description: error.message,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    toast({ title: 'User assigned to store' });
+    loadData();
+  };
+
   return (
     <div className="min-h-screen bg-background p-4 md:p-6">
       <div className="max-w-6xl mx-auto space-y-6">
@@ -128,7 +210,7 @@ export default function AdminStores() {
             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
           </div>
         ) : (
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
             <Card className="xl:col-span-1">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -159,6 +241,86 @@ export default function AdminStores() {
                 <Button onClick={handleCreateStore} disabled={savingStore} className="w-full">
                   {savingStore ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
                   Create Store
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card className="xl:col-span-1">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <UserPlus className="w-5 h-5" />
+                  Assign User to Store
+                </CardTitle>
+                <CardDescription>Grant a user access to a specific store.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label>User</Label>
+                  <Select
+                    value={membershipForm.profile_id}
+                    onValueChange={(value) => setMembershipForm((prev) => ({ ...prev, profile_id: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select user" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {profileOptions.map((item) => (
+                        <SelectItem key={item.value} value={item.value}>
+                          {item.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Store</Label>
+                  <Select
+                    value={membershipForm.store_id}
+                    onValueChange={(value) => setMembershipForm((prev) => ({ ...prev, store_id: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select store" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {storeOptions.map((item) => (
+                        <SelectItem key={item.value} value={item.value}>
+                          {item.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Role in store</Label>
+                  <Select
+                    value={membershipForm.role_in_store}
+                    onValueChange={(value: 'admin' | 'manager' | 'cashier') =>
+                      setMembershipForm((prev) => ({ ...prev, role_in_store: value }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="manager">Manager</SelectItem>
+                      <SelectItem value="cashier">Cashier</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center justify-between rounded-md border p-3">
+                  <div>
+                    <p className="text-sm font-medium">Set as default store</p>
+                    <p className="text-xs text-muted-foreground">Used at login for this user.</p>
+                  </div>
+                  <Switch
+                    checked={membershipForm.is_default_store}
+                    onCheckedChange={(value) => setMembershipForm((prev) => ({ ...prev, is_default_store: value }))}
+                  />
+                </div>
+                <Button onClick={handleAssignMembership} disabled={savingMembership} className="w-full">
+                  {savingMembership ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <UserPlus className="w-4 h-4 mr-2" />}
+                  Assign User
                 </Button>
               </CardContent>
             </Card>

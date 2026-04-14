@@ -94,46 +94,128 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
   const [selectedProductId, setSelectedProductId] = useState('');
   const [assignedQty, setAssignedQty] = useState('');
   const [isAssigning, setIsAssigning] = useState(false);
+  const [membershipCashierIds, setMembershipCashierIds] = useState<string[]>([]);
   const canManageCashierStock = user?.role === 'admin' || user?.role === 'manager';
+  const cashierReport = useMemo(() => {
+    const grouped = new Map<string, {
+      cashierName: string;
+      cashierEmail: string;
+      assigned: number;
+      sold: number;
+      remaining: number;
+      lines: Array<{
+        allocationId: string;
+        productName: string;
+        assigned: number;
+        sold: number;
+        remaining: number;
+      }>;
+    }>();
+
+    allocations.forEach((a) => {
+      const cashier = cashiers.find((c) => c.id === a.cashier_id);
+      const product = retailProducts.find((p) => p.id === a.product_id);
+      const remaining = Math.max(a.assigned_qty - a.sold_qty, 0);
+      const key = a.cashier_id;
+      const current = grouped.get(key) || {
+        cashierName: cashier?.full_name || 'Unknown cashier',
+        cashierEmail: cashier?.email || '',
+        assigned: 0,
+        sold: 0,
+        remaining: 0,
+        lines: [],
+      };
+
+      current.assigned += a.assigned_qty;
+      current.sold += a.sold_qty;
+      current.remaining += remaining;
+      current.lines.push({
+        allocationId: a.id,
+        productName: product?.name || a.product_id,
+        assigned: a.assigned_qty,
+        sold: a.sold_qty,
+        remaining,
+      });
+
+      grouped.set(key, current);
+    });
+
+    return Array.from(grouped.values()).sort((a, b) => a.cashierName.localeCompare(b.cashierName));
+  }, [allocations, cashiers, retailProducts]);
 
   const loadCashierData = useCallback(async () => {
     if (!canManageCashierStock) return;
-    const { data: storeData, error: storeError } = await supabase.rpc('current_store_id');
-    if (storeError || !storeData) {
+    const { data: storeData } = await supabase.rpc('current_store_id');
+    let resolvedStoreId: string | null = storeData || null;
+
+    // Fallback: if no default store is set, use the first assigned store.
+    if (!resolvedStoreId && user?.id) {
+      const { data: fallbackStore } = await supabase
+        .from('profile_stores')
+        .select('store_id, is_default_store')
+        .eq('profile_id', user.id)
+        .order('is_default_store', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      resolvedStoreId = fallbackStore?.store_id || null;
+    }
+
+    if (!resolvedStoreId) {
+      setCashiers([]);
+      setAllocations([]);
+      setMembershipCashierIds([]);
       return;
     }
-    setStoreId(storeData);
+    setStoreId(resolvedStoreId);
 
     const [cashierRes, allocationRes] = await Promise.all([
       supabase
         .from('profile_stores')
-        .select('profile_id, profiles!inner(id, full_name, email)')
-        .eq('store_id', storeData)
+        .select('profile_id')
+        .eq('store_id', resolvedStoreId)
         .eq('role_in_store', 'cashier'),
       supabase
         .from('cashier_stock_allocations')
         .select('id, cashier_id, product_id, assigned_qty, sold_qty, is_active')
-        .eq('store_id', storeData)
+        .eq('store_id', resolvedStoreId)
         .eq('is_active', true)
         .order('updated_at', { ascending: false }),
     ]);
 
     if (!cashierRes.error) {
-      type CashierJoinRow = {
-        profiles: { id: string; full_name: string; email: string };
-      };
-      const mapped = ((cashierRes.data || []) as CashierJoinRow[]).map((row) => ({
-        id: row.profiles.id,
-        full_name: row.profiles.full_name,
-        email: row.profiles.email,
-      }));
+      const cashierIds = Array.from(new Set((cashierRes.data || []).map((row) => row.profile_id)));
+      setMembershipCashierIds(cashierIds);
+      let mapped: Array<{ id: string; full_name: string; email: string }> = [];
+
+      if (cashierIds.length > 0) {
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('id, full_name, email')
+          .in('id', cashierIds);
+
+        if (profileData && profileData.length > 0) {
+          mapped = profileData.map((p) => ({
+            id: p.id,
+            full_name: p.full_name,
+            email: p.email,
+          }));
+        } else {
+          // If profile rows are not readable by policy, still show selectable IDs.
+          mapped = cashierIds.map((id) => ({
+            id,
+            full_name: id,
+            email: '',
+          }));
+        }
+      }
+
       setCashiers(mapped);
     }
 
     if (!allocationRes.error) {
       setAllocations(allocationRes.data || []);
     }
-  }, [canManageCashierStock]);
+  }, [canManageCashierStock, user?.id]);
 
   useEffect(() => {
     void loadCashierData();
@@ -273,6 +355,23 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
 
     toast.success('Cashier stock assigned');
     setAssignedQty('');
+    loadCashierData();
+  };
+
+  const handleReturnAllocation = async (allocationId: string) => {
+    setIsAssigning(true);
+    const { error } = await supabase
+      .from('cashier_stock_allocations')
+      .update({ is_active: false })
+      .eq('id', allocationId);
+    setIsAssigning(false);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    toast.success('Allocation returned to store pool');
     loadCashierData();
   };
 
@@ -431,14 +530,78 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                           <span>
                             {(cashier?.full_name || cashier?.email || a.cashier_id)} - {product?.name || a.product_id}
                           </span>
-                          <span className="text-muted-foreground">
-                            Assigned {a.assigned_qty} | Sold {a.sold_qty} | Remaining {remaining}
-                          </span>
+                          <div className="flex items-center gap-3">
+                            <span className="text-muted-foreground">
+                              Assigned {a.assigned_qty} | Sold {a.sold_qty} | Remaining {remaining}
+                            </span>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={isAssigning}
+                              onClick={() => handleReturnAllocation(a.id)}
+                            >
+                              Return
+                            </Button>
+                          </div>
                         </div>
                       );
                     })
                   )}
                 </div>
+
+                <div className="rounded border border-dashed p-3 text-xs text-muted-foreground">
+                  <p className="font-semibold text-foreground mb-1">Debug</p>
+                  <p>Resolved Store ID: {storeId || 'null'}</p>
+                  <p>Cashier IDs from profile_stores: {membershipCashierIds.length}</p>
+                  <p className="break-all">
+                    {membershipCashierIds.length > 0 ? membershipCashierIds.join(', ') : 'none'}
+                  </p>
+                  <p className="mt-1">Cashiers loaded in dropdown: {cashiers.length}</p>
+                  <p className="break-all">
+                    {cashiers.length > 0 ? cashiers.map((c) => c.id).join(', ') : 'none'}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {canManageCashierStock && (
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle>Per-Cashier Inventory Report</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {cashierReport.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No cashier inventory data yet.</p>
+                ) : (
+                  cashierReport.map((entry) => (
+                    <div key={`${entry.cashierName}-${entry.cashierEmail}`} className="rounded-md border p-3">
+                      <div className="flex items-center justify-between gap-3 mb-2">
+                        <div>
+                          <p className="text-sm font-semibold">{entry.cashierName}</p>
+                          {entry.cashierEmail && (
+                            <p className="text-xs text-muted-foreground">{entry.cashierEmail}</p>
+                          )}
+                        </div>
+                        <div className="text-xs text-muted-foreground text-right">
+                          <p>Assigned: {entry.assigned}</p>
+                          <p>Sold: {entry.sold}</p>
+                          <p className="font-semibold text-foreground">Remaining: {entry.remaining}</p>
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        {entry.lines.map((line) => (
+                          <div key={line.allocationId} className="text-xs flex items-center justify-between">
+                            <span className="text-muted-foreground">{line.productName}</span>
+                            <span className="text-muted-foreground">
+                              {line.assigned} / {line.sold} / {line.remaining}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))
+                )}
               </CardContent>
             </Card>
           )}
