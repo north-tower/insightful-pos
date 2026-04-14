@@ -86,6 +86,32 @@ export function InvoiceDialog({
               -webkit-print-color-adjust: exact;
               print-color-adjust: exact;
             }
+            ${!isInvoice ? `
+              body {
+                width: 58mm;
+                max-width: 58mm;
+                padding: 2mm;
+                margin: 0 auto;
+                font-size: 11px;
+                line-height: 1.25;
+              }
+              .receipt-content, .receipt-content * {
+                box-sizing: border-box;
+              }
+              .receipt-content {
+                width: 54mm;
+                max-width: 54mm;
+                margin: 0 auto;
+              }
+              .receipt-content img {
+                max-width: 100%;
+                height: auto;
+              }
+              .receipt-content .break-words {
+                word-break: break-word;
+                overflow-wrap: anywhere;
+              }
+            ` : ''}
             /* Force desktop layout for print */
             .hidden.sm\\:block { display: block !important; }
             .sm\\:hidden { display: none !important; }
@@ -118,7 +144,7 @@ export function InvoiceDialog({
             @media print {
               body { margin: 0; }
               @page {
-                ${isInvoice ? 'size: A4; margin: 15mm;' : 'size: auto; margin: 0;'}
+                ${isInvoice ? 'size: A4; margin: 15mm;' : 'size: 58mm auto; margin: 0;'}
               }
             }
           </style>

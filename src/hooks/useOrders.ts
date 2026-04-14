@@ -290,16 +290,23 @@ export function useOrders() {
           : 'unpaid';
 
       try {
+        const { data: currentStoreId, error: currentStoreErr } = await supabase.rpc('current_store_id');
+        if (currentStoreErr) throw currentStoreErr;
+
         // 1. Get next order number via RPC
         const { data: orderNumData, error: orderNumErr } = await supabase.rpc(
           'generate_order_number',
-          { p_business_mode: mode },
+          { p_business_mode: mode, p_store_id: currentStoreId },
         );
         if (orderNumErr) throw orderNumErr;
         const orderNumber = orderNumData as string;
 
         // Generate invoice number
-        const { data: invNumData } = await supabase.rpc('generate_invoice_number');
+        const { data: invNumData, error: invNumErr } = await supabase.rpc(
+          'generate_invoice_number',
+          { p_store_id: currentStoreId },
+        );
+        if (invNumErr) throw invNumErr;
         const invoiceNumber = (invNumData as string) || orderNumber;
 
         // 2. Insert order

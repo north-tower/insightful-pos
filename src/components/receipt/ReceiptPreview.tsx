@@ -29,23 +29,23 @@ export function ReceiptPreview({
   const { settings: company } = useCompanySettings();
 
   const renderCompact = () => (
-    <div className="space-y-3 text-sm">
+    <div className="space-y-2 text-[12px] leading-tight thermal-58">
       {/* Header */}
-      <div className="text-center border-b pb-3">
-        <h2 className="font-bold text-lg">{company.fullName}</h2>
-        <p className="text-xs text-muted-foreground">{company.address}</p>
-        <p className="text-xs text-muted-foreground">{company.city}</p>
+      <div className="text-center border-b border-dashed pb-2">
+        <h2 className="font-bold text-base">{company.fullName}</h2>
+        <p className="text-[10px] text-muted-foreground">{company.address}</p>
+        <p className="text-[10px] text-muted-foreground">{company.city}</p>
       </div>
 
       {/* Order Info */}
-      <div className="space-y-1">
+      <div className="space-y-0.5">
         <div className="flex justify-between">
           <span className="text-muted-foreground">Order:</span>
           <span className="font-semibold">#{receiptData.orderNumber}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-muted-foreground">Date:</span>
-          <span>{format(receiptData.date, 'MMM dd, yyyy HH:mm')}</span>
+          <span>{format(receiptData.date, 'dd/MM/yy HH:mm')}</span>
         </div>
         {receiptData.tableNumber && (
           <div className="flex justify-between">
@@ -56,25 +56,25 @@ export function ReceiptPreview({
       </div>
 
       {/* Items */}
-      <div className="border-t pt-2 space-y-1">
+      <div className="border-t border-dashed pt-2 space-y-1">
         {receiptData.items.map((item, index) => (
-          <div key={index} className="flex justify-between text-xs">
+          <div key={index} className="flex justify-between gap-2 text-[11px]">
             <div className="flex-1">
               <div className="flex items-center gap-2">
                 <span>{item.quantity}x</span>
-                <span className="font-medium">{item.name}</span>
+                <span className="font-medium break-words">{item.name}</span>
               </div>
               {item.notes && (
-                <p className="text-muted-foreground ml-4 italic">Note: {item.notes}</p>
+                <p className="text-muted-foreground ml-4 italic break-words">Note: {item.notes}</p>
               )}
             </div>
-            <span className="font-medium">{fc(item.price * item.quantity)}</span>
+            <span className="font-medium tabular-nums shrink-0">{fc(item.price * item.quantity)}</span>
           </div>
         ))}
       </div>
 
       {/* Totals */}
-      <div className="border-t pt-2 space-y-1">
+      <div className="border-t border-dashed pt-2 space-y-1">
         <div className="flex justify-between">
           <span>Subtotal:</span>
           <span>{fc(receiptData.subtotal)}</span>
@@ -85,14 +85,14 @@ export function ReceiptPreview({
             <span>-{fc(receiptData.discount)}</span>
           </div>
         )}
-        <div className="flex justify-between font-bold text-lg border-t pt-1">
+        <div className="flex justify-between font-bold text-base border-t border-dashed pt-1">
           <span>Total:</span>
           <span>{fc(receiptData.total)}</span>
         </div>
       </div>
 
       {/* Payment */}
-      <div className="border-t pt-2">
+      <div className="border-t border-dashed pt-2">
         <div className="flex justify-between text-xs">
           <span className="text-muted-foreground">Payment:</span>
           <span className="capitalize">{receiptData.paymentMethod}</span>

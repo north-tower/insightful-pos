@@ -94,7 +94,6 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
   const [selectedProductId, setSelectedProductId] = useState('');
   const [assignedQty, setAssignedQty] = useState('');
   const [isAssigning, setIsAssigning] = useState(false);
-  const [membershipCashierIds, setMembershipCashierIds] = useState<string[]>([]);
   const canManageCashierStock = user?.role === 'admin' || user?.role === 'manager';
   const cashierReport = useMemo(() => {
     const grouped = new Map<string, {
@@ -109,6 +108,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
         assigned: number;
         sold: number;
         remaining: number;
+        isActive: boolean;
       }>;
     }>();
 
@@ -135,6 +135,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
         assigned: a.assigned_qty,
         sold: a.sold_qty,
         remaining,
+        isActive: a.is_active,
       });
 
       grouped.set(key, current);
@@ -163,7 +164,6 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
     if (!resolvedStoreId) {
       setCashiers([]);
       setAllocations([]);
-      setMembershipCashierIds([]);
       return;
     }
     setStoreId(resolvedStoreId);
@@ -178,13 +178,11 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
         .from('cashier_stock_allocations')
         .select('id, cashier_id, product_id, assigned_qty, sold_qty, is_active')
         .eq('store_id', resolvedStoreId)
-        .eq('is_active', true)
         .order('updated_at', { ascending: false }),
     ]);
 
     if (!cashierRes.error) {
       const cashierIds = Array.from(new Set((cashierRes.data || []).map((row) => row.profile_id)));
-      setMembershipCashierIds(cashierIds);
       let mapped: Array<{ id: string; full_name: string; email: string }> = [];
 
       if (cashierIds.length > 0) {
@@ -543,10 +541,10 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                             <Button
                               size="sm"
                               variant="outline"
-                              disabled={isAssigning}
+                              disabled={isAssigning || !a.is_active}
                               onClick={() => handleReturnAllocation(a.id)}
                             >
-                              Return
+                              {a.is_active ? 'Return' : 'Returned'}
                             </Button>
                           </div>
                         </div>
@@ -555,18 +553,6 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                   )}
                 </div>
 
-                <div className="rounded border border-dashed p-3 text-xs text-muted-foreground">
-                  <p className="font-semibold text-foreground mb-1">Debug</p>
-                  <p>Resolved Store ID: {storeId || 'null'}</p>
-                  <p>Cashier IDs from profile_stores: {membershipCashierIds.length}</p>
-                  <p className="break-all">
-                    {membershipCashierIds.length > 0 ? membershipCashierIds.join(', ') : 'none'}
-                  </p>
-                  <p className="mt-1">Cashiers loaded in dropdown: {cashiers.length}</p>
-                  <p className="break-all">
-                    {cashiers.length > 0 ? cashiers.map((c) => c.id).join(', ') : 'none'}
-                  </p>
-                </div>
               </CardContent>
             </Card>
           )}
@@ -601,6 +587,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                             <span className="text-muted-foreground">{line.productName}</span>
                             <span className="text-muted-foreground">
                               {line.assigned} / {line.sold} / {line.remaining}
+                              {!line.isActive ? ' (returned)' : ''}
                             </span>
                           </div>
                         ))}

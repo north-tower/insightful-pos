@@ -9,13 +9,11 @@ CREATE POLICY "Managers can view store member profiles"
   ON public.profiles FOR SELECT
   TO authenticated
   USING (
-    EXISTS (
+    public.get_my_role() IN ('admin', 'manager')
+    AND EXISTS (
       SELECT 1
       FROM public.profile_stores target_ps
-      JOIN public.profile_stores actor_ps
-        ON actor_ps.store_id = target_ps.store_id
       WHERE target_ps.profile_id = profiles.id
-        AND actor_ps.profile_id = auth.uid()
-        AND actor_ps.role_in_store IN ('admin', 'manager')
+        AND public.user_can_access_store(target_ps.store_id)
     )
   );
