@@ -152,6 +152,32 @@ export function InvoiceDialog({
       </html>
     `;
 
+    const isAndroidChrome =
+      /Android/i.test(navigator.userAgent) &&
+      /Chrome/i.test(navigator.userAgent) &&
+      !/Edg|OPR|SamsungBrowser/i.test(navigator.userAgent);
+
+    // Android Chrome (especially installed app/PWA) can ignore direct print calls.
+    // Use a dedicated printable tab and avoid auto-close.
+    if (isAndroidChrome) {
+      const androidHtml = html.replace(
+        '</body>',
+        `<script>
+          window.addEventListener('load', function () {
+            setTimeout(function () { try { window.print(); } catch (e) {} }, 700);
+          });
+        </script></body>`,
+      );
+      const blob = new Blob([androidHtml], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const w = window.open(url, '_blank');
+      if (!w) {
+        window.location.href = url;
+        return;
+      }
+      return;
+    }
+
     const printWindow = window.open('', '_blank');
     if (printWindow) {
       printWindow.document.write(html);
