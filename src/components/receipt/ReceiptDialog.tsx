@@ -55,7 +55,7 @@ export function ReceiptDialog({ open, onOpenChange, receiptData, defaultTemplate
               -webkit-print-color-adjust: exact;
               print-color-adjust: exact;
             }
-            .receipt-content, .receipt-content * {
+            body, body * {
               color: #000 !important;
               border-color: #000 !important;
               text-shadow: none !important;

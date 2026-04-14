@@ -92,13 +92,13 @@ export function InvoiceDialog({
                 font-size: 12px;
                 line-height: 1.35;
               }
-              .receipt-content, .receipt-content * {
+              body, body * {
                 box-sizing: border-box;
                 color: #000 !important;
                 border-color: #000 !important;
                 text-shadow: none !important;
               }
-              .receipt-content {
+              body {
                 width: 54mm;
                 max-width: 54mm;
                 margin: 0 auto;
@@ -106,26 +106,26 @@ export function InvoiceDialog({
                 font-size: 12px;
                 line-height: 1.35;
               }
-              .receipt-content img {
+              body img {
                 max-width: 100%;
                 height: auto;
               }
-              .receipt-content .text-muted-foreground,
-              .receipt-content .text-gray-400,
-              .receipt-content .text-gray-500,
-              .receipt-content .text-gray-600 {
+              body .text-muted-foreground,
+              body .text-gray-400,
+              body .text-gray-500,
+              body .text-gray-600 {
                 color: #000 !important;
               }
-              .receipt-content .text-lg,
-              .receipt-content .text-xl {
+              body .text-lg,
+              body .text-xl {
                 font-size: 16px !important;
                 font-weight: 800 !important;
               }
-              .receipt-content .font-bold,
-              .receipt-content .font-semibold {
+              body .font-bold,
+              body .font-semibold {
                 font-weight: 700 !important;
               }
-              .receipt-content .break-words {
+              body .break-words {
                 word-break: break-word;
                 overflow-wrap: anywhere;
               }

@@ -33,23 +33,23 @@ export function ReceiptPreview({
       {/* Header */}
       <div className="text-center border-b border-dashed pb-2">
         <h2 className="font-bold text-base">{company.fullName}</h2>
-        <p className="text-[10px] text-muted-foreground">{company.address}</p>
-        <p className="text-[10px] text-muted-foreground">{company.city}</p>
+        <p className="text-[10px] text-black">{company.address}</p>
+        <p className="text-[10px] text-black">{company.city}</p>
       </div>
 
       {/* Order Info */}
       <div className="space-y-0.5">
         <div className="flex justify-between">
-          <span className="text-muted-foreground">Order:</span>
+          <span className="text-black">Order:</span>
           <span className="font-semibold">#{receiptData.orderNumber}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-muted-foreground">Date:</span>
+          <span className="text-black">Date:</span>
           <span>{format(receiptData.date, 'dd/MM/yy HH:mm')}</span>
         </div>
         {receiptData.tableNumber && (
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Table:</span>
+            <span className="text-black">Table:</span>
             <span>#{receiptData.tableNumber}</span>
           </div>
         )}
@@ -65,7 +65,7 @@ export function ReceiptPreview({
                 <span className="font-medium break-words">{item.name}</span>
               </div>
               {item.notes && (
-                <p className="text-muted-foreground ml-4 italic break-words">Note: {item.notes}</p>
+                <p className="text-black ml-4 italic break-words">Note: {item.notes}</p>
               )}
             </div>
             <span className="font-medium tabular-nums shrink-0">{fc(item.price * item.quantity)}</span>
@@ -94,7 +94,7 @@ export function ReceiptPreview({
       {/* Payment */}
       <div className="border-t border-dashed pt-2">
         <div className="flex justify-between text-xs">
-          <span className="text-muted-foreground">Payment:</span>
+          <span className="text-black">Payment:</span>
           <span className="capitalize">{receiptData.paymentMethod}</span>
         </div>
       </div>
@@ -212,7 +212,7 @@ export function ReceiptPreview({
       </div>
 
       {/* Footer */}
-      <div className="border-t pt-3 text-center text-xs text-muted-foreground">
+      <div className="border-t pt-3 text-center text-xs text-black">
         <p>Thank you for dining with us!</p>
         {company.tax_id && <p className="mt-1">Tax ID: {company.tax_id}</p>}
       </div>
