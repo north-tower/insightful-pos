@@ -218,8 +218,7 @@ export function ReceiptPreview({
 
       {/* Footer */}
       <div className="border-t pt-3 text-center text-xs text-black">
-        <p>Thank you for dining with us!</p>
-        {company.tax_id && <p className="mt-1">Tax ID: {company.tax_id}</p>}
+        <p>Thank you for your business!</p>
       </div>
     </div>
   );
