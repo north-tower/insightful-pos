@@ -10,6 +10,42 @@ import { SaleOrder } from '@/hooks/useOrders';
 
 const APP_SIGNATURE = 'Generated from Insightful POS.';
 const OWNER_PHONE = '0729690592';
+const MAIN_STORE_CODE = 'main';
+
+let canSendSmsInCurrentStorePromise: Promise<boolean> | null = null;
+
+async function canSendSmsInCurrentStore(): Promise<boolean> {
+  if (!canSendSmsInCurrentStorePromise) {
+    canSendSmsInCurrentStorePromise = (async () => {
+      try {
+        const { data: currentStoreId, error: currentStoreErr } = await supabase.rpc('current_store_id');
+        if (currentStoreErr) {
+          console.error('Failed to resolve current store for SMS:', currentStoreErr);
+          return false;
+        }
+        if (!currentStoreId) return false;
+
+        const { data: storeData, error: storeErr } = await supabase
+          .from('stores')
+          .select('code')
+          .eq('id', currentStoreId)
+          .maybeSingle();
+
+        if (storeErr) {
+          console.error('Failed to load store metadata for SMS:', storeErr);
+          return false;
+        }
+
+        return (storeData?.code || '').toLowerCase() === MAIN_STORE_CODE;
+      } catch (err) {
+        console.error('SMS store scope check failed:', err);
+        return false;
+      }
+    })();
+  }
+
+  return canSendSmsInCurrentStorePromise;
+}
 
 function buildOrderItemsSummary(order: SaleOrder): string {
   if (!order.items || order.items.length === 0) return '';
@@ -29,6 +65,9 @@ function buildOrderItemsSummary(order: SaleOrder): string {
 
 async function sendSms(mobile: string, message: string): Promise<void> {
   try {
+    const canSend = await canSendSmsInCurrentStore();
+    if (!canSend) return;
+
     const { error } = await supabase.functions.invoke('send-sms', {
       body: { mobile, message },
     });
