@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useBusinessMode } from '@/context/BusinessModeContext';
 import { useAuth } from '@/context/AuthContext';
+import { getCachedSnapshot, setCachedSnapshot } from '@/lib/offline/cache';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -133,11 +134,29 @@ export function useOrders() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const offlineCacheKey = useMemo(() => `snapshot:orders:${mode}`, [mode]);
+
+  const loadFromOfflineCache = useCallback(async (): Promise<SaleOrder[]> => {
+    const cached = await getCachedSnapshot<SaleOrder[]>(offlineCacheKey);
+    if (!cached) return [];
+    setOrders(cached);
+    return cached;
+  }, [offlineCacheKey]);
+
   // ── Fetch orders ────────────────────────────────────────────────────────
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
     setError(null);
+
+    const cached = await loadFromOfflineCache();
+    const hasCache = cached.length > 0;
+    if (hasCache) setLoading(false);
+
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      if (!hasCache) setError('Offline and no cached orders available yet');
+      return;
+    }
 
     try {
       const { data: orderData, error: orderErr } = await supabase
@@ -242,13 +261,14 @@ export function useOrders() {
       }));
 
       setOrders(saleOrders);
+      await setCachedSnapshot<SaleOrder[]>(offlineCacheKey, saleOrders);
     } catch (err: any) {
       console.error('Failed to fetch orders:', err);
-      setError(err.message || 'Failed to load orders');
+      if (!hasCache) setError(err.message || 'Failed to load orders');
     } finally {
       setLoading(false);
     }
-  }, [mode]);
+  }, [mode, loadFromOfflineCache, offlineCacheKey]);
 
   useEffect(() => {
     fetchOrders();

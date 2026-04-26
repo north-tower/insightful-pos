@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useBusinessMode } from '@/context/BusinessModeContext';
+import { getCachedSnapshot, setCachedSnapshot } from '@/lib/offline/cache';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -53,9 +54,27 @@ export function useCustomers() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const offlineCacheKey = useMemo(() => `snapshot:customers:${mode}`, [mode]);
+
+  const loadFromOfflineCache = useCallback(async (): Promise<Customer[]> => {
+    const cached = await getCachedSnapshot<Customer[]>(offlineCacheKey);
+    if (!cached) return [];
+    setCustomers(cached);
+    return cached;
+  }, [offlineCacheKey]);
+
   const fetchCustomers = useCallback(async (): Promise<Customer[]> => {
     setLoading(true);
     setError(null);
+
+    const cached = await loadFromOfflineCache();
+    const hasCache = cached.length > 0;
+    if (hasCache) setLoading(false);
+
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      if (!hasCache) setError('Offline and no cached customers available yet');
+      return cached;
+    }
 
     try {
       const { data, error: fetchErr } = await supabase
@@ -75,15 +94,16 @@ export function useCustomers() {
         tags: c.tags || [],
       }));
       setCustomers(mapped);
+      await setCachedSnapshot<Customer[]>(offlineCacheKey, mapped);
       return mapped;
     } catch (err: any) {
       console.error('Failed to fetch customers:', err);
-      setError(err.message || 'Failed to load customers');
-      return [];
+      if (!hasCache) setError(err.message || 'Failed to load customers');
+      return cached;
     } finally {
       setLoading(false);
     }
-  }, [mode]);
+  }, [mode, loadFromOfflineCache, offlineCacheKey]);
 
   useEffect(() => {
     fetchCustomers();

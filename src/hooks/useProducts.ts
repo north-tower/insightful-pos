@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useBusinessMode } from '@/context/BusinessModeContext';
 import { useAuth } from '@/context/AuthContext';
+import { getCachedSnapshot, setCachedSnapshot } from '@/lib/offline/cache';
 
 // ── Re-export types consumers already rely on ────────────────────────────────
 import type { MenuItem, Category } from '@/data/menuData';
@@ -57,6 +58,13 @@ interface CashierAllocationRow {
   product_id: string;
   assigned_qty: number;
   sold_qty: number;
+}
+
+interface ProductsOfflineSnapshot {
+  categories: SupabaseCategory[];
+  products: SupabaseProduct[];
+  variants: SupabaseVariant[];
+  cashierAllocations: CashierAllocationRow[];
 }
 
 // ─── Transform helpers ───────────────────────────────────────────────────────
@@ -124,11 +132,34 @@ export function useProducts() {
   const [supaVariants, setSupaVariants] = useState<SupabaseVariant[]>([]);
   const [cashierAllocations, setCashierAllocations] = useState<CashierAllocationRow[]>([]);
 
+  const offlineCacheKey = useMemo(
+    () => `snapshot:products:${mode}:${user?.id || 'anon'}:${user?.role || 'unknown'}`,
+    [mode, user?.id, user?.role],
+  );
+
+  const loadFromOfflineCache = useCallback(async (): Promise<boolean> => {
+    const cached = await getCachedSnapshot<ProductsOfflineSnapshot>(offlineCacheKey);
+    if (!cached) return false;
+    setSupaCategories(cached.categories || []);
+    setSupaProducts(cached.products || []);
+    setSupaVariants(cached.variants || []);
+    setCashierAllocations(cached.cashierAllocations || []);
+    return true;
+  }, [offlineCacheKey]);
+
   // ── Fetch ──────────────────────────────────────────────────────────────
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
+
+    const hadCache = await loadFromOfflineCache();
+    if (hadCache) setLoading(false);
+
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      if (!hadCache) setError('Offline and no cached products available yet');
+      return;
+    }
 
     try {
       // Categories
@@ -181,13 +212,22 @@ export function useProducts() {
       setSupaProducts(prodData || []);
       setSupaVariants(variantData);
       setCashierAllocations(allocationData);
+
+      await setCachedSnapshot<ProductsOfflineSnapshot>(offlineCacheKey, {
+        categories: catData || [],
+        products: prodData || [],
+        variants: variantData,
+        cashierAllocations: allocationData,
+      });
     } catch (err: any) {
       console.error('Failed to fetch products:', err);
-      setError(err.message || 'Failed to load products');
+      if (!hadCache) {
+        setError(err.message || 'Failed to load products');
+      }
     } finally {
       setLoading(false);
     }
-  }, [mode, user?.id, user?.role]);
+  }, [mode, user?.id, user?.role, loadFromOfflineCache, offlineCacheKey]);
 
   useEffect(() => {
     fetchData();
