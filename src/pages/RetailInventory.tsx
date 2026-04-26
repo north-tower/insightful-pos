@@ -382,7 +382,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
     const totalProducts = retailProducts.length;
     const totalUnits = retailProducts.reduce((sum, p) => sum + getMainStock(p), 0);
     const totalValue = retailProducts.reduce(
-      (sum, p) => sum + p.cost * getMainStock(p),
+      (sum, p) => sum + p.price * getMainStock(p),
       0
     );
     const inStock = retailProducts.filter((p) => getMainStock(p) > 0);
