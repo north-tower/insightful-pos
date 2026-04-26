@@ -34,6 +34,7 @@ import { fc } from '@/lib/currency';
 import { useCompanySettings } from '@/context/BusinessSettingsContext';
 import { notifyAccountPaymentReceived } from '@/lib/sendSms';
 import { supabase } from '@/lib/supabase';
+import { useBusinessMode } from '@/context/BusinessModeContext';
 
 interface OrderHistoryProps {
   onNavigate: (tab: string) => void;
@@ -107,8 +108,9 @@ function orderToReceiptData(order: SaleOrder): ReceiptData {
 }
 
 export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
+  const { mode } = useBusinessMode();
   const { orders, loading, voidOrder, refundOrder, updatePayment, deletePayment, todaysOrders, todaysRevenue, getOrderBalanceDue } = useOrders();
-  const { customers, getCustomerById, makePaymentOnAccount, totalOutstanding } = useCustomers();
+  const { customers, getCustomerById, makePaymentOnAccount } = useCustomers();
   const { companyName, settings } = useCompanySettings();
   const smsShopName = settings.fullName || settings.name || companyName;
   const [searchQuery, setSearchQuery] = useState('');
@@ -141,9 +143,23 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
   const [isTopPaySaving, setIsTopPaySaving] = useState(false);
   const [accountPayments, setAccountPayments] = useState<CustomerAccountPayment[]>([]);
   const [accountPaymentsLoading, setAccountPaymentsLoading] = useState(false);
+  const [reportFromDate, setReportFromDate] = useState(
+    () => new Date(new Date().setDate(new Date().getDate() - 7)).toISOString().slice(0, 10),
+  );
+  const [reportToDate, setReportToDate] = useState(
+    () => new Date().toISOString().slice(0, 10),
+  );
+  const [reportOrders, setReportOrders] = useState<SaleOrder[] | null>(null);
+  const [isReportLoading, setIsReportLoading] = useState(false);
+  const [isReportMode, setIsReportMode] = useState(false);
+
+  const sourceOrders = useMemo(
+    () => (isReportMode && reportOrders ? reportOrders : orders),
+    [isReportMode, reportOrders, orders],
+  );
 
   const filteredOrders = useMemo(() => {
-    let result = orders;
+    let result = sourceOrders;
 
     if (statusFilter !== 'all') {
       result = result.filter((o) => o.status === statusFilter);
@@ -165,7 +181,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
     }
 
     return result;
-  }, [orders, searchQuery, statusFilter, saleTypeFilter]);
+  }, [sourceOrders, searchQuery, statusFilter, saleTypeFilter]);
 
   // Reset to page 1 when filters change
   useEffect(() => {
@@ -182,16 +198,27 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
   // Computed stats — use getOrderBalanceDue for single source of truth
   const unpaidCreditOrders = useMemo(
     () =>
-      orders.filter(
+      sourceOrders.filter(
         (o) =>
           o.sale_type === 'credit' &&
           (o.payment_status === 'unpaid' || o.payment_status === 'partial') &&
           o.status !== 'voided' &&
           o.status !== 'cancelled',
       ),
-    [orders],
+    [sourceOrders],
   );
-  const totalCreditBalance = totalOutstanding;
+  const totalCreditBalance = useMemo(
+    () =>
+      unpaidCreditOrders.reduce((sum, o) => {
+        const paid = o.payments.reduce((s, p) => s + p.amount, 0);
+        return sum + Math.max(o.total - paid, 0);
+      }, 0),
+    [unpaidCreditOrders],
+  );
+  const salesInView = useMemo(
+    () => sourceOrders.reduce((sum, o) => sum + o.total, 0),
+    [sourceOrders],
+  );
 
   const handleViewOrder = (order: SaleOrder) => {
     setSelectedOrder(order);
@@ -397,6 +424,134 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
     }
   };
 
+  const fetchSalesReport = async () => {
+    if (!reportFromDate || !reportToDate) {
+      toast.error('Select both from and to dates');
+      return;
+    }
+    if (reportFromDate > reportToDate) {
+      toast.error('From date cannot be after To date');
+      return;
+    }
+
+    setIsReportLoading(true);
+    try {
+      const fromIso = new Date(`${reportFromDate}T00:00:00`).toISOString();
+      const toIso = new Date(`${reportToDate}T23:59:59`).toISOString();
+
+      const { data: orderData, error: orderErr } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('business_mode', mode)
+        .gte('created_at', fromIso)
+        .lte('created_at', toIso)
+        .order('created_at', { ascending: false })
+        .limit(2000);
+
+      if (orderErr) throw orderErr;
+
+      if (!orderData || orderData.length === 0) {
+        setReportOrders([]);
+        setIsReportMode(true);
+        setCurrentPage(1);
+        toast.success('No sales found in selected timeframe');
+        return;
+      }
+
+      const orderIds = orderData.map((o: any) => o.id);
+      const [{ data: itemsData, error: itemsErr }, { data: paymentsData, error: paymentsErr }] =
+        await Promise.all([
+          supabase.from('order_items').select('*').in('order_id', orderIds),
+          supabase.from('payments').select('*').in('order_id', orderIds),
+        ]);
+
+      if (itemsErr) throw itemsErr;
+      if (paymentsErr) throw paymentsErr;
+
+      const itemsByOrder = new Map<string, any[]>();
+      (itemsData || []).forEach((item: any) => {
+        const list = itemsByOrder.get(item.order_id) || [];
+        list.push(item);
+        itemsByOrder.set(item.order_id, list);
+      });
+
+      const paymentsByOrder = new Map<string, any[]>();
+      (paymentsData || []).forEach((payment: any) => {
+        const list = paymentsByOrder.get(payment.order_id) || [];
+        list.push(payment);
+        paymentsByOrder.set(payment.order_id, list);
+      });
+
+      const mappedOrders: SaleOrder[] = orderData.map((o: any) => ({
+        id: o.id,
+        order_number: o.order_number,
+        business_mode: o.business_mode,
+        order_type: o.order_type,
+        source: o.source,
+        sale_type: o.sale_type || 'cash',
+        customer_id: o.customer_id,
+        customer_name: o.customer_name,
+        customer_email: o.customer_email,
+        customer_phone: o.customer_phone,
+        table_number: o.table_number,
+        invoice_number: o.invoice_number,
+        due_date: o.due_date,
+        consignment_info: o.consignment_info,
+        subtotal: Number(o.subtotal),
+        tax_rate: Number(o.tax_rate),
+        tax_amount: Number(o.tax_amount),
+        discount_amount: Number(o.discount_amount),
+        total: Number(o.total),
+        status: o.status,
+        payment_status: o.payment_status,
+        notes: o.notes,
+        staff_id: o.staff_id,
+        staff_name: o.staff_name,
+        created_at: o.created_at,
+        completed_at: o.completed_at,
+        items: (itemsByOrder.get(o.id) || []).map((item: any) => ({
+          id: item.id,
+          order_id: item.order_id,
+          product_id: item.product_id,
+          product_name: item.product_name,
+          product_image: item.product_image,
+          unit_price: Number(item.unit_price),
+          quantity: item.quantity,
+          line_total: Number(item.line_total),
+          discount: Number(item.discount || 0),
+          modifiers: item.modifiers || [],
+          notes: item.notes,
+          sku: item.sku,
+          barcode: item.barcode,
+        })),
+        payments: (paymentsByOrder.get(o.id) || []).map((p: any) => ({
+          id: p.id,
+          order_id: p.order_id,
+          method: p.method,
+          amount: Number(p.amount),
+          reference: p.reference,
+          description: p.description,
+          paid_at: p.paid_at,
+        })),
+      }));
+
+      setReportOrders(mappedOrders);
+      setIsReportMode(true);
+      setCurrentPage(1);
+      toast.success(`Fetched ${mappedOrders.length} sales for selected timeframe`);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to fetch sales report');
+    } finally {
+      setIsReportLoading(false);
+    }
+  };
+
+  const clearSalesReport = () => {
+    setIsReportMode(false);
+    setReportOrders(null);
+    setCurrentPage(1);
+  };
+
   return (
     <PageLayout activeTab="order-history" onNavigate={onNavigate}>
           {/* Page Header with Stats */}
@@ -422,8 +577,12 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                   <ShoppingBag className="w-5 h-5 text-primary" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Today's Orders</p>
-                  <p className="text-xl font-bold">{todaysOrders.length}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {isReportMode ? 'Orders in Range' : "Today's Orders"}
+                  </p>
+                  <p className="text-xl font-bold">
+                    {isReportMode ? sourceOrders.length : todaysOrders.length}
+                  </p>
                 </div>
               </CardContent>
             </Card>
@@ -433,8 +592,10 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                   <DollarSign className="w-5 h-5 text-success" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Today's Revenue</p>
-                  <p className="text-xl font-bold">{fc(todaysRevenue)}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {isReportMode ? 'Revenue in Range' : "Today's Revenue"}
+                  </p>
+                  <p className="text-xl font-bold">{fc(isReportMode ? salesInView : todaysRevenue)}</p>
                 </div>
               </CardContent>
             </Card>
@@ -456,7 +617,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Total Orders</p>
-                  <p className="text-xl font-bold">{orders.length}</p>
+                  <p className="text-xl font-bold">{sourceOrders.length}</p>
                 </div>
               </CardContent>
             </Card>
@@ -464,6 +625,59 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
 
           {/* Search & Filters */}
           <div className="mb-6 space-y-3">
+            <Card>
+              <CardContent className="p-4 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold">Sales Report Timeframe</h3>
+                  {isReportMode && (
+                    <Badge variant="outline" className="text-info border-info/30">
+                      Report mode
+                    </Badge>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="report-from">From</Label>
+                    <Input
+                      id="report-from"
+                      type="date"
+                      value={reportFromDate}
+                      onChange={(e) => setReportFromDate(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="report-to">To</Label>
+                    <Input
+                      id="report-to"
+                      type="date"
+                      value={reportToDate}
+                      onChange={(e) => setReportToDate(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <Button
+                      className="w-full"
+                      onClick={fetchSalesReport}
+                      disabled={isReportLoading}
+                    >
+                      {isReportLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                      Fetch Report
+                    </Button>
+                  </div>
+                  <div className="flex items-end">
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={clearSalesReport}
+                      disabled={!isReportMode}
+                    >
+                      Clear Report
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
               <div className="relative flex-1 sm:max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -511,14 +725,14 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
           </div>
 
           {/* Loading */}
-          {loading && (
+          {(loading || isReportLoading) && (
             <div className="flex items-center justify-center py-16">
               <Loader2 className="w-8 h-8 animate-spin text-primary" />
             </div>
           )}
 
           {/* Orders List */}
-          {!loading && (
+          {!loading && !isReportLoading && (
           <div className="space-y-4">
               {filteredOrders.length === 0 && !loading && (
                 <div className="text-center py-16 text-muted-foreground">

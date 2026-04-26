@@ -4,6 +4,7 @@ import {
   useState,
   useEffect,
   useCallback,
+  useRef,
   ReactNode,
 } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -82,6 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hasAssignedStore, setHasAssignedStore] = useState(false);
+  const assignmentUserIdRef = useRef<string | null>(null);
 
   // ── Enrich profile from the `profiles` table (best-effort) ────────────
   // This is called AFTER the user is already set from metadata, so the app
@@ -131,12 +133,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(s);
       if (s?.user) {
         setUser(profileFromMetadata(s.user));
-        setHasAssignedStore(false);
+        // Avoid flashing "pending approval" on every token refresh/re-render.
+        // Only reset store assignment state when the authenticated user changes.
+        if (assignmentUserIdRef.current !== s.user.id) {
+          setHasAssignedStore(false);
+          assignmentUserIdRef.current = s.user.id;
+        }
         // Fire-and-forget: try to get the full profile from the DB
         enrichProfile(s.user);
       } else {
         setUser(null);
         setHasAssignedStore(false);
+        assignmentUserIdRef.current = null;
       }
       setIsLoading(false);
     };
@@ -203,6 +211,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setSession(null);
     setHasAssignedStore(false);
+    assignmentUserIdRef.current = null;
   }, []);
 
   // ── Role helpers ────────────────────────────────────────────────────────
