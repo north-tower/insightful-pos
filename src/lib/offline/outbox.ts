@@ -95,6 +95,21 @@ export async function retryOperation(id: string): Promise<void> {
   await updateOperationStatus(id, 'pending', { lastError: null });
 }
 
+export async function clearSyncedOperationsOlderThan(days: number): Promise<number> {
+  const safeDays = Math.max(Math.floor(days), 0);
+  const cutoffMs = Date.now() - safeDays * 24 * 60 * 60 * 1000;
+  const rows = await dbGetAll<PendingOperationRecord>(OFFLINE_STORES.pendingOperations);
+  const targets = rows.filter(
+    (row) => row.status === 'synced' && new Date(row.updated_at).getTime() < cutoffMs,
+  );
+
+  for (const row of targets) {
+    await dbDelete(OFFLINE_STORES.pendingOperations, row.id);
+  }
+
+  return targets.length;
+}
+
 export async function getPendingOperationsCount(): Promise<number> {
   const rows = await dbGetAll<PendingOperationRecord>(OFFLINE_STORES.pendingOperations);
   return rows.filter((row) => row.status === 'pending' || row.status === 'failed').length;

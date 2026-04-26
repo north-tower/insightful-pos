@@ -11,6 +11,7 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import {
+  clearSyncedOperationsOlderThan,
   deleteOperation,
   getAllOperations,
   retryOperation,
@@ -60,6 +61,10 @@ export function SyncQueueSheet({ trigger }: { trigger: ReactNode }) {
     () => operations.filter((op) => op.status === 'pending' || op.status === 'failed'),
     [operations],
   );
+  const syncedCount = useMemo(
+    () => operations.filter((op) => op.status === 'synced').length,
+    [operations],
+  );
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -78,19 +83,36 @@ export function SyncQueueSheet({ trigger }: { trigger: ReactNode }) {
               {pendingOrFailed.length} pending/failed operation
               {pendingOrFailed.length === 1 ? '' : 's'}
             </p>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 text-xs"
-              onClick={() => {
-                window.dispatchEvent(new CustomEvent('offline-sync-request'));
-                void refresh();
-              }}
-            >
-              <RefreshCcw className="w-3.5 h-3.5 mr-1" />
-              Retry all
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs"
+                onClick={async () => {
+                  await clearSyncedOperationsOlderThan(7);
+                  await refresh();
+                }}
+              >
+                <Trash2 className="w-3.5 h-3.5 mr-1" />
+                Clear synced (7d)
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('offline-sync-request'));
+                  void refresh();
+                }}
+              >
+                <RefreshCcw className="w-3.5 h-3.5 mr-1" />
+                Retry all
+              </Button>
+            </div>
           </div>
+          <p className="text-xs text-muted-foreground">
+            {syncedCount} synced operation{syncedCount === 1 ? '' : 's'} retained for audit.
+          </p>
 
           {loading && (
             <p className="text-xs text-muted-foreground">Loading sync queue...</p>
