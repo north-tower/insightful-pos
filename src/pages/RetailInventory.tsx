@@ -39,6 +39,13 @@ import { formatCurrency } from '@/lib/currency';
 import { generatePlaceholderUrl } from '@/lib/product-images';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
+import {
+  enqueueOperation,
+  getPendingOperations,
+  markOperationFailed,
+  markOperationSynced,
+  updateOperationStatus,
+} from '@/lib/offline/outbox';
 
 interface RetailInventoryProps {
   onNavigate: (tab: string) => void;
@@ -221,9 +228,153 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
     }
   }, [canManageCashierStock, user?.id]);
 
+  const assignCashierStockRemote = useCallback(async () => {
+    if (!storeId || !selectedCashierId || !selectedProductId || !assignedQty) {
+      throw new Error('Select cashier, product and quantity');
+    }
+
+    const qty = parseInt(assignedQty, 10);
+    if (isNaN(qty) || qty < 0) {
+      throw new Error('Enter a valid quantity');
+    }
+
+    const { data: activeAllocation, error: activeLookupError } = await supabase
+      .from('cashier_stock_allocations')
+      .select('id')
+      .eq('store_id', storeId)
+      .eq('cashier_id', selectedCashierId)
+      .eq('product_id', selectedProductId)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (activeLookupError) throw activeLookupError;
+
+    if (activeAllocation) {
+      const { error: deactivateError } = await supabase
+        .from('cashier_stock_allocations')
+        .update({ is_active: false })
+        .eq('id', activeAllocation.id);
+      if (deactivateError) throw deactivateError;
+    }
+
+    const { error } = await supabase
+      .from('cashier_stock_allocations')
+      .insert([{
+        store_id: storeId,
+        cashier_id: selectedCashierId,
+        product_id: selectedProductId,
+        assigned_qty: qty,
+        assigned_by: user?.id,
+        is_active: true,
+      }]);
+
+    if (error) throw error;
+    return qty;
+  }, [assignedQty, selectedCashierId, selectedProductId, storeId, user?.id]);
+
+  const returnAllocationRemote = useCallback(async (allocationId: string) => {
+    const { error } = await supabase
+      .from('cashier_stock_allocations')
+      .update({ is_active: false })
+      .eq('id', allocationId);
+    if (error) throw error;
+  }, []);
+
+  const syncQueuedCashierAllocations = useCallback(async (operationId?: string) => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+
+    const pending = await getPendingOperations();
+    const cashierOps = pending.filter(
+      (op) => op.entity === 'cashier_stock_allocations',
+    );
+    const selectedOps = operationId ? cashierOps.filter((op) => op.id === operationId) : cashierOps;
+
+    for (const op of selectedOps) {
+      try {
+        await updateOperationStatus(op.id, 'processing');
+        if (op.action === 'assign_stock') {
+          const payload = op.payload as {
+            storeId: string;
+            cashierId: string;
+            productId: string;
+            qty: number;
+            assignedBy?: string;
+          };
+          if (!payload?.storeId || !payload?.cashierId || !payload?.productId) {
+            throw new Error('Invalid assign_stock payload');
+          }
+
+          const { data: activeAllocation, error: activeLookupError } = await supabase
+            .from('cashier_stock_allocations')
+            .select('id')
+            .eq('store_id', payload.storeId)
+            .eq('cashier_id', payload.cashierId)
+            .eq('product_id', payload.productId)
+            .eq('is_active', true)
+            .maybeSingle();
+          if (activeLookupError) throw activeLookupError;
+
+          if (activeAllocation) {
+            const { error: deactivateError } = await supabase
+              .from('cashier_stock_allocations')
+              .update({ is_active: false })
+              .eq('id', activeAllocation.id);
+            if (deactivateError) throw deactivateError;
+          }
+
+          const { error } = await supabase
+            .from('cashier_stock_allocations')
+            .insert([{
+              store_id: payload.storeId,
+              cashier_id: payload.cashierId,
+              product_id: payload.productId,
+              assigned_qty: payload.qty,
+              assigned_by: payload.assignedBy || null,
+              is_active: true,
+            }]);
+          if (error) throw error;
+        } else if (op.action === 'return_stock') {
+          const payload = op.payload as { allocationId: string };
+          if (!payload?.allocationId) throw new Error('Invalid return_stock payload');
+          await returnAllocationRemote(payload.allocationId);
+        }
+
+        await markOperationSynced(op.id);
+      } catch (err: any) {
+        await markOperationFailed(
+          op.id,
+          err?.message || 'Failed to sync cashier stock allocation',
+        );
+      }
+    }
+
+    await loadCashierData();
+  }, [loadCashierData, returnAllocationRemote]);
+
   useEffect(() => {
     void loadCashierData();
   }, [loadCashierData]);
+
+  useEffect(() => {
+    const onOnline = () => {
+      void syncQueuedCashierAllocations();
+    };
+    const onSyncRequest = (event: Event) => {
+      const customEvent = event as CustomEvent<{ operationId?: string }>;
+      void syncQueuedCashierAllocations(customEvent.detail?.operationId);
+    };
+
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline-sync-request', onSyncRequest);
+    if (typeof navigator !== 'undefined' && navigator.onLine) {
+      void syncQueuedCashierAllocations();
+    }
+
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline-sync-request', onSyncRequest);
+    };
+  }, [syncQueuedCashierAllocations]);
 
   // Stock summary
   const stockSummary = useMemo(() => {
@@ -337,74 +488,82 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
     }
 
     setIsAssigning(true);
-    // Keep issuance history:
-    // always create a NEW allocation record on assignment.
-    // If there is an existing active allocation for this cashier/product/store,
-    // mark it inactive first so the partial unique index stays valid.
-    const { data: activeAllocation, error: activeLookupError } = await supabase
-      .from('cashier_stock_allocations')
-      .select('id')
-      .eq('store_id', storeId)
-      .eq('cashier_id', selectedCashierId)
-      .eq('product_id', selectedProductId)
-      .eq('is_active', true)
-      .maybeSingle();
+    try {
+      const isOnline = typeof navigator === 'undefined' ? true : navigator.onLine;
+      if (isOnline) {
+        await assignCashierStockRemote();
+      } else {
+        const localId = `local-allocation-${crypto.randomUUID()}`;
+        const nextAllocations = allocations.map((a) =>
+          a.cashier_id === selectedCashierId &&
+          a.product_id === selectedProductId &&
+          a.is_active
+            ? { ...a, is_active: false }
+            : a,
+        );
 
-    if (activeLookupError) {
-      setIsAssigning(false);
-      toast.error(activeLookupError.message);
-      return;
-    }
+        nextAllocations.unshift({
+          id: localId,
+          cashier_id: selectedCashierId,
+          product_id: selectedProductId,
+          assigned_qty: qty,
+          sold_qty: 0,
+          is_active: true,
+        });
 
-    if (activeAllocation) {
-      const { error: deactivateError } = await supabase
-        .from('cashier_stock_allocations')
-        .update({ is_active: false })
-        .eq('id', activeAllocation.id);
-      if (deactivateError) {
-        setIsAssigning(false);
-        toast.error(deactivateError.message);
-        return;
+        setAllocations(nextAllocations);
+
+        await enqueueOperation({
+          entity: 'cashier_stock_allocations',
+          action: 'assign_stock',
+          payload: {
+            storeId,
+            cashierId: selectedCashierId,
+            productId: selectedProductId,
+            qty,
+            assignedBy: user?.id,
+          },
+        });
       }
+
+      toast.success('Cashier stock assigned');
+      setAssignedQty('');
+      if (isOnline) {
+        await loadCashierData();
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to assign cashier stock');
+    } finally {
+      setIsAssigning(false);
     }
-
-    const { error } = await supabase
-      .from('cashier_stock_allocations')
-      .insert([{
-        store_id: storeId,
-        cashier_id: selectedCashierId,
-        product_id: selectedProductId,
-        assigned_qty: qty,
-        assigned_by: user?.id,
-        is_active: true,
-      }]);
-    setIsAssigning(false);
-
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-
-    toast.success('Cashier stock assigned');
-    setAssignedQty('');
-    loadCashierData();
   };
 
   const handleReturnAllocation = async (allocationId: string) => {
     setIsAssigning(true);
-    const { error } = await supabase
-      .from('cashier_stock_allocations')
-      .update({ is_active: false })
-      .eq('id', allocationId);
-    setIsAssigning(false);
+    try {
+      const isOnline = typeof navigator === 'undefined' ? true : navigator.onLine;
+      if (isOnline) {
+        await returnAllocationRemote(allocationId);
+      } else {
+        setAllocations((prev) =>
+          prev.map((a) => (a.id === allocationId ? { ...a, is_active: false } : a)),
+        );
+        await enqueueOperation({
+          entity: 'cashier_stock_allocations',
+          action: 'return_stock',
+          payload: { allocationId },
+        });
+      }
 
-    if (error) {
-      toast.error(error.message);
-      return;
+      toast.success('Allocation returned to store pool');
+      if (isOnline) {
+        await loadCashierData();
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to return allocation');
+    } finally {
+      setIsAssigning(false);
     }
-
-    toast.success('Allocation returned to store pool');
-    loadCashierData();
   };
 
   return (
