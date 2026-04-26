@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
-import { getPendingOperationsCount } from '@/lib/offline/outbox';
+import { getFailedOperationsCount, getPendingOperationsCount } from '@/lib/offline/outbox';
 
 interface SyncStatus {
   isOnline: boolean;
   pendingCount: number;
+  failedCount: number;
   lastSyncAt: string | null;
   isRefreshing: boolean;
   refreshPendingCount: () => Promise<void>;
   markSyncCompleted: () => void;
+  requestSync: () => void;
 }
 
 export function useSyncStatus(): SyncStatus {
@@ -15,14 +17,19 @@ export function useSyncStatus(): SyncStatus {
     typeof navigator === 'undefined' ? true : navigator.onLine,
   );
   const [pendingCount, setPendingCount] = useState(0);
+  const [failedCount, setFailedCount] = useState(0);
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const refreshPendingCount = useCallback(async () => {
     setIsRefreshing(true);
     try {
-      const count = await getPendingOperationsCount();
-      setPendingCount(count);
+      const [pending, failed] = await Promise.all([
+        getPendingOperationsCount(),
+        getFailedOperationsCount(),
+      ]);
+      setPendingCount(pending);
+      setFailedCount(failed);
     } catch (err) {
       console.error('Failed to refresh pending operation count:', err);
     } finally {
@@ -32,6 +39,10 @@ export function useSyncStatus(): SyncStatus {
 
   const markSyncCompleted = useCallback(() => {
     setLastSyncAt(new Date().toISOString());
+  }, []);
+
+  const requestSync = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('offline-sync-request'));
   }, []);
 
   useEffect(() => {
@@ -60,9 +71,11 @@ export function useSyncStatus(): SyncStatus {
   return {
     isOnline,
     pendingCount,
+    failedCount,
     lastSyncAt,
     isRefreshing,
     refreshPendingCount,
     markSyncCompleted,
+    requestSync,
   };
 }

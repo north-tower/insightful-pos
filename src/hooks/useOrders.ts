@@ -1,8 +1,15 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useBusinessMode } from '@/context/BusinessModeContext';
 import { useAuth } from '@/context/AuthContext';
 import { getCachedSnapshot, setCachedSnapshot } from '@/lib/offline/cache';
+import {
+  enqueueOperation,
+  getPendingOperations,
+  markOperationFailed,
+  markOperationSynced,
+  updateOperationStatus,
+} from '@/lib/offline/outbox';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -124,6 +131,11 @@ export interface CreateOrderParams {
   }>;
 }
 
+interface QueuedCreateOrderPayload {
+  local_order_id: string;
+  params: CreateOrderParams;
+}
+
 // ─── Hook ───────────────────────────────────────────────────────────────────
 
 export function useOrders() {
@@ -133,6 +145,7 @@ export function useOrders() {
   const [orders, setOrders] = useState<SaleOrder[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const isSyncingRef = useRef(false);
 
   const offlineCacheKey = useMemo(() => `snapshot:orders:${mode}`, [mode]);
 
@@ -142,6 +155,205 @@ export function useOrders() {
     setOrders(cached);
     return cached;
   }, [offlineCacheKey]);
+
+  const persistOrdersSnapshot = useCallback(async (nextOrders: SaleOrder[]) => {
+    await setCachedSnapshot<SaleOrder[]>(offlineCacheKey, nextOrders);
+  }, [offlineCacheKey]);
+
+  const createOrderRemote = useCallback(
+    async (params: CreateOrderParams): Promise<SaleOrder | null> => {
+      // Calculate financials
+      const itemsTotal = params.items.reduce((sum, item) => {
+        const modifierTotal = (item.modifiers || []).reduce(
+          (s, m) => s + (m.price || 0) * item.quantity,
+          0,
+        );
+        return sum + item.unit_price * item.quantity + modifierTotal;
+      }, 0);
+
+      const discountAmount = params.discount_amount || 0;
+      const subtotal = itemsTotal - discountAmount;
+      const taxRate = 0;
+      const taxAmount = 0;
+      const total = subtotal;
+
+      const saleType = params.sale_type || 'cash';
+      const orderCreatedAt = params.created_at || new Date().toISOString();
+      const totalPaid = params.payments.reduce((s, p) => s + p.amount, 0);
+      const paymentStatus: PaymentStatus =
+        saleType === 'credit'
+          ? totalPaid >= total
+            ? 'paid'
+            : totalPaid > 0
+            ? 'partial'
+            : 'unpaid'
+          : totalPaid >= total
+          ? 'paid'
+          : totalPaid > 0
+          ? 'partial'
+          : 'unpaid';
+
+      const { data: currentStoreId, error: currentStoreErr } = await supabase.rpc('current_store_id');
+      if (currentStoreErr) throw currentStoreErr;
+
+      // 1. Get next order number via RPC
+      const { data: orderNumData, error: orderNumErr } = await supabase.rpc(
+        'generate_order_number',
+        { p_business_mode: mode, p_store_id: currentStoreId },
+      );
+      if (orderNumErr) throw orderNumErr;
+      const orderNumber = orderNumData as string;
+
+      // Generate invoice number
+      const { data: invNumData, error: invNumErr } = await supabase.rpc(
+        'generate_invoice_number',
+        { p_store_id: currentStoreId },
+      );
+      if (invNumErr) throw invNumErr;
+      const invoiceNumber = (invNumData as string) || orderNumber;
+
+      // 2. Insert order
+      const { data: orderData, error: orderErr } = await supabase
+        .from('orders')
+        .insert({
+          order_number: orderNumber,
+          business_mode: mode,
+          order_type: params.order_type,
+          source: 'pos',
+          sale_type: saleType,
+          customer_id: params.customer_id || null,
+          customer_name: params.customer_name || null,
+          customer_email: params.customer_email || null,
+          customer_phone: params.customer_phone || null,
+          table_number: params.table_number || null,
+          invoice_number: invoiceNumber,
+          due_date: params.due_date || null,
+          consignment_info: params.consignment_info || null,
+          subtotal,
+          tax_rate: taxRate,
+          tax_amount: taxAmount,
+          discount_amount: discountAmount,
+          total,
+          status: 'completed',
+          payment_status: paymentStatus,
+          notes: params.notes || null,
+          staff_id: user?.id || null,
+          staff_name: user?.full_name || null,
+          created_at: orderCreatedAt,
+          completed_at: saleType === 'cash' ? orderCreatedAt : null,
+        })
+        .select()
+        .single();
+
+      if (orderErr) throw orderErr;
+
+      const orderId = orderData.id;
+
+      // 3. Insert order items
+      const orderItems = params.items.map((item) => {
+        const modifierTotal = (item.modifiers || []).reduce(
+          (s, m) => s + (m.price || 0) * item.quantity,
+          0,
+        );
+        return {
+          order_id: orderId,
+          product_id: item.product_id || null,
+          product_name: item.product_name,
+          product_image: item.product_image || null,
+          unit_price: item.unit_price,
+          quantity: item.quantity,
+          line_total: item.unit_price * item.quantity + modifierTotal,
+          discount: 0,
+          modifiers: item.modifiers || [],
+          notes: item.notes || null,
+          sku: item.sku || null,
+          barcode: item.barcode || null,
+        };
+      });
+
+      const { data: insertedItems, error: itemsErr } = await supabase
+        .from('order_items')
+        .insert(orderItems)
+        .select();
+
+      if (itemsErr) throw itemsErr;
+
+      // 4. Insert payments
+      let insertedPayments: any[] = [];
+      if (params.payments.length > 0) {
+        const paymentRows = params.payments.map((p) => ({
+          order_id: orderId,
+          method: p.method,
+          amount: p.amount,
+          reference: p.reference || null,
+          description: p.description || null,
+          paid_at: p.paid_at || orderCreatedAt,
+        }));
+
+        const { data: payData, error: payErr } = await supabase
+          .from('payments')
+          .insert(paymentRows)
+          .select();
+
+        if (payErr) throw payErr;
+        insertedPayments = payData || [];
+      }
+
+      return {
+        id: orderId,
+        order_number: orderNumber,
+        business_mode: mode,
+        order_type: params.order_type,
+        source: 'pos',
+        sale_type: saleType,
+        customer_id: params.customer_id,
+        customer_name: params.customer_name,
+        customer_email: params.customer_email,
+        customer_phone: params.customer_phone,
+        table_number: params.table_number,
+        invoice_number: invoiceNumber,
+        due_date: params.due_date,
+        consignment_info: params.consignment_info,
+        subtotal,
+        tax_rate: taxRate,
+        tax_amount: taxAmount,
+        discount_amount: discountAmount,
+        total,
+        status: 'completed',
+        payment_status: paymentStatus,
+        notes: params.notes,
+        staff_id: user?.id,
+        staff_name: user?.full_name,
+        created_at: orderData.created_at,
+        completed_at: orderData.completed_at,
+        items: (insertedItems || []).map((i: any) => ({
+          id: i.id,
+          order_id: i.order_id,
+          product_id: i.product_id,
+          product_name: i.product_name,
+          product_image: i.product_image,
+          unit_price: Number(i.unit_price),
+          quantity: i.quantity,
+          line_total: Number(i.line_total),
+          discount: Number(i.discount || 0),
+          modifiers: i.modifiers || [],
+          notes: i.notes,
+          sku: i.sku,
+          barcode: i.barcode,
+        })),
+        payments: insertedPayments.map((p: any) => ({
+          id: p.id,
+          order_id: p.order_id,
+          method: p.method,
+          amount: Number(p.amount),
+          reference: p.reference,
+          description: p.description,
+          paid_at: p.paid_at,
+        })),
+      };
+    },
+    [mode, user?.id, user?.full_name],
+  );
 
   // ── Fetch orders ────────────────────────────────────────────────────────
 
@@ -261,165 +473,117 @@ export function useOrders() {
       }));
 
       setOrders(saleOrders);
-      await setCachedSnapshot<SaleOrder[]>(offlineCacheKey, saleOrders);
+      await persistOrdersSnapshot(saleOrders);
     } catch (err: any) {
       console.error('Failed to fetch orders:', err);
       if (!hasCache) setError(err.message || 'Failed to load orders');
     } finally {
       setLoading(false);
     }
-  }, [mode, loadFromOfflineCache, offlineCacheKey]);
+  }, [mode, loadFromOfflineCache, persistOrdersSnapshot]);
+
+  const syncQueuedOrders = useCallback(async () => {
+    if (isSyncingRef.current) return;
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+
+    isSyncingRef.current = true;
+    try {
+      const pending = await getPendingOperations();
+      const createOrderOps = pending.filter(
+        (op) => op.entity === 'orders' && op.action === 'create_order',
+      );
+
+      for (const op of createOrderOps) {
+        try {
+          await updateOperationStatus(op.id, 'processing');
+          const payload = op.payload as QueuedCreateOrderPayload;
+          if (!payload?.params || !payload?.local_order_id) {
+            throw new Error('Invalid queued create_order payload');
+          }
+
+          const serverOrder = await createOrderRemote(payload.params);
+          if (!serverOrder) throw new Error('Queued order sync failed');
+
+          setOrders((prev) => {
+            const withoutLocal = prev.filter((o) => o.id !== payload.local_order_id);
+            const alreadyExists = withoutLocal.some((o) => o.id === serverOrder.id);
+            const next = alreadyExists ? withoutLocal : [serverOrder, ...withoutLocal];
+            void persistOrdersSnapshot(next);
+            return next;
+          });
+
+          await markOperationSynced(op.id);
+        } catch (err: any) {
+          await markOperationFailed(op.id, err?.message || 'Failed to sync queued order');
+        }
+      }
+    } finally {
+      isSyncingRef.current = false;
+    }
+  }, [createOrderRemote, persistOrdersSnapshot]);
 
   useEffect(() => {
     fetchOrders();
   }, [fetchOrders]);
 
+  useEffect(() => {
+    const onOnline = () => {
+      void syncQueuedOrders();
+      void fetchOrders();
+    };
+    const onSyncRequest = () => {
+      void syncQueuedOrders();
+      void fetchOrders();
+    };
+
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline-sync-request', onSyncRequest);
+    if (typeof navigator !== 'undefined' && navigator.onLine) {
+      void syncQueuedOrders();
+    }
+
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline-sync-request', onSyncRequest);
+    };
+  }, [fetchOrders, syncQueuedOrders]);
+
   // ── Create order (the main "sell" action) ──────────────────────────────
 
   const createOrder = useCallback(
     async (params: CreateOrderParams): Promise<SaleOrder | null> => {
-      // Calculate financials
-      const itemsTotal = params.items.reduce((sum, item) => {
-        const modifierTotal = (item.modifiers || []).reduce(
-          (s, m) => s + (m.price || 0) * item.quantity,
-          0,
-        );
-        return sum + item.unit_price * item.quantity + modifierTotal;
-      }, 0);
-
-      const discountAmount = params.discount_amount || 0;
-      const subtotal = itemsTotal - discountAmount;
-      const taxRate = 0;
-      const taxAmount = 0;
-      const total = subtotal;
-
-      const saleType = params.sale_type || 'cash';
-      const orderCreatedAt = params.created_at || new Date().toISOString();
-      const totalPaid = params.payments.reduce((s, p) => s + p.amount, 0);
-      const paymentStatus: PaymentStatus =
-        saleType === 'credit'
-          ? totalPaid >= total
-            ? 'paid'
-            : totalPaid > 0
-            ? 'partial'
-            : 'unpaid'
-          : totalPaid >= total
-          ? 'paid'
-          : totalPaid > 0
-          ? 'partial'
-          : 'unpaid';
-
       try {
-        const { data: currentStoreId, error: currentStoreErr } = await supabase.rpc('current_store_id');
-        if (currentStoreErr) throw currentStoreErr;
+        const isOnline = typeof navigator === 'undefined' ? true : navigator.onLine;
+        if (isOnline) {
+          const newOrder = await createOrderRemote(params);
+          if (!newOrder) return null;
+          const nextOrders = [newOrder, ...orders];
+          setOrders(nextOrders);
+          await persistOrdersSnapshot(nextOrders);
+          return newOrder;
+        }
 
-        // 1. Get next order number via RPC
-        const { data: orderNumData, error: orderNumErr } = await supabase.rpc(
-          'generate_order_number',
-          { p_business_mode: mode, p_store_id: currentStoreId },
-        );
-        if (orderNumErr) throw orderNumErr;
-        const orderNumber = orderNumData as string;
-
-        // Generate invoice number
-        const { data: invNumData, error: invNumErr } = await supabase.rpc(
-          'generate_invoice_number',
-          { p_store_id: currentStoreId },
-        );
-        if (invNumErr) throw invNumErr;
-        const invoiceNumber = (invNumData as string) || orderNumber;
-
-        // 2. Insert order
-        const { data: orderData, error: orderErr } = await supabase
-          .from('orders')
-          .insert({
-            order_number: orderNumber,
-            business_mode: mode,
-            order_type: params.order_type,
-            source: 'pos',
-            sale_type: saleType,
-            customer_id: params.customer_id || null,
-            customer_name: params.customer_name || null,
-            customer_email: params.customer_email || null,
-            customer_phone: params.customer_phone || null,
-            table_number: params.table_number || null,
-            invoice_number: invoiceNumber,
-            due_date: params.due_date || null,
-            consignment_info: params.consignment_info || null,
-            subtotal,
-            tax_rate: taxRate,
-            tax_amount: taxAmount,
-            discount_amount: discountAmount,
-            total,
-            status: 'completed',
-            payment_status: paymentStatus,
-            notes: params.notes || null,
-            staff_id: user?.id || null,
-            staff_name: user?.full_name || null,
-            created_at: orderCreatedAt,
-            completed_at: saleType === 'cash' ? orderCreatedAt : null,
-          })
-          .select()
-          .single();
-
-        if (orderErr) throw orderErr;
-
-        const orderId = orderData.id;
-
-        // 3. Insert order items
-        const orderItems = params.items.map((item) => {
+        const localOrderId = `local-order-${crypto.randomUUID()}`;
+        const localOrderNumber = `LOCAL-${new Date().getTime().toString().slice(-6)}`;
+        const localCreatedAt = params.created_at || new Date().toISOString();
+        const saleType = params.sale_type || 'cash';
+        const discountAmount = params.discount_amount || 0;
+        const itemsTotal = params.items.reduce((sum, item) => {
           const modifierTotal = (item.modifiers || []).reduce(
             (s, m) => s + (m.price || 0) * item.quantity,
             0,
           );
-          return {
-            order_id: orderId,
-            product_id: item.product_id || null,
-            product_name: item.product_name,
-            product_image: item.product_image || null,
-            unit_price: item.unit_price,
-            quantity: item.quantity,
-            line_total: item.unit_price * item.quantity + modifierTotal,
-            discount: 0,
-            modifiers: item.modifiers || [],
-            notes: item.notes || null,
-            sku: item.sku || null,
-            barcode: item.barcode || null,
-          };
-        });
+          return sum + item.unit_price * item.quantity + modifierTotal;
+        }, 0);
+        const subtotal = itemsTotal - discountAmount;
+        const total = subtotal;
+        const totalPaid = params.payments.reduce((s, p) => s + p.amount, 0);
+        const paymentStatus: PaymentStatus =
+          totalPaid >= total ? 'paid' : totalPaid > 0 ? 'partial' : 'unpaid';
 
-        const { data: insertedItems, error: itemsErr } = await supabase
-          .from('order_items')
-          .insert(orderItems)
-          .select();
-
-        if (itemsErr) throw itemsErr;
-
-        // 4. Insert payments
-        let insertedPayments: any[] = [];
-        if (params.payments.length > 0) {
-          const paymentRows = params.payments.map((p) => ({
-            order_id: orderId,
-            method: p.method,
-            amount: p.amount,
-            reference: p.reference || null,
-            description: p.description || null,
-            paid_at: p.paid_at || orderCreatedAt,
-          }));
-
-          const { data: payData, error: payErr } = await supabase
-            .from('payments')
-            .insert(paymentRows)
-            .select();
-
-          if (payErr) throw payErr;
-          insertedPayments = payData || [];
-        }
-
-        // 5. Build the returned order
-        const newOrder: SaleOrder = {
-          id: orderId,
-          order_number: orderNumber,
+        const localOrder: SaleOrder = {
+          id: localOrderId,
+          order_number: localOrderNumber,
           business_mode: mode,
           order_type: params.order_type,
           source: 'pos',
@@ -429,12 +593,12 @@ export function useOrders() {
           customer_email: params.customer_email,
           customer_phone: params.customer_phone,
           table_number: params.table_number,
-          invoice_number: invoiceNumber,
+          invoice_number: localOrderNumber,
           due_date: params.due_date,
           consignment_info: params.consignment_info,
           subtotal,
-          tax_rate: taxRate,
-          tax_amount: taxAmount,
+          tax_rate: 0,
+          tax_amount: 0,
           discount_amount: discountAmount,
           total,
           status: 'completed',
@@ -442,43 +606,57 @@ export function useOrders() {
           notes: params.notes,
           staff_id: user?.id,
           staff_name: user?.full_name,
-          created_at: orderData.created_at,
-          completed_at: orderData.completed_at,
-          items: (insertedItems || []).map((i: any) => ({
-            id: i.id,
-            order_id: i.order_id,
-            product_id: i.product_id,
-            product_name: i.product_name,
-            product_image: i.product_image,
-            unit_price: Number(i.unit_price),
-            quantity: i.quantity,
-            line_total: Number(i.line_total),
-            discount: Number(i.discount || 0),
-            modifiers: i.modifiers || [],
-            notes: i.notes,
-            sku: i.sku,
-            barcode: i.barcode,
+          created_at: localCreatedAt,
+          completed_at: saleType === 'cash' ? localCreatedAt : undefined,
+          items: params.items.map((item, index) => ({
+            id: `local-item-${localOrderId}-${index}`,
+            order_id: localOrderId,
+            product_id: item.product_id,
+            product_name: item.product_name,
+            product_image: item.product_image,
+            unit_price: item.unit_price,
+            quantity: item.quantity,
+            line_total:
+              item.unit_price * item.quantity +
+              (item.modifiers || []).reduce((s, m) => s + (m.price || 0) * item.quantity, 0),
+            discount: 0,
+            modifiers: item.modifiers || [],
+            notes: item.notes,
+            sku: item.sku,
+            barcode: item.barcode,
           })),
-          payments: insertedPayments.map((p: any) => ({
-            id: p.id,
-            order_id: p.order_id,
+          payments: params.payments.map((p, index) => ({
+            id: `local-payment-${localOrderId}-${index}`,
+            order_id: localOrderId,
             method: p.method,
-            amount: Number(p.amount),
+            amount: p.amount,
             reference: p.reference,
             description: p.description,
-            paid_at: p.paid_at,
+            paid_at: p.paid_at || localCreatedAt,
           })),
         };
 
-        setOrders((prev) => [newOrder, ...prev]);
-        return newOrder;
+        const nextOrders = [localOrder, ...orders];
+        setOrders(nextOrders);
+        await persistOrdersSnapshot(nextOrders);
+
+        await enqueueOperation({
+          entity: 'orders',
+          action: 'create_order',
+          payload: {
+            local_order_id: localOrderId,
+            params,
+          } satisfies QueuedCreateOrderPayload,
+        });
+
+        return localOrder;
       } catch (err: any) {
         console.error('Failed to create order:', err);
         setError(err.message || 'Failed to create order');
         return null;
       }
     },
-    [isRestaurant, mode, user],
+    [isRestaurant, mode, user, orders, createOrderRemote, persistOrdersSnapshot],
   );
 
   // ── Update order status ───────────────────────────────────────────────

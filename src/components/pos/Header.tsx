@@ -5,6 +5,7 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { useBusinessMode } from '@/context/BusinessModeContext';
 import { useAuth } from '@/context/AuthContext';
 import { Badge } from '@/components/ui/badge';
+import { SyncStatusIndicator } from '@/components/pos/SyncStatusIndicator';
 
 interface HeaderProps {
   onMenuToggle?: () => void;
@@ -61,6 +62,8 @@ export function Header({ onMenuToggle }: HeaderProps) {
 
       {/* Right Side */}
       <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+        <SyncStatusIndicator />
+
         {/* Mobile search button */}
         <button className="sm:hidden p-2 rounded-full hover:bg-muted transition-colors">
           <Search className="w-5 h-5 text-muted-foreground" />

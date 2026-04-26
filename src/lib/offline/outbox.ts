@@ -43,6 +43,13 @@ export async function getPendingOperations(): Promise<PendingOperationRecord[]> 
     .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 }
 
+export async function getFailedOperations(): Promise<PendingOperationRecord[]> {
+  const rows = await dbGetAll<PendingOperationRecord>(OFFLINE_STORES.pendingOperations);
+  return rows
+    .filter((row) => row.status === 'failed')
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+}
+
 export async function updateOperationStatus(
   id: string,
   status: PendingOperationStatus,
@@ -82,6 +89,11 @@ export async function deleteOperation(id: string): Promise<void> {
 export async function getPendingOperationsCount(): Promise<number> {
   const rows = await dbGetAll<PendingOperationRecord>(OFFLINE_STORES.pendingOperations);
   return rows.filter((row) => row.status === 'pending' || row.status === 'failed').length;
+}
+
+export async function getFailedOperationsCount(): Promise<number> {
+  const rows = await dbGetAll<PendingOperationRecord>(OFFLINE_STORES.pendingOperations);
+  return rows.filter((row) => row.status === 'failed').length;
 }
 
 export async function getTotalOperationsCount(): Promise<number> {
