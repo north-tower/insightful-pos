@@ -140,6 +140,12 @@
 }
 
 @layer base {
+  html {
+    /* Prevent Android/Samsung automatic font inflation on mobile */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
   * {
     @apply border-border;
   }
