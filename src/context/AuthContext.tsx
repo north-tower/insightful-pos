@@ -31,6 +31,23 @@ interface SignUpParams {
   fullName: string;
 }
 
+const STORE_ASSIGNMENT_CACHE_PREFIX = 'insightful-pos:store-assignment:';
+
+function getStoreAssignmentCacheKey(userId: string): string {
+  return `${STORE_ASSIGNMENT_CACHE_PREFIX}${userId}`;
+}
+
+function readCachedStoreAssignment(userId: string): boolean {
+  if (typeof window === 'undefined') return false;
+  const raw = window.localStorage.getItem(getStoreAssignmentCacheKey(userId));
+  return raw === 'true';
+}
+
+function writeCachedStoreAssignment(userId: string, assigned: boolean): void {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(getStoreAssignmentCacheKey(userId), assigned ? 'true' : 'false');
+}
+
 interface AuthContextType {
   // State
   user: UserProfile | null;
@@ -104,7 +121,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ]);
 
       if (!membershipError) {
-        setHasAssignedStore((count ?? 0) > 0);
+        const assigned = (count ?? 0) > 0;
+        setHasAssignedStore(assigned);
+        writeCachedStoreAssignment(supaUser.id, assigned);
+      } else {
+        setHasAssignedStore(readCachedStoreAssignment(supaUser.id));
       }
 
       if (error || !data) return; // Keep the metadata-based profile
@@ -136,7 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Avoid flashing "pending approval" on every token refresh/re-render.
         // Only reset store assignment state when the authenticated user changes.
         if (assignmentUserIdRef.current !== s.user.id) {
-          setHasAssignedStore(false);
+          setHasAssignedStore(readCachedStoreAssignment(s.user.id));
           assignmentUserIdRef.current = s.user.id;
         }
         // Fire-and-forget: try to get the full profile from the DB
