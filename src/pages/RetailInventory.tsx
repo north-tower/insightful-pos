@@ -87,7 +87,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
   const [isAdjusting, setIsAdjusting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
-  const [cashiers, setCashiers] = useState<Array<{ id: string; full_name: string; email: string }>>([]);
+  const [staffAllocations, setStaffAllocations] = useState<Array<{ id: string; full_name: string; email: string }>>([]);
   const [storeId, setStoreId] = useState<string | null>(null);
   const [allocations, setAllocations] = useState<Array<{
     id: string;
@@ -97,12 +97,12 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
     sold_qty: number;
     is_active: boolean;
   }>>([]);
-  const [selectedCashierId, setSelectedCashierId] = useState('');
+  const [selectedStaffId, setSelectedStaffId] = useState('');
   const [selectedProductId, setSelectedProductId] = useState('');
   const [assignedQty, setAssignedQty] = useState('');
   const [isAssigning, setIsAssigning] = useState(false);
   const canManageCashierStock = user?.role === 'admin' || user?.role === 'manager';
-  const cashierReport = useMemo(() => {
+  const staffAllocationReport = useMemo(() => {
     const grouped = new Map<string, {
       cashierName: string;
       cashierEmail: string;
@@ -120,7 +120,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
     }>();
 
     allocations.forEach((a) => {
-      const cashier = cashiers.find((c) => c.id === a.cashier_id);
+      const cashier = staffAllocations.find((c) => c.id === a.cashier_id);
       const product = retailProducts.find((p) => p.id === a.product_id);
       const remaining = Math.max(a.assigned_qty - a.sold_qty, 0);
       const key = a.cashier_id;
@@ -149,7 +149,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
     });
 
     return Array.from(grouped.values()).sort((a, b) => a.cashierName.localeCompare(b.cashierName));
-  }, [allocations, cashiers, retailProducts]);
+  }, [allocations, staffAllocations, retailProducts]);
 
   const loadCashierData = useCallback(async () => {
     if (!canManageCashierStock) return;
@@ -169,7 +169,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
     }
 
     if (!resolvedStoreId) {
-      setCashiers([]);
+      setStaffAllocations([]);
       setAllocations([]);
       return;
     }
@@ -180,7 +180,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
         .from('profile_stores')
         .select('profile_id')
         .eq('store_id', resolvedStoreId)
-        .eq('role_in_store', 'cashier'),
+        .in('role_in_store', ['cashier', 'manager']),
       supabase
         .from('cashier_stock_allocations')
         .select('id, cashier_id, product_id, assigned_qty, sold_qty, is_active')
@@ -220,7 +220,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
         }
       }
 
-      setCashiers(mapped);
+      setStaffAllocations(mapped);
     }
 
     if (!allocationRes.error) {
@@ -229,8 +229,8 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
   }, [canManageCashierStock, user?.id]);
 
   const assignCashierStockRemote = useCallback(async () => {
-    if (!storeId || !selectedCashierId || !selectedProductId || !assignedQty) {
-      throw new Error('Select cashier, product and quantity');
+    if (!storeId || !selectedStaffId || !selectedProductId || !assignedQty) {
+      throw new Error('Select staff, product and quantity');
     }
 
     const qty = parseInt(assignedQty, 10);
@@ -242,7 +242,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
       .from('cashier_stock_allocations')
       .select('id')
       .eq('store_id', storeId)
-      .eq('cashier_id', selectedCashierId)
+      .eq('cashier_id', selectedStaffId)
       .eq('product_id', selectedProductId)
       .eq('is_active', true)
       .maybeSingle();
@@ -261,7 +261,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
       .from('cashier_stock_allocations')
       .insert([{
         store_id: storeId,
-        cashier_id: selectedCashierId,
+        cashier_id: selectedStaffId,
         product_id: selectedProductId,
         assigned_qty: qty,
         assigned_by: user?.id,
@@ -270,7 +270,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
 
     if (error) throw error;
     return qty;
-  }, [assignedQty, selectedCashierId, selectedProductId, storeId, user?.id]);
+  }, [assignedQty, selectedStaffId, selectedProductId, storeId, user?.id]);
 
   const returnAllocationRemote = useCallback(async (allocationId: string) => {
     const { error } = await supabase
@@ -477,8 +477,8 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
   };
 
   const handleAssignCashierStock = async () => {
-    if (!storeId || !selectedCashierId || !selectedProductId || !assignedQty) {
-      toast.error('Select cashier, product and quantity');
+    if (!storeId || !selectedStaffId || !selectedProductId || !assignedQty) {
+      toast.error('Select staff, product and quantity');
       return;
     }
     const qty = parseInt(assignedQty, 10);
@@ -495,7 +495,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
       } else {
         const localId = `local-allocation-${crypto.randomUUID()}`;
         const nextAllocations = allocations.map((a) =>
-          a.cashier_id === selectedCashierId &&
+          a.cashier_id === selectedStaffId &&
           a.product_id === selectedProductId &&
           a.is_active
             ? { ...a, is_active: false }
@@ -504,7 +504,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
 
         nextAllocations.unshift({
           id: localId,
-          cashier_id: selectedCashierId,
+          cashier_id: selectedStaffId,
           product_id: selectedProductId,
           assigned_qty: qty,
           sold_qty: 0,
@@ -518,7 +518,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
           action: 'assign_stock',
           payload: {
             storeId,
-            cashierId: selectedCashierId,
+            cashierId: selectedStaffId,
             productId: selectedProductId,
             qty,
             assignedBy: user?.id,
@@ -526,13 +526,13 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
         });
       }
 
-      toast.success('Cashier stock assigned');
+      toast.success('Staff stock assigned');
       setAssignedQty('');
       if (isOnline) {
         await loadCashierData();
       }
     } catch (err: any) {
-      toast.error(err.message || 'Failed to assign cashier stock');
+      toast.error(err.message || 'Failed to assign staff stock');
     } finally {
       setIsAssigning(false);
     }
@@ -660,16 +660,16 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
           {canManageCashierStock && (
             <Card className="mb-6">
               <CardHeader>
-                <CardTitle>Assign Cashier Inventory</CardTitle>
+                  <CardTitle>Assign Staff Inventory</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                   <div>
-                    <Label>Cashier</Label>
-                    <Select value={selectedCashierId} onValueChange={setSelectedCashierId}>
-                      <SelectTrigger><SelectValue placeholder="Select cashier" /></SelectTrigger>
+                    <Label>Staff (Manager/Cashier)</Label>
+                    <Select value={selectedStaffId} onValueChange={setSelectedStaffId}>
+                      <SelectTrigger><SelectValue placeholder="Select staff" /></SelectTrigger>
                       <SelectContent>
-                        {cashiers.map((c) => (
+                        {staffAllocations.map((c) => (
                           <SelectItem key={c.id} value={c.id}>
                             {c.full_name || c.email}
                           </SelectItem>
@@ -710,10 +710,10 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
 
                 <div className="space-y-2">
                   {allocations.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No cashier allocations yet.</p>
+                    <p className="text-sm text-muted-foreground">No staff allocations yet.</p>
                   ) : (
                     allocations.slice(0, 10).map((a) => {
-                      const cashier = cashiers.find((c) => c.id === a.cashier_id);
+                      const cashier = staffAllocations.find((c) => c.id === a.cashier_id);
                       const product = retailProducts.find((p) => p.id === a.product_id);
                       const remaining = Math.max(a.assigned_qty - a.sold_qty, 0);
                       return (
@@ -752,13 +752,13 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
           {canManageCashierStock && (
             <Card className="mb-6">
               <CardHeader>
-                <CardTitle>Per-Cashier Inventory Report</CardTitle>
+                <CardTitle>Per-Staff Inventory Report</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {cashierReport.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No cashier inventory data yet.</p>
+                {staffAllocationReport.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No staff inventory data yet.</p>
                 ) : (
-                  cashierReport.map((entry) => (
+                  staffAllocationReport.map((entry) => (
                     <div key={`${entry.cashierName}-${entry.cashierEmail}`} className="rounded-md border p-3">
                       <div className="flex items-center justify-between gap-3 mb-2">
                         <div>

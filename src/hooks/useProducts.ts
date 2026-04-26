@@ -208,7 +208,7 @@ export function useProducts() {
         if (vErr) throw vErr;
         variantData = vData || [];
 
-        if (user?.role === 'cashier') {
+        if (user?.role === 'cashier' || user?.role === 'manager') {
           const { data: aData, error: aErr } = await supabase
             .from('cashier_stock_allocations')
             .select('product_id, assigned_qty, sold_qty')
@@ -322,8 +322,8 @@ export function useProducts() {
         variantsByProduct.get(p.id),
       );
 
-      // Cashiers can only sell quantities assigned to them by manager/admin.
-      if (mode === 'retail' && user?.role === 'cashier') {
+      // Cashiers and managers can only sell quantities assigned to them by admin/manager.
+      if (mode === 'retail' && (user?.role === 'cashier' || user?.role === 'manager')) {
         const remaining = allocationMap.get(p.id) ?? 0;
         product.stock = Math.min(product.stock, remaining);
       }
