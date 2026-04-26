@@ -49,6 +49,9 @@ export default defineConfig(() => ({
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff,woff2}"],
+        // Keep large generated app bundles in the precache manifest.
+        // Default is 2 MiB, but current main chunk is slightly above that.
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
       },
       devOptions: {
         enabled: true,
