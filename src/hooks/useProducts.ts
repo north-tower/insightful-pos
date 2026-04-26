@@ -131,6 +131,7 @@ export function useProducts() {
   const [supaProducts, setSupaProducts] = useState<SupabaseProduct[]>([]);
   const [supaVariants, setSupaVariants] = useState<SupabaseVariant[]>([]);
   const [cashierAllocations, setCashierAllocations] = useState<CashierAllocationRow[]>([]);
+  const [lastDataSource, setLastDataSource] = useState<'cache' | 'network' | 'none'>('none');
 
   const offlineCacheKey = useMemo(
     () => `snapshot:products:${mode}:${user?.id || 'anon'}`,
@@ -154,6 +155,7 @@ export function useProducts() {
     setSupaProducts(cached.products || []);
     setSupaVariants(cached.variants || []);
     setCashierAllocations(cached.cashierAllocations || []);
+    setLastDataSource('cache');
     return true;
   }, [legacyOfflineCacheKey, offlineCacheKey]);
 
@@ -222,6 +224,7 @@ export function useProducts() {
       setSupaProducts(prodData || []);
       setSupaVariants(variantData);
       setCashierAllocations(allocationData);
+      setLastDataSource('network');
 
       await setCachedSnapshot<ProductsOfflineSnapshot>(offlineCacheKey, {
         categories: catData || [],
@@ -233,6 +236,7 @@ export function useProducts() {
       console.error('Failed to fetch products:', err);
       if (!hadCache) {
         setError(err.message || 'Failed to load products');
+        setLastDataSource('none');
       }
     } finally {
       setLoading(false);
@@ -417,5 +421,7 @@ export function useProducts() {
     addProduct,
     updateProduct,
     deleteProduct,
+    debugOfflineCacheKey: offlineCacheKey,
+    debugLastDataSource: lastDataSource,
   };
 }

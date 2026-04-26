@@ -58,7 +58,13 @@ function getInitialProductViewMode(): ProductViewMode {
 }
 
 export default function RetailPOS({ onNavigate }: RetailPOSProps) {
-  const { retailProducts, loading, refetch: refetchProducts } = useProducts();
+  const {
+    retailProducts,
+    loading,
+    refetch: refetchProducts,
+    debugOfflineCacheKey,
+    debugLastDataSource,
+  } = useProducts();
   const { createOrder } = useOrders();
   const { customers, getCustomerDisplayName, refetch: refetchCustomers } = useCustomers();
   const { companyName } = useCompanySettings();
@@ -424,6 +430,11 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
 
             {/* Product Grid */}
             <div className="flex-1 overflow-y-auto p-2 sm:p-3 lg:p-4">
+              {import.meta.env.DEV && (
+                <div className="mb-2 rounded border border-dashed border-warning/40 bg-warning/5 px-2 py-1 text-[10px] text-muted-foreground">
+                  Cache: {debugOfflineCacheKey} | Source: {debugLastDataSource}
+                </div>
+              )}
               {loading ? (
                 <div className="flex items-center justify-center py-20">
                   <div className="text-center">
