@@ -14,7 +14,6 @@ import {
   Search,
   Trash2,
   X,
-  Barcode,
   CreditCard,
   Banknote,
   QrCode,
@@ -83,7 +82,6 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [showCustomerPicker, setShowCustomerPicker] = useState(false);
-  const [barcodeInput, setBarcodeInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
   const [lastOrder, setLastOrder] = useState<SaleOrder | null>(null);
@@ -211,23 +209,6 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
   const tax = 0;
   const total = subtotal;
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
-
-  // Barcode scan handler
-  const handleBarcodeScan = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && barcodeInput.trim()) {
-      const barcodeVal = barcodeInput.trim();
-      const product = retailProducts.find(
-        (p) => p.barcode === barcodeVal || p.sku === barcodeVal
-      );
-      if (product) {
-        addToCart(product);
-        toast.success(`Added ${product.name}`);
-      } else {
-        toast.error('Product not found');
-      }
-      setBarcodeInput('');
-    }
-  };
 
   const handleCompleteSale = async () => {
     if (cart.length === 0) {
@@ -367,7 +348,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
     <PageLayout activeTab="pos" onNavigate={onNavigate} flexContent>
           {/* Product Grid Area */}
           <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-            {/* Search & Barcode — single row on mobile */}
+            {/* Search + view mode */}
             <div className="p-2 sm:p-3 lg:p-4 pb-1 sm:pb-2 flex gap-2 sm:gap-3">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -376,16 +357,6 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10 h-9"
-                />
-              </div>
-              <div className="relative w-36 sm:w-48 lg:w-64">
-                <Barcode className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  placeholder="Scan barcode..."
-                  value={barcodeInput}
-                  onChange={(e) => setBarcodeInput(e.target.value)}
-                  onKeyDown={handleBarcodeScan}
-                  className="pl-10 font-mono h-9"
                 />
               </div>
               <div className="flex items-center gap-1 rounded-md border border-border bg-card p-1 shrink-0">
