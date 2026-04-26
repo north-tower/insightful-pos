@@ -2,6 +2,7 @@ import { CloudOff, RefreshCcw, AlertTriangle, Clock3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useSyncStatus } from '@/hooks/useSyncStatus';
+import { SyncQueueSheet } from '@/components/pos/SyncQueueSheet';
 
 export function SyncStatusIndicator() {
   const {
@@ -9,7 +10,6 @@ export function SyncStatusIndicator() {
     pendingCount,
     failedCount,
     isRefreshing,
-    requestSync,
     refreshPendingCount,
   } = useSyncStatus();
 
@@ -42,20 +42,23 @@ export function SyncStatusIndicator() {
         </Badge>
       )}
 
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        className="h-8 px-2.5 text-xs"
-        onClick={() => {
-          requestSync();
-          void refreshPendingCount();
-        }}
-        disabled={!isOnline || isRefreshing}
-      >
-        <RefreshCcw className={`w-3.5 h-3.5 mr-1 ${isRefreshing ? 'animate-spin' : ''}`} />
-        Sync
-      </Button>
+      <SyncQueueSheet
+        trigger={
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-8 px-2.5 text-xs"
+            onClick={() => {
+              void refreshPendingCount();
+            }}
+            disabled={isRefreshing}
+          >
+            <RefreshCcw className={`w-3.5 h-3.5 mr-1 ${isRefreshing ? 'animate-spin' : ''}`} />
+            Sync
+          </Button>
+        }
+      />
     </div>
   );
 }

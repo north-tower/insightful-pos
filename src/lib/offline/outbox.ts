@@ -43,6 +43,11 @@ export async function getPendingOperations(): Promise<PendingOperationRecord[]> 
     .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 }
 
+export async function getAllOperations(): Promise<PendingOperationRecord[]> {
+  const rows = await dbGetAll<PendingOperationRecord>(OFFLINE_STORES.pendingOperations);
+  return rows.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+}
+
 export async function getFailedOperations(): Promise<PendingOperationRecord[]> {
   const rows = await dbGetAll<PendingOperationRecord>(OFFLINE_STORES.pendingOperations);
   return rows
@@ -84,6 +89,10 @@ export async function markOperationFailed(id: string, errorMessage: string): Pro
 
 export async function deleteOperation(id: string): Promise<void> {
   await dbDelete(OFFLINE_STORES.pendingOperations, id);
+}
+
+export async function retryOperation(id: string): Promise<void> {
+  await updateOperationStatus(id, 'pending', { lastError: null });
 }
 
 export async function getPendingOperationsCount(): Promise<number> {

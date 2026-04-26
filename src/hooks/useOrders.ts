@@ -482,7 +482,7 @@ export function useOrders() {
     }
   }, [mode, loadFromOfflineCache, persistOrdersSnapshot]);
 
-  const syncQueuedOrders = useCallback(async () => {
+  const syncQueuedOrders = useCallback(async (operationId?: string) => {
     if (isSyncingRef.current) return;
     if (typeof navigator !== 'undefined' && !navigator.onLine) return;
 
@@ -492,8 +492,11 @@ export function useOrders() {
       const createOrderOps = pending.filter(
         (op) => op.entity === 'orders' && op.action === 'create_order',
       );
+      const selectedOps = operationId
+        ? createOrderOps.filter((op) => op.id === operationId)
+        : createOrderOps;
 
-      for (const op of createOrderOps) {
+      for (const op of selectedOps) {
         try {
           await updateOperationStatus(op.id, 'processing');
           const payload = op.payload as QueuedCreateOrderPayload;
@@ -531,8 +534,10 @@ export function useOrders() {
       void syncQueuedOrders();
       void fetchOrders();
     };
-    const onSyncRequest = () => {
-      void syncQueuedOrders();
+    const onSyncRequest = (event: Event) => {
+      const customEvent = event as CustomEvent<{ operationId?: string }>;
+      const operationId = customEvent.detail?.operationId;
+      void syncQueuedOrders(operationId);
       void fetchOrders();
     };
 
