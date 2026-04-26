@@ -722,6 +722,11 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                             {(cashier?.full_name || cashier?.email || a.cashier_id)} - {product?.name || a.product_id}
                           </span>
                           <div className="flex items-center gap-3">
+                            {a.id.startsWith('local-allocation-') && (
+                              <Badge variant="outline" className="text-[10px] border-warning/30 text-warning">
+                                Pending sync
+                              </Badge>
+                            )}
                             <span className="text-muted-foreground">
                               Assigned {a.assigned_qty} | Sold {a.sold_qty} | Remaining {remaining}
                             </span>
@@ -772,10 +777,17 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                         {entry.lines.map((line) => (
                           <div key={line.allocationId} className="text-xs flex items-center justify-between">
                             <span className="text-muted-foreground">{line.productName}</span>
-                            <span className="text-muted-foreground">
-                              {line.assigned} / {line.sold} / {line.remaining}
-                              {!line.isActive ? ' (returned)' : ''}
-                            </span>
+                            <div className="flex items-center gap-2">
+                              {line.allocationId.startsWith('local-allocation-') && (
+                                <Badge variant="outline" className="text-[10px] border-warning/30 text-warning">
+                                  Pending sync
+                                </Badge>
+                              )}
+                              <span className="text-muted-foreground">
+                                {line.assigned} / {line.sold} / {line.remaining}
+                                {!line.isActive ? ' (returned)' : ''}
+                              </span>
+                            </div>
                           </div>
                         ))}
                       </div>
