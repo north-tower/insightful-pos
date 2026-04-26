@@ -15,7 +15,7 @@ interface SettingsProps {
 }
 
 export default function Settings({ onNavigate }: SettingsProps) {
-  const { settings, loading, saveSettings } = useCompanySettings();
+  const { settings, loading, saveSettings, lastSyncedAt } = useCompanySettings();
   const { isAdmin } = useAuth();
 
   const [form, setForm] = useState({
@@ -75,6 +75,9 @@ export default function Settings({ onNavigate }: SettingsProps) {
         <div className="mb-6">
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-1">Settings</h1>
           <p className="text-muted-foreground">Manage your business information and preferences</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Last synced at {lastSyncedAt ? new Date(lastSyncedAt).toLocaleString() : 'Not synced yet'}
+          </p>
         </div>
 
         {/* Company Information Card */}

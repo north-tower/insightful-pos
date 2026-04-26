@@ -31,6 +31,7 @@ function DashboardContent({ onNavigate }: DashboardProps) {
     tableTurnoverData,
     peakHoursData,
     refetch,
+    lastSyncedAt,
   } = useDashboardStats();
 
   return (
@@ -41,6 +42,9 @@ function DashboardContent({ onNavigate }: DashboardProps) {
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">Service Overview</h1>
           <p className="text-muted-foreground">
             {loading ? 'Loading…' : `${stats.activeTables} tables active`}
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Last synced at {lastSyncedAt ? new Date(lastSyncedAt).toLocaleString() : 'Not synced yet'}
           </p>
         </div>
         <Button

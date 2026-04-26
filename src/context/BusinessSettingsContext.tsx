@@ -15,12 +15,14 @@ interface BusinessSettingsContextType {
   refetch: () => Promise<void>;
   /** Shortcut: the company name (empty string if not yet set) */
   companyName: string;
+  /** Last time business settings snapshot was synced */
+  lastSyncedAt: string | null;
 }
 
 const BusinessSettingsContext = createContext<BusinessSettingsContextType | undefined>(undefined);
 
 export function BusinessSettingsProvider({ children }: { children: ReactNode }) {
-  const { settings, loading, saveSettings, refetch } = useBusinessSettings();
+  const { settings, loading, saveSettings, refetch, lastSyncedAt } = useBusinessSettings();
 
   return (
     <BusinessSettingsContext.Provider
@@ -30,6 +32,7 @@ export function BusinessSettingsProvider({ children }: { children: ReactNode }) 
         saveSettings,
         refetch,
         companyName: settings.name || '',
+        lastSyncedAt,
       }}
     >
       {children}

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useBusinessMode } from '@/context/BusinessModeContext';
-import { getCachedSnapshot, setCachedSnapshot } from '@/lib/offline/cache';
+import { getCachedSnapshot, getCachedSnapshotMeta, setCachedSnapshot } from '@/lib/offline/cache';
 import type {
   DashboardStats,
   SalesData,
@@ -97,6 +97,7 @@ export function useDashboardStats() {
   const { mode } = useBusinessMode();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
 
   // Raw data slices
   const [todayOrders, setTodayOrders] = useState<RawOrder[]>([]);
@@ -111,6 +112,8 @@ export function useDashboardStats() {
     setLoading(true);
     setError(null);
     const offlineCacheKey = `snapshot:dashboard:${mode}`;
+    const cacheMeta = await getCachedSnapshotMeta(offlineCacheKey);
+    setLastSyncedAt(cacheMeta.updatedAt);
 
     const cached = await getCachedSnapshot<DashboardOfflineSnapshot>(offlineCacheKey);
     if (cached) {
@@ -213,6 +216,7 @@ export function useDashboardStats() {
         todayItems: itemsData,
         todayPayments: paymentsData,
       });
+      setLastSyncedAt(new Date().toISOString());
     } catch (err: any) {
       console.error('Dashboard fetch failed:', err);
       if (!cached) {
@@ -586,5 +590,6 @@ export function useDashboardStats() {
     // Retail dashboard
     retailStats,
     recentSales,
+    lastSyncedAt,
   };
 }

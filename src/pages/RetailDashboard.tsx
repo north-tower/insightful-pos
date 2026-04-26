@@ -44,6 +44,7 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
     topSellingItems,
     recentSales,
     refetch,
+    lastSyncedAt,
   } = useDashboardStats();
 
   const loading = productsLoading || statsLoading;
@@ -80,6 +81,9 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
                 • {lowStockProducts.length + outOfStockProducts.length} stock alerts
               </span>
             )}
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Last synced at {lastSyncedAt ? new Date(lastSyncedAt).toLocaleString() : 'Not synced yet'}
           </p>
         </div>
         <Button

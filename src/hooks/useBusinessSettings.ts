@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
 import { COMPANY } from '@/config/company';
-import { getCachedSnapshot, setCachedSnapshot } from '@/lib/offline/cache';
+import { getCachedSnapshot, getCachedSnapshotMeta, setCachedSnapshot } from '@/lib/offline/cache';
 
 export interface BusinessSettings {
   id?: string;
@@ -37,6 +37,7 @@ export function useBusinessSettings() {
   const { user } = useAuth();
   const [settings, setSettings] = useState<BusinessSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
 
   const fetchSettings = useCallback(async () => {
     if (!user) {
@@ -46,6 +47,9 @@ export function useBusinessSettings() {
     setLoading(true);
     const cacheKey = businessSettingsCacheKey(user.id);
     try {
+      const cacheMeta = await getCachedSnapshotMeta(cacheKey);
+      setLastSyncedAt(cacheMeta.updatedAt);
+
       const cached = await getCachedSnapshot<BusinessSettings>(cacheKey);
       if (cached) {
         setSettings(cached);
@@ -97,9 +101,11 @@ export function useBusinessSettings() {
         };
         setSettings(nextSettings);
         await setCachedSnapshot<BusinessSettings>(cacheKey, nextSettings);
+        setLastSyncedAt(new Date().toISOString());
       } else {
         setSettings(DEFAULT_SETTINGS);
         await setCachedSnapshot<BusinessSettings>(cacheKey, DEFAULT_SETTINGS);
+        setLastSyncedAt(new Date().toISOString());
       }
     } catch (err) {
       console.error('Failed to fetch business settings:', err);
@@ -173,6 +179,7 @@ export function useBusinessSettings() {
         };
         setSettings(nextSettings);
         await setCachedSnapshot<BusinessSettings>(businessSettingsCacheKey(user.id), nextSettings);
+        setLastSyncedAt(new Date().toISOString());
 
         toast.success('Business settings saved');
       } catch (err) {
@@ -183,5 +190,5 @@ export function useBusinessSettings() {
     [user, settings]
   );
 
-  return { settings, loading, saveSettings, refetch: fetchSettings };
+  return { settings, loading, saveSettings, refetch: fetchSettings, lastSyncedAt };
 }
