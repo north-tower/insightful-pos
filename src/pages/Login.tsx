@@ -1,10 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
-import { supabase } from '@/lib/supabase';
 import {
   LogIn,
   UserPlus,
@@ -19,19 +18,6 @@ type AuthTab = 'login' | 'signup';
 
 export default function Login() {
   const { signIn, signUp } = useAuth();
-  const [companyName, setCompanyName] = useState('');
-
-  // Fetch company name directly (user may not be authenticated yet)
-  useEffect(() => {
-    supabase
-      .from('business_settings')
-      .select('name')
-      .limit(1)
-      .single()
-      .then(({ data }) => {
-        if (data?.name) setCompanyName(data.name);
-      });
-  }, []);
 
   const [tab, setTab] = useState<AuthTab>('login');
   const [email, setEmail] = useState('');
@@ -95,7 +81,7 @@ export default function Login() {
           <div className="inline-flex items-center justify-center w-14 h-14 bg-primary/10 rounded-2xl mb-4">
             <Store className="w-7 h-7 text-primary" />
           </div>
-          <h1 className="text-3xl font-bold text-foreground">{companyName ? `${companyName} POS` : 'POS'}</h1>
+          <h1 className="text-3xl font-bold text-foreground">INSIGHTFUL POS</h1>
           <p className="text-muted-foreground mt-1">Sign in to your account</p>
         </div>
 
@@ -199,7 +185,7 @@ export default function Login() {
 
         {/* Footer */}
         <p className="text-center text-xs text-muted-foreground mt-8">
-          {companyName ? `${companyName} POS` : 'POS'} • Restaurant & Retail Point of Sale
+          INSIGHTFUL POS • Restaurant & Retail Point of Sale
         </p>
       </div>
     </div>
