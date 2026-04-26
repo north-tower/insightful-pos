@@ -141,9 +141,10 @@
 
 @layer base {
   html {
-    /* Prevent Android/Samsung automatic font inflation on mobile */
-    -webkit-text-size-adjust: 100%;
-    text-size-adjust: 100%;
+    /* Prevent aggressive Android OEM/WebView font inflation */
+    font-size: 16px;
+    -webkit-text-size-adjust: none;
+    text-size-adjust: none;
   }
 
   * {
@@ -152,6 +153,8 @@
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
+    -webkit-text-size-adjust: none;
+    text-size-adjust: none;
   }
 }
 
