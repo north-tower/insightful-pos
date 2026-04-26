@@ -101,6 +101,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
   const [selectedProductId, setSelectedProductId] = useState('');
   const [assignedQty, setAssignedQty] = useState('');
   const [isAssigning, setIsAssigning] = useState(false);
+  const getMainStock = (product: Product) => product.mainStock ?? product.stock;
   const canManageCashierStock = user?.role === 'admin' || user?.role === 'manager';
   const staffAllocationReport = useMemo(() => {
     const grouped = new Map<string, {
@@ -379,13 +380,13 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
   // Stock summary
   const stockSummary = useMemo(() => {
     const totalProducts = retailProducts.length;
-    const totalUnits = retailProducts.reduce((sum, p) => sum + p.stock, 0);
+    const totalUnits = retailProducts.reduce((sum, p) => sum + getMainStock(p), 0);
     const totalValue = retailProducts.reduce(
-      (sum, p) => sum + p.cost * p.stock,
+      (sum, p) => sum + p.cost * getMainStock(p),
       0
     );
-    const inStock = retailProducts.filter((p) => p.stock > 0);
-    const outOfStock = retailProducts.filter((p) => p.stock <= 0);
+    const inStock = retailProducts.filter((p) => getMainStock(p) > 0);
+    const outOfStock = retailProducts.filter((p) => getMainStock(p) <= 0);
 
     return { totalProducts, totalUnits, totalValue, inStock, outOfStock };
   }, [retailProducts]);
@@ -397,10 +398,10 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
     // Filter by stock status
     switch (stockFilter) {
       case 'in-stock':
-        products = products.filter((p) => p.stock > 0);
+        products = products.filter((p) => getMainStock(p) > 0);
         break;
       case 'out':
-        products = products.filter((p) => p.stock <= 0);
+        products = products.filter((p) => getMainStock(p) <= 0);
         break;
     }
 
@@ -417,9 +418,11 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
 
     // Sort: out of stock first, then by stock ascending
     products.sort((a, b) => {
-      if (a.stock === 0 && b.stock !== 0) return -1;
-      if (a.stock !== 0 && b.stock === 0) return 1;
-      return a.stock - b.stock;
+      const aStock = getMainStock(a);
+      const bStock = getMainStock(b);
+      if (aStock === 0 && bStock !== 0) return -1;
+      if (aStock !== 0 && bStock === 0) return 1;
+      return aStock - bStock;
     });
 
     return products;
@@ -684,7 +687,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                       <SelectContent>
                         {retailProducts.map((p) => (
                           <SelectItem key={p.id} value={p.id}>
-                            {p.name}
+                            {p.name} (Main: {getMainStock(p)})
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -836,6 +839,11 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
 
                     {/* Rows */}
                     {paginatedProducts.map((product) => (
+                        (() => {
+                          const mainStock = getMainStock(product);
+                          const allocatedStock = product.stock;
+                          const isAllocationView = mainStock !== allocatedStock;
+                          return (
                         <div
                           key={product.id}
                           className="grid grid-cols-12 gap-3 items-center px-3 py-3 rounded hover:bg-muted/30 transition-colors"
@@ -867,11 +875,16 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                           {/* Stock count */}
                           <div className="col-span-2 text-center">
                             <Badge
-                              variant={product.stock <= 0 ? 'destructive' : 'secondary'}
+                              variant={mainStock <= 0 ? 'destructive' : 'secondary'}
                               className="font-bold"
                             >
-                              {product.stock} {product.unit}
+                              {mainStock} {product.unit}
                             </Badge>
+                            {isAllocationView && (
+                              <p className="text-[10px] text-muted-foreground mt-1">
+                                Allocated: {allocatedStock}
+                              </p>
+                            )}
                           </div>
 
                           {/* Action */}
@@ -886,6 +899,8 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                             </Button>
                           </div>
                         </div>
+                          );
+                        })()
                     ))}
 
                     {filteredProducts.length === 0 && (

@@ -88,6 +88,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
   const [lastOrderCustomer, setLastOrderCustomer] = useState<Customer | null>(null);
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
   const [productViewMode, setProductViewMode] = useState<ProductViewMode>(getInitialProductViewMode);
+  const getMainStock = (product: Product) => product.mainStock ?? product.stock;
 
   // Local editing state so inputs can be cleared / partially typed before committing
   const [editingQty, setEditingQty] = useState<Record<string, string>>({});
@@ -426,6 +427,8 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                     const isLowStock =
                       product.stock > 0 &&
                       product.stock <= product.lowStockThreshold;
+                    const mainStock = getMainStock(product);
+                    const showsAllocatedStock = mainStock !== product.stock;
 
                     return (
                       <button
@@ -492,6 +495,11 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                             {product.stock} {product.unit}
                           </span>
                         </div>
+                        {showsAllocatedStock && (
+                          <p className="text-[10px] text-muted-foreground mt-0.5">
+                            Main: {mainStock} {product.unit}
+                          </p>
+                        )}
                       </button>
                     );
                   })}
@@ -503,6 +511,8 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                     const inCart = cartItem ? cartItem.quantity : 0;
                     const isOutOfStock = product.stock <= 0;
                     const isLowStock = product.stock > 0 && product.stock <= product.lowStockThreshold;
+                    const mainStock = getMainStock(product);
+                    const showsAllocatedStock = mainStock !== product.stock;
 
                     return (
                       <div
@@ -543,6 +553,11 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                             >
                               {product.stock} {product.unit}
                             </span>
+                            {showsAllocatedStock && (
+                              <span className="text-muted-foreground">
+                                Main: {mainStock} {product.unit}
+                              </span>
+                            )}
                             {inCart > 0 && (
                               <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
                                 In cart: {inCart}

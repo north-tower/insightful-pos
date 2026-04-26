@@ -10,6 +10,7 @@ export interface Product {
   category: string;
   image: string;
   stock: number;
+  mainStock?: number;
   lowStockThreshold: number;
   unit: string; // 'pcs', 'kg', 'ltr', etc.
   brand?: string;

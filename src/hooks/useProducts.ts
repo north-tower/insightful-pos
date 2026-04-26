@@ -101,6 +101,7 @@ function toProduct(
     category: categorySlug,
     image: row.image_url || '',
     stock: row.stock ?? 0,
+    mainStock: row.stock ?? 0,
     lowStockThreshold: row.low_stock_threshold ?? 10,
     unit: row.unit || 'pcs',
     brand: row.brand || undefined,
