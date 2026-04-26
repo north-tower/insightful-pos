@@ -133,19 +133,29 @@ export function useProducts() {
   const [cashierAllocations, setCashierAllocations] = useState<CashierAllocationRow[]>([]);
 
   const offlineCacheKey = useMemo(
+    () => `snapshot:products:${mode}:${user?.id || 'anon'}`,
+    [mode, user?.id],
+  );
+  const legacyOfflineCacheKey = useMemo(
     () => `snapshot:products:${mode}:${user?.id || 'anon'}:${user?.role || 'unknown'}`,
     [mode, user?.id, user?.role],
   );
 
   const loadFromOfflineCache = useCallback(async (): Promise<boolean> => {
-    const cached = await getCachedSnapshot<ProductsOfflineSnapshot>(offlineCacheKey);
+    let cached = await getCachedSnapshot<ProductsOfflineSnapshot>(offlineCacheKey);
+    if (!cached && legacyOfflineCacheKey !== offlineCacheKey) {
+      cached = await getCachedSnapshot<ProductsOfflineSnapshot>(legacyOfflineCacheKey);
+      if (cached) {
+        await setCachedSnapshot<ProductsOfflineSnapshot>(offlineCacheKey, cached);
+      }
+    }
     if (!cached) return false;
     setSupaCategories(cached.categories || []);
     setSupaProducts(cached.products || []);
     setSupaVariants(cached.variants || []);
     setCashierAllocations(cached.cashierAllocations || []);
     return true;
-  }, [offlineCacheKey]);
+  }, [legacyOfflineCacheKey, offlineCacheKey]);
 
   // ── Fetch ──────────────────────────────────────────────────────────────
 

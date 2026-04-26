@@ -179,8 +179,15 @@ export function useOrders() {
     async (params: CreateOrderParams) => {
       if (mode !== 'retail') return;
 
-      const productsCacheKey = `snapshot:products:${mode}:${user?.id || 'anon'}:${user?.role || 'unknown'}`;
-      const snapshot = await getCachedSnapshot<ProductsOfflineSnapshot>(productsCacheKey);
+      const productsCacheKey = `snapshot:products:${mode}:${user?.id || 'anon'}`;
+      const legacyProductsCacheKey = `snapshot:products:${mode}:${user?.id || 'anon'}:${user?.role || 'unknown'}`;
+      let snapshot = await getCachedSnapshot<ProductsOfflineSnapshot>(productsCacheKey);
+      if (!snapshot && legacyProductsCacheKey !== productsCacheKey) {
+        snapshot = await getCachedSnapshot<ProductsOfflineSnapshot>(legacyProductsCacheKey);
+        if (snapshot) {
+          await setCachedSnapshot<ProductsOfflineSnapshot>(productsCacheKey, snapshot);
+        }
+      }
       if (!snapshot) return;
 
       const qtyByProduct = new Map<string, number>();
