@@ -233,6 +233,21 @@ export function useProducts() {
     fetchData();
   }, [fetchData]);
 
+  useEffect(() => {
+    const onOfflineProductsUpdated = (event: Event) => {
+      const customEvent = event as CustomEvent<{ cacheKey?: string }>;
+      const targetKey = customEvent.detail?.cacheKey;
+      if (!targetKey || targetKey === offlineCacheKey) {
+        void loadFromOfflineCache();
+      }
+    };
+
+    window.addEventListener('offline-products-updated', onOfflineProductsUpdated);
+    return () => {
+      window.removeEventListener('offline-products-updated', onOfflineProductsUpdated);
+    };
+  }, [loadFromOfflineCache, offlineCacheKey]);
+
   // ── Category slug lookup (uuid → slug) ─────────────────────────────────
 
   const categoryMap = useMemo(() => {

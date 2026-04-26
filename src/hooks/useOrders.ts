@@ -136,6 +136,21 @@ interface QueuedCreateOrderPayload {
   params: CreateOrderParams;
 }
 
+interface ProductsOfflineSnapshot {
+  categories: unknown[];
+  products: Array<{
+    id: string;
+    stock?: number | null;
+    [key: string]: unknown;
+  }>;
+  variants: unknown[];
+  cashierAllocations: Array<{
+    product_id: string;
+    assigned_qty: number;
+    sold_qty: number;
+  }>;
+}
+
 // ─── Hook ───────────────────────────────────────────────────────────────────
 
 export function useOrders() {
@@ -159,6 +174,59 @@ export function useOrders() {
   const persistOrdersSnapshot = useCallback(async (nextOrders: SaleOrder[]) => {
     await setCachedSnapshot<SaleOrder[]>(offlineCacheKey, nextOrders);
   }, [offlineCacheKey]);
+
+  const applyOfflineInventoryDeduction = useCallback(
+    async (params: CreateOrderParams) => {
+      if (mode !== 'retail') return;
+
+      const productsCacheKey = `snapshot:products:${mode}:${user?.id || 'anon'}:${user?.role || 'unknown'}`;
+      const snapshot = await getCachedSnapshot<ProductsOfflineSnapshot>(productsCacheKey);
+      if (!snapshot) return;
+
+      const qtyByProduct = new Map<string, number>();
+      for (const item of params.items) {
+        if (!item.product_id) continue;
+        qtyByProduct.set(
+          item.product_id,
+          (qtyByProduct.get(item.product_id) || 0) + Math.max(item.quantity || 0, 0),
+        );
+      }
+
+      if (qtyByProduct.size === 0) return;
+
+      const nextProducts = snapshot.products.map((product) => {
+        const soldQty = qtyByProduct.get(product.id) || 0;
+        if (!soldQty) return product;
+        const currentStock = Number(product.stock || 0);
+        return {
+          ...product,
+          stock: Math.max(currentStock - soldQty, 0),
+        };
+      });
+
+      const nextAllocations = snapshot.cashierAllocations.map((allocation) => {
+        const soldQty = qtyByProduct.get(allocation.product_id) || 0;
+        if (!soldQty) return allocation;
+        return {
+          ...allocation,
+          sold_qty: Math.min(allocation.sold_qty + soldQty, allocation.assigned_qty),
+        };
+      });
+
+      await setCachedSnapshot<ProductsOfflineSnapshot>(productsCacheKey, {
+        ...snapshot,
+        products: nextProducts,
+        cashierAllocations: nextAllocations,
+      });
+
+      window.dispatchEvent(
+        new CustomEvent('offline-products-updated', {
+          detail: { cacheKey: productsCacheKey },
+        }),
+      );
+    },
+    [mode, user?.id, user?.role],
+  );
 
   const createOrderRemote = useCallback(
     async (params: CreateOrderParams): Promise<SaleOrder | null> => {
@@ -654,6 +722,8 @@ export function useOrders() {
           } satisfies QueuedCreateOrderPayload,
         });
 
+        await applyOfflineInventoryDeduction(params);
+
         return localOrder;
       } catch (err: any) {
         console.error('Failed to create order:', err);
@@ -661,7 +731,15 @@ export function useOrders() {
         return null;
       }
     },
-    [isRestaurant, mode, user, orders, createOrderRemote, persistOrdersSnapshot],
+    [
+      isRestaurant,
+      mode,
+      user,
+      orders,
+      createOrderRemote,
+      persistOrdersSnapshot,
+      applyOfflineInventoryDeduction,
+    ],
   );
 
   // ── Update order status ───────────────────────────────────────────────
