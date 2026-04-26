@@ -116,6 +116,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [saleTypeFilter, setSaleTypeFilter] = useState<string>('all');
+  const [paymentMethodFilter, setPaymentMethodFilter] = useState<'all' | 'cash' | 'bank'>('all');
   const [selectedOrder, setSelectedOrder] = useState<SaleOrder | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
@@ -158,6 +159,18 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
     [isReportMode, reportOrders, orders],
   );
 
+  const orderMatchesPaymentMethod = (order: SaleOrder) => {
+    if (paymentMethodFilter === 'all') return true;
+    if (!order.payments || order.payments.length === 0) return false;
+
+    if (paymentMethodFilter === 'cash') {
+      return order.payments.some((p) => p.method === 'cash');
+    }
+
+    // "Bank" means all non-cash digital/bank channels.
+    return order.payments.some((p) => p.method === 'card' || p.method === 'qr');
+  };
+
   const filteredOrders = useMemo(() => {
     let result = sourceOrders;
 
@@ -168,6 +181,8 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
     if (saleTypeFilter !== 'all') {
       result = result.filter((o) => o.sale_type === saleTypeFilter);
     }
+
+    result = result.filter(orderMatchesPaymentMethod);
 
     if (searchQuery) {
     const query = searchQuery.toLowerCase();
@@ -181,12 +196,12 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
     }
 
     return result;
-  }, [sourceOrders, searchQuery, statusFilter, saleTypeFilter]);
+  }, [sourceOrders, searchQuery, statusFilter, saleTypeFilter, paymentMethodFilter]);
 
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, statusFilter, saleTypeFilter]);
+  }, [searchQuery, statusFilter, saleTypeFilter, paymentMethodFilter]);
 
   // Paginated slice
   const totalPages = Math.ceil(filteredOrders.length / pageSize);
@@ -715,6 +730,26 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                   variant={saleTypeFilter === key ? 'default' : 'outline'}
                   size="sm"
                   onClick={() => setSaleTypeFilter(key)}
+                  className="gap-1.5"
+                >
+                  {Icon && <Icon className="w-3.5 h-3.5" />}
+                  {label}
+                </Button>
+              ))}
+            </div>
+            {/* Payment Method Filter */}
+            <div className="flex gap-2 items-center overflow-x-auto pb-1 scrollbar-hide">
+              <span className="text-sm text-muted-foreground font-medium shrink-0">Payment:</span>
+              {[
+                { key: 'all', label: 'All' },
+                { key: 'cash', label: 'Cash', icon: Banknote },
+                { key: 'bank', label: 'Bank', icon: CreditCard },
+              ].map(({ key, label, icon: Icon }) => (
+                <Button
+                  key={key}
+                  variant={paymentMethodFilter === key ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setPaymentMethodFilter(key as 'all' | 'cash' | 'bank')}
                   className="gap-1.5"
                 >
                   {Icon && <Icon className="w-3.5 h-3.5" />}
