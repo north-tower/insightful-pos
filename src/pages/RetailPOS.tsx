@@ -388,7 +388,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                   className="pl-10 font-mono h-9"
                 />
               </div>
-              <div className="hidden sm:flex items-center gap-1 rounded-md border border-border bg-card p-1">
+              <div className="flex items-center gap-1 rounded-md border border-border bg-card p-1 shrink-0">
                 <button
                   onClick={() => {
                     setProductViewMode('card');
@@ -405,7 +405,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                   title="Card view"
                 >
                   <LayoutGrid className="w-3.5 h-3.5" />
-                  Card
+                  <span className="hidden sm:inline">Card</span>
                 </button>
                 <button
                   onClick={() => {
@@ -423,7 +423,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                   title="List view"
                 >
                   <List className="w-3.5 h-3.5" />
-                  List
+                  <span className="hidden sm:inline">List</span>
                 </button>
               </div>
             </div>
