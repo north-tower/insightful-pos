@@ -27,6 +27,8 @@ import {
   User,
   UserPlus,
   ChevronDown,
+  LayoutGrid,
+  List,
 } from 'lucide-react';
 import { generatePlaceholderUrl } from '@/lib/product-images';
 import { fc, CURRENCY_SYMBOL } from '@/lib/currency';
@@ -46,6 +48,14 @@ interface CartItem {
 }
 
 type PaymentMethod = 'cash' | 'card' | 'qr';
+type ProductViewMode = 'card' | 'list';
+
+const PRODUCT_VIEW_STORAGE_KEY = 'retail-pos:product-view-mode';
+
+function getInitialProductViewMode(): ProductViewMode {
+  if (typeof window === 'undefined') return 'card';
+  return window.localStorage.getItem(PRODUCT_VIEW_STORAGE_KEY) === 'list' ? 'list' : 'card';
+}
 
 export default function RetailPOS({ onNavigate }: RetailPOSProps) {
   const { retailProducts, loading, refetch: refetchProducts } = useProducts();
@@ -73,6 +83,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
   const [lastOrder, setLastOrder] = useState<SaleOrder | null>(null);
   const [lastOrderCustomer, setLastOrderCustomer] = useState<Customer | null>(null);
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
+  const [productViewMode, setProductViewMode] = useState<ProductViewMode>(getInitialProductViewMode);
 
   // Local editing state so inputs can be cleared / partially typed before committing
   const [editingQty, setEditingQty] = useState<Record<string, string>>({});
@@ -371,6 +382,44 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                   className="pl-10 font-mono h-9"
                 />
               </div>
+              <div className="hidden sm:flex items-center gap-1 rounded-md border border-border bg-card p-1">
+                <button
+                  onClick={() => {
+                    setProductViewMode('card');
+                    if (typeof window !== 'undefined') {
+                      window.localStorage.setItem(PRODUCT_VIEW_STORAGE_KEY, 'card');
+                    }
+                  }}
+                  className={cn(
+                    'h-7 px-2 rounded text-xs font-medium flex items-center gap-1',
+                    productViewMode === 'card'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                  title="Card view"
+                >
+                  <LayoutGrid className="w-3.5 h-3.5" />
+                  Card
+                </button>
+                <button
+                  onClick={() => {
+                    setProductViewMode('list');
+                    if (typeof window !== 'undefined') {
+                      window.localStorage.setItem(PRODUCT_VIEW_STORAGE_KEY, 'list');
+                    }
+                  }}
+                  className={cn(
+                    'h-7 px-2 rounded text-xs font-medium flex items-center gap-1',
+                    productViewMode === 'list'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                  title="List view"
+                >
+                  <List className="w-3.5 h-3.5" />
+                  List
+                </button>
+              </div>
             </div>
 
             {/* Product Grid */}
@@ -384,88 +433,154 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                 </div>
               ) : (
               <>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2 sm:gap-3">
-                {filteredProducts.map((product) => {
-                  const cartItem = cart.find(
-                    (c) => c.product.id === product.id
-                  );
-                  const inCart = cartItem ? cartItem.quantity : 0;
-                  const isOutOfStock = product.stock <= 0;
-                  const isLowStock =
-                    product.stock > 0 &&
-                    product.stock <= product.lowStockThreshold;
+              {productViewMode === 'card' ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2 sm:gap-3">
+                  {filteredProducts.map((product) => {
+                    const cartItem = cart.find(
+                      (c) => c.product.id === product.id
+                    );
+                    const inCart = cartItem ? cartItem.quantity : 0;
+                    const isOutOfStock = product.stock <= 0;
+                    const isLowStock =
+                      product.stock > 0 &&
+                      product.stock <= product.lowStockThreshold;
 
-                  return (
-                    <button
-                      key={product.id}
-                      onClick={() => addToCart(product)}
-                      disabled={isOutOfStock}
-                      className={cn(
-                        'relative bg-card border rounded-lg p-2 sm:p-3 text-left transition-all group',
-                        inCart > 0
-                          ? 'border-primary shadow-md'
-                          : 'border-border hover:border-primary/40',
-                        isOutOfStock && 'opacity-50 cursor-not-allowed'
-                      )}
-                    >
-                      {/* Image */}
-                      <div className="relative aspect-square rounded overflow-hidden bg-muted mb-2">
+                    return (
+                      <button
+                        key={product.id}
+                        onClick={() => addToCart(product)}
+                        disabled={isOutOfStock}
+                        className={cn(
+                          'relative bg-card border rounded-lg p-2 sm:p-3 text-left transition-all group',
+                          inCart > 0
+                            ? 'border-primary shadow-md'
+                            : 'border-border hover:border-primary/40',
+                          isOutOfStock && 'opacity-50 cursor-not-allowed'
+                        )}
+                      >
+                        <div className="relative aspect-square rounded overflow-hidden bg-muted mb-2">
+                          <img
+                            src={product.image || generatePlaceholderUrl(product.name)}
+                            alt={product.name}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          />
+                          {isOutOfStock && (
+                            <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
+                              <Badge className="bg-destructive text-destructive-foreground text-[10px] sm:text-xs">
+                                Out of Stock
+                              </Badge>
+                            </div>
+                          )}
+                          {isLowStock && !isOutOfStock && (
+                            <div className="absolute top-1 right-1">
+                              <AlertTriangle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-warning" />
+                            </div>
+                          )}
+                          {inCart > 0 && (
+                            <div className="absolute top-1 left-1 bg-primary text-primary-foreground text-[10px] sm:text-xs font-bold w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center">
+                              {inCart}
+                            </div>
+                          )}
+                          {product.discount && (
+                            <div className="absolute bottom-1 left-1">
+                              <Badge className="bg-destructive text-destructive-foreground text-[10px]">
+                                {product.discount}% OFF
+                              </Badge>
+                            </div>
+                          )}
+                        </div>
+
+                        <p className="text-xs sm:text-sm font-semibold text-foreground line-clamp-1 sm:line-clamp-2 mb-0.5">
+                          {product.name}
+                        </p>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-bold text-foreground">
+                            {fc(product.price)}
+                          </span>
+                          <span
+                            className={cn(
+                              'text-[10px] sm:text-xs',
+                              isOutOfStock
+                                ? 'text-destructive'
+                                : isLowStock
+                                ? 'text-warning'
+                                : 'text-muted-foreground'
+                            )}
+                          >
+                            {product.stock} {product.unit}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {filteredProducts.map((product) => {
+                    const cartItem = cart.find((c) => c.product.id === product.id);
+                    const inCart = cartItem ? cartItem.quantity : 0;
+                    const isOutOfStock = product.stock <= 0;
+                    const isLowStock = product.stock > 0 && product.stock <= product.lowStockThreshold;
+
+                    return (
+                      <div
+                        key={product.id}
+                        className={cn(
+                          'bg-card border rounded-lg p-2 flex items-center gap-3',
+                          inCart > 0 ? 'border-primary' : 'border-border',
+                          isOutOfStock && 'opacity-60'
+                        )}
+                      >
                         <img
                           src={product.image || generatePlaceholderUrl(product.name)}
                           alt={product.name}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          className="w-12 h-12 rounded object-cover shrink-0"
                         />
-                        {isOutOfStock && (
-                          <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
-                            <Badge className="bg-destructive text-destructive-foreground text-[10px] sm:text-xs">
-                              Out of Stock
-                            </Badge>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-semibold text-foreground truncate">{product.name}</p>
+                            {isLowStock && !isOutOfStock && (
+                              <AlertTriangle className="w-3.5 h-3.5 text-warning shrink-0" />
+                            )}
+                            {product.discount && (
+                              <Badge className="bg-destructive text-destructive-foreground text-[10px] px-1.5 py-0">
+                                {product.discount}% OFF
+                              </Badge>
+                            )}
                           </div>
-                        )}
-                        {isLowStock && !isOutOfStock && (
-                          <div className="absolute top-1 right-1">
-                            <AlertTriangle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-warning" />
+                          <div className="flex items-center gap-2 text-xs mt-0.5">
+                            <span className="font-bold text-foreground">{fc(product.price)}</span>
+                            <span
+                              className={cn(
+                                isOutOfStock
+                                  ? 'text-destructive'
+                                  : isLowStock
+                                  ? 'text-warning'
+                                  : 'text-muted-foreground'
+                              )}
+                            >
+                              {product.stock} {product.unit}
+                            </span>
+                            {inCart > 0 && (
+                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                                In cart: {inCart}
+                              </Badge>
+                            )}
                           </div>
-                        )}
-                        {inCart > 0 && (
-                          <div className="absolute top-1 left-1 bg-primary text-primary-foreground text-[10px] sm:text-xs font-bold w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center">
-                            {inCart}
-                          </div>
-                        )}
-                        {product.discount && (
-                          <div className="absolute bottom-1 left-1">
-                            <Badge className="bg-destructive text-destructive-foreground text-[10px]">
-                              {product.discount}% OFF
-                            </Badge>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Details */}
-                      <p className="text-xs sm:text-sm font-semibold text-foreground line-clamp-1 sm:line-clamp-2 mb-0.5">
-                        {product.name}
-                      </p>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-bold text-foreground">
-                          {fc(product.price)}
-                        </span>
-                        <span
-                          className={cn(
-                            'text-[10px] sm:text-xs',
-                            isOutOfStock
-                              ? 'text-destructive'
-                              : isLowStock
-                              ? 'text-warning'
-                              : 'text-muted-foreground'
-                          )}
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={() => addToCart(product)}
+                          disabled={isOutOfStock}
+                          className="h-8 px-3 shrink-0"
                         >
-                          {product.stock} {product.unit}
-                        </span>
+                          {isOutOfStock ? 'Out' : 'Add'}
+                        </Button>
                       </div>
-                    </button>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
 
               {filteredProducts.length === 0 && (
                 <div className="text-center py-16 text-muted-foreground">
