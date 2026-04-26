@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
 import { COMPANY } from '@/config/company';
+import { getCachedSnapshot, setCachedSnapshot } from '@/lib/offline/cache';
 
 export interface BusinessSettings {
   id?: string;
@@ -30,6 +31,8 @@ const DEFAULT_SETTINGS: BusinessSettings = {
   tax_id: COMPANY.taxId,
 };
 
+const businessSettingsCacheKey = (userId: string) => `snapshot:business-settings:${userId}`;
+
 export function useBusinessSettings() {
   const { user } = useAuth();
   const [settings, setSettings] = useState<BusinessSettings>(DEFAULT_SETTINGS);
@@ -41,7 +44,21 @@ export function useBusinessSettings() {
       return;
     }
     setLoading(true);
+    const cacheKey = businessSettingsCacheKey(user.id);
     try {
+      const cached = await getCachedSnapshot<BusinessSettings>(cacheKey);
+      if (cached) {
+        setSettings(cached);
+        setLoading(false);
+      }
+
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        if (!cached) {
+          setSettings(DEFAULT_SETTINGS);
+        }
+        return;
+      }
+
       const [{ data, error }, { data: storeIdData }, ] = await Promise.all([
         supabase
         .from('business_settings')
@@ -66,7 +83,7 @@ export function useBusinessSettings() {
 
       if (data) {
         const effectiveName = storeName || data.name || DEFAULT_SETTINGS.name;
-        setSettings({
+        const nextSettings = {
           id: data.id,
           name: effectiveName,
           fullName: effectiveName,
@@ -77,9 +94,12 @@ export function useBusinessSettings() {
           email: data.email || DEFAULT_SETTINGS.email,
           website: data.website || DEFAULT_SETTINGS.website,
           tax_id: data.tax_id || DEFAULT_SETTINGS.tax_id,
-        });
+        };
+        setSettings(nextSettings);
+        await setCachedSnapshot<BusinessSettings>(cacheKey, nextSettings);
       } else {
         setSettings(DEFAULT_SETTINGS);
+        await setCachedSnapshot<BusinessSettings>(cacheKey, DEFAULT_SETTINGS);
       }
     } catch (err) {
       console.error('Failed to fetch business settings:', err);
@@ -139,7 +159,7 @@ export function useBusinessSettings() {
 
         if (error) throw error;
 
-        setSettings({
+        const nextSettings = {
           id: data.id,
           name: requestedStoreName || data.name || settings.name,
           fullName: requestedStoreName || data.full_name || settings.fullName,
@@ -150,7 +170,9 @@ export function useBusinessSettings() {
           email: data.email,
           website: data.website,
           tax_id: data.tax_id,
-        });
+        };
+        setSettings(nextSettings);
+        await setCachedSnapshot<BusinessSettings>(businessSettingsCacheKey(user.id), nextSettings);
 
         toast.success('Business settings saved');
       } catch (err) {

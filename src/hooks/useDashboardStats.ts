@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useBusinessMode } from '@/context/BusinessModeContext';
+import { getCachedSnapshot, setCachedSnapshot } from '@/lib/offline/cache';
 import type {
   DashboardStats,
   SalesData,
@@ -82,6 +83,14 @@ interface RawPayment {
   amount: number;
 }
 
+interface DashboardOfflineSnapshot {
+  todayOrders: RawOrder[];
+  yesterdayOrders: RawOrder[];
+  last30Orders: RawOrder[];
+  todayItems: RawOrderItem[];
+  todayPayments: RawPayment[];
+}
+
 // ─── Hook ──────────────────────────────────────────────────────────────────
 
 export function useDashboardStats() {
@@ -101,6 +110,22 @@ export function useDashboardStats() {
   const fetch = useCallback(async () => {
     setLoading(true);
     setError(null);
+    const offlineCacheKey = `snapshot:dashboard:${mode}`;
+
+    const cached = await getCachedSnapshot<DashboardOfflineSnapshot>(offlineCacheKey);
+    if (cached) {
+      setTodayOrders(cached.todayOrders || []);
+      setYesterdayOrders(cached.yesterdayOrders || []);
+      setLast30Orders(cached.last30Orders || []);
+      setTodayItems(cached.todayItems || []);
+      setTodayPayments(cached.todayPayments || []);
+      setLoading(false);
+    }
+
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      if (!cached) setError('Offline and no cached dashboard data available yet');
+      return;
+    }
 
     const today = new Date();
     const yesterday = daysAgo(1);
@@ -180,9 +205,19 @@ export function useDashboardStats() {
       setLast30Orders((monthData || []).map((o: any) => ({ ...o, total: Number(o.total) })));
       setTodayItems(itemsData);
       setTodayPayments(paymentsData);
+
+      await setCachedSnapshot<DashboardOfflineSnapshot>(offlineCacheKey, {
+        todayOrders: (todayData || []).map((o: any) => ({ ...o, total: Number(o.total) })),
+        yesterdayOrders: (yData || []).map((o: any) => ({ ...o, total: Number(o.total) })),
+        last30Orders: (monthData || []).map((o: any) => ({ ...o, total: Number(o.total) })),
+        todayItems: itemsData,
+        todayPayments: paymentsData,
+      });
     } catch (err: any) {
       console.error('Dashboard fetch failed:', err);
-      setError(err.message || 'Failed to load dashboard data');
+      if (!cached) {
+        setError(err.message || 'Failed to load dashboard data');
+      }
     } finally {
       setLoading(false);
     }
