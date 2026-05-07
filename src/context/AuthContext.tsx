@@ -59,6 +59,7 @@ interface AuthContextType {
   // Actions
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signUp: (params: SignUpParams) => Promise<{ error: string | null }>;
+  requestPasswordReset: (email: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
 
   // Role helpers
@@ -226,6 +227,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  // ── Request password reset ───────────────────────────────────────────────
+  const requestPasswordReset = useCallback(
+    async (email: string): Promise<{ error: string | null }> => {
+      const { error } = await supabase.auth.resetPasswordForEmail(email);
+      if (error) return { error: error.message };
+      return { error: null };
+    },
+    [],
+  );
+
   // ── Sign out ────────────────────────────────────────────────────────────
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
@@ -255,6 +266,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         hasAssignedStore,
         signIn,
         signUp,
+        requestPasswordReset,
         signOut,
         hasRole,
         isAdmin: user?.role === 'admin',

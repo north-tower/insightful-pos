@@ -17,7 +17,7 @@ import {
 type AuthTab = 'login' | 'signup';
 
 export default function Login() {
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, requestPasswordReset } = useAuth();
 
   const [tab, setTab] = useState<AuthTab>('login');
   const [email, setEmail] = useState('');
@@ -25,12 +25,15 @@ export default function Login() {
   const [fullName, setFullName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [signupSuccess, setSignupSuccess] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setInfo('');
     setLoading(true);
 
     if (tab === 'login') {
@@ -51,6 +54,25 @@ export default function Login() {
     }
 
     setLoading(false);
+  };
+
+  const handlePasswordReset = async () => {
+    setError('');
+    setInfo('');
+
+    if (!email.trim()) {
+      setError('Enter your email first to reset password');
+      return;
+    }
+
+    setIsResettingPassword(true);
+    const result = await requestPasswordReset(email.trim());
+    if (result.error) {
+      setError(result.error);
+    } else {
+      setInfo('Password reset link sent. Check your email inbox.');
+    }
+    setIsResettingPassword(false);
   };
 
   if (signupSuccess) {
@@ -88,7 +110,7 @@ export default function Login() {
         {/* Tab Switcher */}
         <div className="flex gap-1 bg-muted p-1 rounded mb-6">
           <button
-            onClick={() => { setTab('login'); setError(''); }}
+            onClick={() => { setTab('login'); setError(''); setInfo(''); }}
             className={cn(
               'flex-1 flex items-center justify-center gap-2 py-2.5 rounded text-sm font-medium transition-all',
               tab === 'login'
@@ -100,7 +122,7 @@ export default function Login() {
             Sign In
           </button>
           <button
-            onClick={() => { setTab('signup'); setError(''); }}
+            onClick={() => { setTab('signup'); setError(''); setInfo(''); }}
             className={cn(
               'flex-1 flex items-center justify-center gap-2 py-2.5 rounded text-sm font-medium transition-all',
               tab === 'signup'
@@ -167,6 +189,18 @@ export default function Login() {
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
+            {tab === 'login' && (
+              <div className="mt-2 text-right">
+                <button
+                  type="button"
+                  onClick={handlePasswordReset}
+                  disabled={isResettingPassword}
+                  className="text-xs text-primary hover:underline disabled:opacity-60"
+                >
+                  {isResettingPassword ? 'Sending reset link...' : 'Forgot password?'}
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Error */}
@@ -174,6 +208,11 @@ export default function Login() {
             <div className="p-3 rounded bg-destructive/10 border border-destructive/20 text-sm text-destructive flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
               {error}
+            </div>
+          )}
+          {info && (
+            <div className="p-3 rounded bg-success/10 border border-success/20 text-sm text-success">
+              {info}
             </div>
           )}
 
