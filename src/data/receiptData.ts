@@ -15,6 +15,8 @@ export interface ReceiptData {
   date: Date;
   tableNumber?: string;
   customerName?: string;
+  customerPhone?: string;
+  customerAddress?: string;
   items: CartItemWithModifiers[];
   subtotal: number;
   tax: number;

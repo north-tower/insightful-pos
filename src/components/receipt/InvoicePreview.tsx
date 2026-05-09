@@ -115,13 +115,17 @@ export function InvoicePreview({ order, customer }: InvoicePreviewProps) {
           {customerName ? (
             <div>
               <p className="font-bold text-gray-900 text-sm sm:text-base">{customerName}</p>
-              {customer?.email && (
-                <p className="text-gray-600 text-xs sm:text-sm">{customer.email}</p>
+              {(customer?.email || order.customer_email) && (
+                <p className="text-gray-600 text-xs sm:text-sm">
+                  {customer?.email || order.customer_email}
+                </p>
               )}
-              {customer?.phone && (
-                <p className="text-gray-600 text-xs sm:text-sm">{customer.phone}</p>
+              {(customer?.phone || order.customer_phone) && (
+                <p className="text-gray-600 text-xs sm:text-sm">
+                  {customer?.phone || order.customer_phone}
+                </p>
               )}
-              {customer?.address && (
+              {customer?.address ? (
                 <p className="text-gray-600 mt-1 text-xs sm:text-sm">
                   {customer.address}
                   {customer.city && (
@@ -133,7 +137,11 @@ export function InvoicePreview({ order, customer }: InvoicePreviewProps) {
                     </>
                   )}
                 </p>
-              )}
+              ) : order.customer_address ? (
+                <p className="text-gray-600 mt-1 text-xs sm:text-sm whitespace-pre-wrap">
+                  {order.customer_address}
+                </p>
+              ) : null}
               {isCreditSale && customer && (
                 <p className="text-gray-500 mt-2 text-xs">
                   Previous Balance: <span className="font-bold text-amber-600">{fc(previousBalance)}</span>

@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { PageLayout } from '@/components/pos/PageLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useProducts } from '@/hooks/useProducts';
@@ -55,6 +56,16 @@ function getInitialProductViewMode(): ProductViewMode {
   return window.localStorage.getItem(PRODUCT_VIEW_STORAGE_KEY) === 'list' ? 'list' : 'card';
 }
 
+/** Snapshot address for credit sales from the linked customer record. */
+function formatStoredCustomerAddress(c: Customer): string | undefined {
+  const parts: string[] = [];
+  if (c.address?.trim()) parts.push(c.address.trim());
+  const cityLine = [c.city?.trim(), c.postal_code?.trim()].filter(Boolean).join(' ');
+  if (cityLine) parts.push(cityLine);
+  if (c.country?.trim()) parts.push(c.country.trim());
+  return parts.length ? parts.join(', ') : undefined;
+}
+
 export default function RetailPOS({ onNavigate }: RetailPOSProps) {
   const {
     retailProducts,
@@ -78,6 +89,9 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [showCustomerPicker, setShowCustomerPicker] = useState(false);
+  const [walkInCustomerName, setWalkInCustomerName] = useState('');
+  const [walkInCustomerPhone, setWalkInCustomerPhone] = useState('');
+  const [walkInCustomerAddress, setWalkInCustomerAddress] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
   const [isPostSalePaymentOpen, setIsPostSalePaymentOpen] = useState(false);
@@ -242,9 +256,14 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
         customer_id: selectedCustomer?.id,
         customer_name: selectedCustomer
           ? getCustomerDisplayName(selectedCustomer)
-          : undefined,
+          : walkInCustomerName.trim() || undefined,
         customer_email: selectedCustomer?.email,
-        customer_phone: selectedCustomer?.phone,
+        customer_phone: selectedCustomer
+          ? selectedCustomer.phone
+          : walkInCustomerPhone.trim() || undefined,
+        customer_address: selectedCustomer
+          ? formatStoredCustomerAddress(selectedCustomer)
+          : walkInCustomerAddress.trim() || undefined,
         created_at: paymentTimestamp,
         due_date: dueDate,
         consignment_info: saleType === 'credit' ? consignmentInfo.trim() || undefined : undefined,
@@ -301,6 +320,9 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
         setSaleType('cash');
         setConsignmentInfo('');
         setInvoiceDate(new Date().toISOString().slice(0, 10));
+        setWalkInCustomerName('');
+        setWalkInCustomerPhone('');
+        setWalkInCustomerAddress('');
         refetchProducts();
       }
     } catch (err: any) {
@@ -315,6 +337,9 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
       orderId: order.id,
       orderNumber: order.order_number,
       date: new Date(order.created_at),
+      customerName: order.customer_name,
+      customerPhone: order.customer_phone,
+      customerAddress: order.customer_address,
       items: order.items.map((item) => ({
         id: item.product_id || item.id,
         name: item.product_name,
@@ -772,6 +797,35 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                       </div>
                     </div>
                   )}
+                  {saleType === 'cash' && (
+                    <div className="space-y-2 pt-1">
+                      <p className="text-[11px] text-muted-foreground">
+                        Customer <span className="font-normal">(optional)</span>
+                      </p>
+                      <Input
+                        placeholder="Name"
+                        value={walkInCustomerName}
+                        onChange={(e) => setWalkInCustomerName(e.target.value)}
+                        className="h-8 text-xs"
+                        autoComplete="name"
+                      />
+                      <Input
+                        placeholder="Phone"
+                        type="tel"
+                        value={walkInCustomerPhone}
+                        onChange={(e) => setWalkInCustomerPhone(e.target.value)}
+                        className="h-8 text-xs"
+                        autoComplete="tel"
+                      />
+                      <Textarea
+                        placeholder="Address"
+                        value={walkInCustomerAddress}
+                        onChange={(e) => setWalkInCustomerAddress(e.target.value)}
+                        rows={2}
+                        className="text-xs min-h-[52px] resize-y"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* Cart Items */}
@@ -1066,6 +1120,35 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                       Cancel
                     </Button>
                   </div>
+                </div>
+              )}
+              {saleType === 'cash' && (
+                <div className="mt-3 space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    Customer <span className="font-normal">(optional)</span>
+                  </p>
+                  <Input
+                    placeholder="Name"
+                    value={walkInCustomerName}
+                    onChange={(e) => setWalkInCustomerName(e.target.value)}
+                    className="h-9 text-xs"
+                    autoComplete="name"
+                  />
+                  <Input
+                    placeholder="Phone"
+                    type="tel"
+                    value={walkInCustomerPhone}
+                    onChange={(e) => setWalkInCustomerPhone(e.target.value)}
+                    className="h-9 text-xs"
+                    autoComplete="tel"
+                  />
+                  <Textarea
+                    placeholder="Address"
+                    value={walkInCustomerAddress}
+                    onChange={(e) => setWalkInCustomerAddress(e.target.value)}
+                    rows={2}
+                    className="text-xs min-h-[52px] resize-y"
+                  />
                 </div>
               )}
             </div>

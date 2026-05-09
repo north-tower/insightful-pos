@@ -273,6 +273,8 @@ export function CartPanelEnhanced() {
         date: new Date(order.created_at),
         tableNumber: order.table_number,
         customerName: order.customer_name,
+        customerPhone: order.customer_phone,
+        customerAddress: order.customer_address,
         items: order.items.map((item) => ({
           id: item.product_id || item.id,
           name: item.product_name,

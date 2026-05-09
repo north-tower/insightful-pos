@@ -138,6 +138,14 @@ export function ReceiptPreview({
           <div>
             <p className="text-muted-foreground">Customer</p>
             <p>{receiptData.customerName}</p>
+            {receiptData.customerPhone && (
+              <p className="text-[10px] mt-0.5">{receiptData.customerPhone}</p>
+            )}
+            {receiptData.customerAddress && (
+              <p className="text-[10px] mt-0.5 whitespace-pre-wrap break-words">
+                {receiptData.customerAddress}
+              </p>
+            )}
           </div>
         )}
       </div>

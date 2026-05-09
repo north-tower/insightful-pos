@@ -75,6 +75,7 @@ export interface SaleOrder {
   customer_name?: string;
   customer_email?: string;
   customer_phone?: string;
+  customer_address?: string;
   table_number?: string;
   invoice_number?: string;
   due_date?: string;
@@ -105,6 +106,7 @@ export interface CreateOrderParams {
   customer_name?: string;
   customer_email?: string;
   customer_phone?: string;
+  customer_address?: string;
   table_number?: string;
   notes?: string;
   discount_amount?: number;
@@ -300,6 +302,7 @@ export function useOrders() {
           customer_name: params.customer_name || null,
           customer_email: params.customer_email || null,
           customer_phone: params.customer_phone || null,
+          customer_address: params.customer_address || null,
           table_number: params.table_number || null,
           invoice_number: invoiceNumber,
           due_date: params.due_date || null,
@@ -385,6 +388,7 @@ export function useOrders() {
         customer_name: params.customer_name,
         customer_email: params.customer_email,
         customer_phone: params.customer_phone,
+        customer_address: params.customer_address,
         table_number: params.table_number,
         invoice_number: invoiceNumber,
         due_date: params.due_date,
@@ -527,6 +531,7 @@ export function useOrders() {
         customer_name: o.customer_name,
         customer_email: o.customer_email,
         customer_phone: o.customer_phone,
+        customer_address: o.customer_address,
         table_number: o.table_number,
         invoice_number: o.invoice_number,
         due_date: o.due_date,
@@ -672,6 +677,7 @@ export function useOrders() {
           customer_name: params.customer_name,
           customer_email: params.customer_email,
           customer_phone: params.customer_phone,
+          customer_address: params.customer_address,
           table_number: params.table_number,
           invoice_number: localOrderNumber,
           due_date: params.due_date,
