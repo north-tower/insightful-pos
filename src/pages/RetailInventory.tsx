@@ -13,6 +13,7 @@ import {
   ClipboardList,
   Loader2,
   ChevronDown,
+  Trash2,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -58,6 +59,16 @@ interface RetailInventoryProps {
 }
 
 type StockFilter = 'all' | 'in-stock' | 'out';
+
+interface AllocationFormLine {
+  id: string;
+  productId: string;
+  qty: string;
+}
+
+function newAllocationFormLine(): AllocationFormLine {
+  return { id: crypto.randomUUID(), productId: '', qty: '' };
+}
 
 function formatAssignmentDate(iso: string | undefined): string {
   if (!iso) return '—';
@@ -111,19 +122,32 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
     created_at?: string;
   }>>([]);
   const [selectedStaffId, setSelectedStaffId] = useState('');
-  const [selectedProductId, setSelectedProductId] = useState('');
-  const [assignedQty, setAssignedQty] = useState('');
+  const [allocationLines, setAllocationLines] = useState<AllocationFormLine[]>(() => [
+    newAllocationFormLine(),
+  ]);
   const [isAssigning, setIsAssigning] = useState(false);
   const getMainStock = (product: Product) => product.mainStock ?? product.stock;
   const canManageCashierStock = user?.role === 'admin' || user?.role === 'manager';
 
-  /** Value of the quantity being assigned at current retail price (KES). */
-  const assignmentDraftValueKes = useMemo(() => {
-    const p = retailProducts.find((x) => x.id === selectedProductId);
-    const q = parseInt(assignedQty, 10);
-    if (!p || assignedQty === '' || Number.isNaN(q) || q < 0) return null;
-    return q * p.price;
-  }, [selectedProductId, assignedQty, retailProducts]);
+  /** Total retail value (KES) of all lines; duplicate products in the form are summed. */
+  const assignmentDraftTotalKes = useMemo(() => {
+    const merged = new Map<string, number>();
+    for (const line of allocationLines) {
+      if (!line.productId.trim()) continue;
+      const q = parseInt(line.qty, 10);
+      if (Number.isNaN(q) || q < 0) continue;
+      merged.set(line.productId, (merged.get(line.productId) ?? 0) + q);
+    }
+    let total = 0;
+    let hasPositive = false;
+    for (const [pid, q] of merged) {
+      if (q <= 0) continue;
+      hasPositive = true;
+      const p = retailProducts.find((x) => x.id === pid);
+      if (p) total += q * p.price;
+    }
+    return hasPositive ? total : null;
+  }, [allocationLines, retailProducts]);
 
   const staffAllocationReport = useMemo(() => {
     const grouped = new Map<string, {
@@ -278,49 +302,47 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
     }
   }, [canManageCashierStock, user?.id]);
 
-  const assignCashierStockRemote = useCallback(async () => {
-    if (!storeId || !selectedStaffId || !selectedProductId || !assignedQty) {
-      throw new Error('Select staff, product and quantity');
-    }
+  const assignOneCashierProductRemote = useCallback(
+    async (staffId: string, productId: string, qty: number) => {
+      if (!storeId) throw new Error('No store selected');
+      if (!Number.isInteger(qty) || qty < 0) {
+        throw new Error('Enter a valid quantity');
+      }
 
-    const qty = parseInt(assignedQty, 10);
-    if (isNaN(qty) || qty < 0) {
-      throw new Error('Enter a valid quantity');
-    }
-
-    const { data: activeAllocation, error: activeLookupError } = await supabase
-      .from('cashier_stock_allocations')
-      .select('id')
-      .eq('store_id', storeId)
-      .eq('cashier_id', selectedStaffId)
-      .eq('product_id', selectedProductId)
-      .eq('is_active', true)
-      .maybeSingle();
-
-    if (activeLookupError) throw activeLookupError;
-
-    if (activeAllocation) {
-      const { error: deactivateError } = await supabase
+      const { data: activeAllocation, error: activeLookupError } = await supabase
         .from('cashier_stock_allocations')
-        .update({ is_active: false })
-        .eq('id', activeAllocation.id);
-      if (deactivateError) throw deactivateError;
-    }
+        .select('id')
+        .eq('store_id', storeId)
+        .eq('cashier_id', staffId)
+        .eq('product_id', productId)
+        .eq('is_active', true)
+        .maybeSingle();
 
-    const { error } = await supabase
-      .from('cashier_stock_allocations')
-      .insert([{
-        store_id: storeId,
-        cashier_id: selectedStaffId,
-        product_id: selectedProductId,
-        assigned_qty: qty,
-        assigned_by: user?.id,
-        is_active: true,
-      }]);
+      if (activeLookupError) throw activeLookupError;
 
-    if (error) throw error;
-    return qty;
-  }, [assignedQty, selectedStaffId, selectedProductId, storeId, user?.id]);
+      if (activeAllocation) {
+        const { error: deactivateError } = await supabase
+          .from('cashier_stock_allocations')
+          .update({ is_active: false })
+          .eq('id', activeAllocation.id);
+        if (deactivateError) throw deactivateError;
+      }
+
+      const { error } = await supabase.from('cashier_stock_allocations').insert([
+        {
+          store_id: storeId,
+          cashier_id: staffId,
+          product_id: productId,
+          assigned_qty: qty,
+          assigned_by: user?.id,
+          is_active: true,
+        },
+      ]);
+
+      if (error) throw error;
+    },
+    [storeId, user?.id],
+  );
 
   const returnAllocationRemote = useCallback(async (allocationId: string) => {
     const { error } = await supabase
@@ -529,58 +551,78 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
   };
 
   const handleAssignCashierStock = async () => {
-    if (!storeId || !selectedStaffId || !selectedProductId || !assignedQty) {
-      toast.error('Select staff, product and quantity');
+    if (!storeId || !selectedStaffId) {
+      toast.error('Select staff');
       return;
     }
-    const qty = parseInt(assignedQty, 10);
-    if (isNaN(qty) || qty < 0) {
-      toast.error('Enter a valid quantity');
+
+    const merged = new Map<string, number>();
+    for (const line of allocationLines) {
+      const pid = line.productId.trim();
+      if (!pid) continue;
+      const q = parseInt(line.qty, 10);
+      if (Number.isNaN(q) || q < 0) {
+        toast.error('Enter a valid quantity on each line');
+        return;
+      }
+      merged.set(pid, (merged.get(pid) ?? 0) + q);
+    }
+
+    const tasks = Array.from(merged.entries()).filter(([, q]) => q > 0);
+    if (tasks.length === 0) {
+      toast.error('Add at least one product with a quantity greater than 0');
       return;
     }
 
     setIsAssigning(true);
     try {
       const isOnline = typeof navigator === 'undefined' ? true : navigator.onLine;
+      const createdAt = new Date().toISOString();
+
       if (isOnline) {
-        await assignCashierStockRemote();
+        for (const [productId, qty] of tasks) {
+          await assignOneCashierProductRemote(selectedStaffId, productId, qty);
+        }
       } else {
-        const localId = `local-allocation-${crypto.randomUUID()}`;
-        const nextAllocations = allocations.map((a) =>
-          a.cashier_id === selectedStaffId &&
-          a.product_id === selectedProductId &&
-          a.is_active
-            ? { ...a, is_active: false }
-            : a,
-        );
-
-        nextAllocations.unshift({
-          id: localId,
-          cashier_id: selectedStaffId,
-          product_id: selectedProductId,
-          assigned_qty: qty,
-          sold_qty: 0,
-          is_active: true,
-          created_at: new Date().toISOString(),
-        });
-
+        let nextAllocations = [...allocations];
+        for (const [productId, qty] of tasks) {
+          nextAllocations = nextAllocations.map((a) =>
+            a.cashier_id === selectedStaffId &&
+            a.product_id === productId &&
+            a.is_active
+              ? { ...a, is_active: false }
+              : a,
+          );
+          nextAllocations.unshift({
+            id: `local-allocation-${crypto.randomUUID()}`,
+            cashier_id: selectedStaffId,
+            product_id: productId,
+            assigned_qty: qty,
+            sold_qty: 0,
+            is_active: true,
+            created_at: createdAt,
+          });
+          await enqueueOperation({
+            entity: 'cashier_stock_allocations',
+            action: 'assign_stock',
+            payload: {
+              storeId,
+              cashierId: selectedStaffId,
+              productId,
+              qty,
+              assignedBy: user?.id,
+            },
+          });
+        }
         setAllocations(nextAllocations);
-
-        await enqueueOperation({
-          entity: 'cashier_stock_allocations',
-          action: 'assign_stock',
-          payload: {
-            storeId,
-            cashierId: selectedStaffId,
-            productId: selectedProductId,
-            qty,
-            assignedBy: user?.id,
-          },
-        });
       }
 
-      toast.success('Staff stock assigned');
-      setAssignedQty('');
+      toast.success(
+        tasks.length === 1
+          ? 'Staff stock assigned'
+          : `Assigned ${tasks.length} products to staff`,
+      );
+      setAllocationLines([newAllocationFormLine()]);
       if (isOnline) {
         await loadCashierData();
       }
@@ -716,8 +758,8 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                   <CardTitle>Assign Staff Inventory</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                  <div>
+                <div className="space-y-3">
+                  <div className="max-w-md">
                     <Label>Staff (Manager/Cashier)</Label>
                     <Select value={selectedStaffId} onValueChange={setSelectedStaffId}>
                       <SelectTrigger><SelectValue placeholder="Select staff" /></SelectTrigger>
@@ -730,40 +772,114 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div>
-                    <Label>Product</Label>
-                    <Select value={selectedProductId} onValueChange={setSelectedProductId}>
-                      <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
-                      <SelectContent>
-                        {retailProducts.map((p) => (
-                          <SelectItem key={p.id} value={p.id}>
-                            {p.name} (Main: {getMainStock(p)}) · {fc(p.price)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <Label className="text-base">Products</Label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-xs"
+                        onClick={() =>
+                          setAllocationLines((prev) => [...prev, newAllocationFormLine()])
+                        }
+                      >
+                        <Plus className="w-3.5 h-3.5 mr-1" />
+                        Add product
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Add one or more lines (product + quantity). Duplicate products are combined when you assign.
+                    </p>
+
+                    <div className="space-y-2 rounded-md border border-border p-3 bg-muted/20">
+                      {allocationLines.map((line) => (
+                        <div
+                          key={line.id}
+                          className="grid grid-cols-1 sm:grid-cols-[1fr_100px_auto] gap-2 items-end"
+                        >
+                          <div>
+                            <Label className="text-xs text-muted-foreground sr-only sm:not-sr-only">
+                              Product
+                            </Label>
+                            <Select
+                              value={line.productId || undefined}
+                              onValueChange={(v) =>
+                                setAllocationLines((prev) =>
+                                  prev.map((l) =>
+                                    l.id === line.id ? { ...l, productId: v } : l,
+                                  ),
+                                )
+                              }
+                            >
+                              <SelectTrigger className="h-9">
+                                <SelectValue placeholder="Select product" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {retailProducts.map((p) => (
+                                  <SelectItem key={p.id} value={p.id}>
+                                    {p.name} (Main: {getMainStock(p)}) · {fc(p.price)}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground sr-only sm:not-sr-only">
+                              Qty
+                            </Label>
+                            <Input
+                              type="number"
+                              min="0"
+                              className="h-9"
+                              value={line.qty}
+                              onChange={(e) =>
+                                setAllocationLines((prev) =>
+                                  prev.map((l) =>
+                                    l.id === line.id ? { ...l, qty: e.target.value } : l,
+                                  ),
+                                )
+                              }
+                              placeholder="0"
+                            />
+                          </div>
+                          <div className="flex justify-end sm:justify-center pb-0.5">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-9 w-9 text-muted-foreground hover:text-destructive shrink-0"
+                              disabled={allocationLines.length <= 1}
+                              onClick={() =>
+                                setAllocationLines((prev) =>
+                                  prev.length <= 1 ? prev : prev.filter((l) => l.id !== line.id),
+                                )
+                              }
+                              aria-label="Remove line"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <div>
-                    <Label>Assigned Qty</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      value={assignedQty}
-                      onChange={(e) => setAssignedQty(e.target.value)}
-                      placeholder="0"
-                    />
-                    {assignmentDraftValueKes != null && (
-                      <p className="text-xs text-muted-foreground mt-1.5 tabular-nums">
-                        Stock value: {fc(assignmentDraftValueKes)}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex items-end">
-                    <Button className="w-full" onClick={handleAssignCashierStock} disabled={isAssigning}>
-                      {isAssigning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                      Save Assignment
-                    </Button>
-                  </div>
+
+                  {assignmentDraftTotalKes != null && (
+                    <p className="text-sm text-muted-foreground tabular-nums">
+                      Total stock value: <span className="font-semibold text-foreground">{fc(assignmentDraftTotalKes)}</span>
+                    </p>
+                  )}
+
+                  <Button
+                    className="w-full sm:w-auto"
+                    onClick={handleAssignCashierStock}
+                    disabled={isAssigning}
+                  >
+                    {isAssigning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                    Assign all
+                  </Button>
                 </div>
 
                 <div className="space-y-2">
