@@ -205,6 +205,13 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
     setCurrentPage(1);
   }, [searchQuery, statusFilter, saleTypeFilter, paymentMethodFilter]);
 
+  // Keep order detail dialog in sync after payments/refetch (e.g. refund button visibility)
+  useEffect(() => {
+    if (!isDetailOpen || !selectedOrder) return;
+    const fresh = orders.find((o) => o.id === selectedOrder.id);
+    if (fresh) setSelectedOrder(fresh);
+  }, [orders, isDetailOpen, selectedOrder?.id]);
+
   // Paginated slice
   const totalPages = Math.ceil(filteredOrders.length / pageSize);
   const paginatedOrders = useMemo(
@@ -248,6 +255,14 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
     setSelectedOrderCustomer(customer || null);
     setIsInvoiceOpen(true);
   };
+
+  /** Refund allowed once the sale is fully settled (incl. cash sales after post-hoc payment). */
+  const canShowRefundForOrder = (order: SaleOrder) =>
+    getOrderBalanceDue(order) <= 0 &&
+    order.payment_status !== 'refunded' &&
+    order.payment_status !== 'voided' &&
+    order.status !== 'cancelled' &&
+    order.status !== 'voided';
 
   const handleRefund = async (order: SaleOrder) => {
     setRefundingOrderId(order.id);
@@ -929,9 +944,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                                 {order.sale_type === 'credit' ? 'Pay' : 'Set Payment'}
                         </Button>
                       )}
-                          {order.payment_status === 'paid' &&
-                            order.status !== 'cancelled' &&
-                            order.status !== 'voided' && (
+                          {canShowRefundForOrder(order) && (
                         <Button
                           variant="outline"
                           size="sm"
@@ -1258,9 +1271,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                   <FileText className="w-4 h-4" />
                   {selectedOrder.sale_type === 'credit' ? 'View Invoice' : 'Print Receipt'}
                 </Button>
-                {selectedOrder.payment_status === 'paid' &&
-                  selectedOrder.status !== 'cancelled' &&
-                  selectedOrder.status !== 'voided' && (
+                {canShowRefundForOrder(selectedOrder) && (
                   <Button
                     variant="outline"
                       className="flex-1 gap-2 text-destructive hover:text-destructive"
