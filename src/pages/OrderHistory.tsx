@@ -280,6 +280,11 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
     setIsPaymentOpen(true);
   };
 
+  const canRecordPaymentForOrder = (order: SaleOrder) =>
+    (order.payment_status === 'unpaid' || order.payment_status === 'partial') &&
+    order.status !== 'voided' &&
+    order.status !== 'cancelled';
+
   /** Get other unpaid orders for the same customer (for payment distribution) */
   const getOtherUnpaidOrders = (order: SaleOrder): SaleOrder[] => {
     if (!order.customer_id) return [];
@@ -912,17 +917,14 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                             <FileText className="w-4 h-4" />
                             {order.sale_type === 'credit' ? 'Invoice' : 'Receipt'}
                           </Button>
-                          {order.sale_type === 'credit' &&
-                            (order.payment_status === 'unpaid' || order.payment_status === 'partial') &&
-                            order.status !== 'voided' &&
-                            order.status !== 'cancelled' && (
+                          {canRecordPaymentForOrder(order) && (
                               <Button
                                 size="sm"
                                 onClick={() => handleRecordPayment(order)}
                                 className="gap-2 bg-success hover:bg-success/90 text-white"
                               >
                                 <CircleDollarSign className="w-4 h-4" />
-                                Pay
+                                {order.sale_type === 'credit' ? 'Pay' : 'Set Payment'}
                         </Button>
                       )}
                           {order.payment_status === 'paid' &&
@@ -1213,15 +1215,14 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
               </div>
 
               {/* Credit Sale Balance Info */}
-              {selectedOrder.sale_type === 'credit' &&
-                (selectedOrder.payment_status === 'unpaid' || selectedOrder.payment_status === 'partial') &&
-                selectedOrder.status !== 'voided' &&
-                selectedOrder.status !== 'cancelled' && (
+              {canRecordPaymentForOrder(selectedOrder) && (
                 <div className="p-4 bg-warning/5 border border-warning/20 rounded-lg">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2 text-warning font-semibold">
                       <CreditCard className="w-4 h-4" />
-                      Credit Sale — Balance Due
+                      {selectedOrder.sale_type === 'credit'
+                        ? 'Credit Sale — Balance Due'
+                        : 'Payment Pending — Set Method'}
                     </div>
                     <Button
                       size="sm"
@@ -1229,13 +1230,15 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                       className="gap-1.5 bg-success hover:bg-success/90 text-white"
                     >
                       <CircleDollarSign className="w-4 h-4" />
-                      Record Payment
+                      {selectedOrder.sale_type === 'credit'
+                        ? 'Record Payment'
+                        : 'Set Payment Method'}
                     </Button>
                   </div>
                   <p className="text-lg font-bold text-warning">
                     {fc(getOrderBalanceDue(selectedOrder))}
                   </p>
-                  {selectedOrder.due_date && (
+                  {selectedOrder.sale_type === 'credit' && selectedOrder.due_date && (
                     <p className="text-xs text-muted-foreground mt-1">
                       Due by {format(new Date(selectedOrder.due_date), 'MMMM dd, yyyy')}
                     </p>

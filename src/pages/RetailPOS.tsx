@@ -9,6 +9,7 @@ import { useOrders, SaleOrder, SaleType } from '@/hooks/useOrders';
 import { useCustomers, Customer } from '@/hooks/useCustomers';
 import type { Product } from '@/hooks/useProducts';
 import { InvoiceDialog } from '@/components/receipt/InvoiceDialog';
+import { PaymentDialog } from '@/components/payment/PaymentDialog';
 import { ReceiptData } from '@/data/receiptData';
 import {
   Search,
@@ -16,7 +17,6 @@ import {
   X,
   CreditCard,
   Banknote,
-  QrCode,
   ShoppingCart,
   Package,
   AlertTriangle,
@@ -46,7 +46,6 @@ interface CartItem {
   overridePrice?: number;
 }
 
-type PaymentMethod = 'cash' | 'card' | 'qr';
 type ProductViewMode = 'card' | 'list';
 
 const PRODUCT_VIEW_STORAGE_KEY = 'retail-pos:product-view-mode';
@@ -64,17 +63,14 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
     debugOfflineCacheKey,
     debugLastDataSource,
   } = useProducts();
-  const { createOrder } = useOrders();
+  const { createOrder, recordPayment } = useOrders();
   const { customers, getCustomerDisplayName, refetch: refetchCustomers } = useCustomers();
   const { companyName } = useCompanySettings();
   const [searchQuery, setSearchQuery] = useState('');
   // All retail products are under one category – no category filter needed
   const activeCategory = 'all';
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card');
   const [saleType, setSaleType] = useState<SaleType>('cash');
-  const [creditDeposit, setCreditDeposit] = useState('');
-  const [creditPaymentDescription, setCreditPaymentDescription] = useState('');
   const [consignmentInfo, setConsignmentInfo] = useState('');
   const [invoiceDate, setInvoiceDate] = useState(
     () => new Date().toISOString().slice(0, 10),
@@ -84,6 +80,8 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
   const [showCustomerPicker, setShowCustomerPicker] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
+  const [isPostSalePaymentOpen, setIsPostSalePaymentOpen] = useState(false);
+  const [postSalePaymentOrder, setPostSalePaymentOrder] = useState<SaleOrder | null>(null);
   const [lastOrder, setLastOrder] = useState<SaleOrder | null>(null);
   const [lastOrderCustomer, setLastOrderCustomer] = useState<Customer | null>(null);
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
@@ -226,24 +224,13 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
     setIsProcessing(true);
 
     try {
-      // For credit sales, no payment upfront
-      const creditDepositAmount =
-        saleType === 'credit'
-          ? Math.min(Math.max(parseFloat(creditDeposit) || 0, 0), total)
-          : 0;
       const paymentTimestamp = new Date(`${invoiceDate}T12:00:00`).toISOString();
-      const payments =
-        saleType === 'credit'
-          ? creditDepositAmount > 0
-            ? [{
-                method: paymentMethod,
-                amount: creditDepositAmount,
-                description:
-                  creditPaymentDescription.trim() || 'Deposit at invoice creation',
-                paid_at: paymentTimestamp,
-              }]
-            : []
-          : [{ method: paymentMethod, amount: total, paid_at: paymentTimestamp }];
+      const payments: Array<{
+        method: 'cash' | 'card' | 'qr';
+        amount: number;
+        description?: string;
+        paid_at?: string;
+      }> = [];
 
       const dueDate = saleType === 'credit'
         ? new Date(new Date(`${invoiceDate}T12:00:00`).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
@@ -303,12 +290,15 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
           );
         }
 
-        setIsInvoiceOpen(true);
+        if (saleType === 'cash') {
+          setPostSalePaymentOrder(order);
+          setIsPostSalePaymentOpen(true);
+        } else {
+          setIsInvoiceOpen(true);
+        }
         clearCart();
         setSelectedCustomer(null);
         setSaleType('cash');
-        setCreditDeposit('');
-        setCreditPaymentDescription('');
         setConsignmentInfo('');
         setInvoiceDate(new Date().toISOString().slice(0, 10));
         refetchProducts();
@@ -650,8 +640,6 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                     <button
                       onClick={() => {
                         setSaleType('cash');
-                        setCreditDeposit('');
-                        setCreditPaymentDescription('');
                         setConsignmentInfo('');
                         setInvoiceDate(new Date().toISOString().slice(0, 10));
                         if (saleType === 'credit') setSelectedCustomer(null);
@@ -858,53 +846,11 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                     </div>
                   </div>
 
-                  {saleType === 'cash' && (
-                    <div className="flex gap-2">
-                      {(
-                        [
-                          { id: 'cash', label: 'Cash', icon: Banknote },
-                          { id: 'card', label: 'Card', icon: CreditCard },
-                          { id: 'qr', label: 'QR', icon: QrCode },
-                        ] as const
-                      ).map(({ id, label, icon: Icon }) => (
-                        <button
-                          key={id}
-                          onClick={() => setPaymentMethod(id)}
-                          className={cn(
-                            'flex-1 flex flex-col items-center gap-1 py-2 px-3 rounded text-xs font-medium transition-all',
-                            paymentMethod === id
-                              ? 'bg-primary text-primary-foreground'
-                              : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                          )}
-                        >
-                          <Icon className="w-4 h-4" />
-                          {label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
                   {saleType === 'credit' && (
                     <div className="p-2 bg-warning/5 border border-warning/20 rounded text-xs text-muted-foreground space-y-2">
                       <p className="font-semibold text-warning mb-0.5">Credit Sale</p>
-                      <p>Invoice will be added to customer's balance less any deposit paid now.</p>
+                      <p>Invoice will be added to customer's balance. Payment method is captured after creating the sale.</p>
                       <div className="grid grid-cols-2 gap-2">
-                        <Input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          max={total}
-                          placeholder="Deposit amount"
-                          value={creditDeposit}
-                          onChange={(e) => setCreditDeposit(e.target.value)}
-                          className="h-8 text-xs"
-                        />
-                        <Input
-                          placeholder="Payment description"
-                          value={creditPaymentDescription}
-                          onChange={(e) => setCreditPaymentDescription(e.target.value)}
-                          className="h-8 text-xs"
-                        />
                         <Input
                           placeholder="Consignment / plate no."
                           value={consignmentInfo}
@@ -920,29 +866,6 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                             className="h-8 text-xs"
                           />
                         </div>
-                      </div>
-                      <div className="grid grid-cols-3 gap-2">
-                        {(
-                          [
-                            { id: 'cash', label: 'Cash', icon: Banknote },
-                            { id: 'card', label: 'Card', icon: CreditCard },
-                            { id: 'qr', label: 'QR', icon: QrCode },
-                          ] as const
-                        ).map(({ id, label, icon: Icon }) => (
-                          <button
-                            key={id}
-                            onClick={() => setPaymentMethod(id)}
-                            className={cn(
-                              'flex items-center justify-center gap-1 py-1.5 rounded text-[11px] font-medium transition-all',
-                              paymentMethod === id
-                                ? 'bg-primary text-primary-foreground'
-                                : 'bg-muted text-muted-foreground hover:bg-muted/80',
-                            )}
-                          >
-                            <Icon className="w-3 h-3" />
-                            {label}
-                          </button>
-                        ))}
                       </div>
                     </div>
                   )}
@@ -1010,8 +933,6 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                 <button
                   onClick={() => {
                     setSaleType('cash');
-                    setCreditDeposit('');
-                    setCreditPaymentDescription('');
                     setConsignmentInfo('');
                     setInvoiceDate(new Date().toISOString().slice(0, 10));
                     if (saleType === 'credit') setSelectedCustomer(null);
@@ -1233,54 +1154,11 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                   </div>
                 </div>
 
-                {/* Payment Method — hidden for credit sales */}
-                {saleType === 'cash' && (
-                  <div className="flex gap-2">
-                    {(
-                      [
-                        { id: 'cash', label: 'Cash', icon: Banknote },
-                        { id: 'card', label: 'Card', icon: CreditCard },
-                        { id: 'qr', label: 'QR', icon: QrCode },
-                      ] as const
-                    ).map(({ id, label, icon: Icon }) => (
-                      <button
-                        key={id}
-                        onClick={() => setPaymentMethod(id)}
-                        className={cn(
-                          'flex-1 flex flex-col items-center gap-1 py-2 px-3 rounded text-xs font-medium transition-all',
-                          paymentMethod === id
-                            ? 'bg-primary text-primary-foreground'
-                            : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                        )}
-                      >
-                        <Icon className="w-4 h-4" />
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-
                 {/* Credit sale info */}
                 {saleType === 'credit' && (
                   <div className="p-2 bg-warning/5 border border-warning/20 rounded text-xs text-muted-foreground space-y-2">
                     <p className="font-semibold text-warning mb-0.5">Credit Sale</p>
-                    <p>Invoice will be added to customer's balance less any deposit paid now.</p>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      max={total}
-                      placeholder="Deposit amount"
-                      value={creditDeposit}
-                      onChange={(e) => setCreditDeposit(e.target.value)}
-                      className="h-8 text-xs"
-                    />
-                    <Input
-                      placeholder="Payment description"
-                      value={creditPaymentDescription}
-                      onChange={(e) => setCreditPaymentDescription(e.target.value)}
-                      className="h-8 text-xs"
-                    />
+                    <p>Invoice will be added to customer's balance. Payment method is captured after creating the sale.</p>
                     <Input
                       placeholder="Consignment / plate no."
                       value={consignmentInfo}
@@ -1295,29 +1173,6 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                         onChange={(e) => setInvoiceDate(e.target.value)}
                         className="h-8 text-xs"
                       />
-                    </div>
-                    <div className="grid grid-cols-3 gap-2">
-                      {(
-                        [
-                          { id: 'cash', label: 'Cash', icon: Banknote },
-                          { id: 'card', label: 'Card', icon: CreditCard },
-                          { id: 'qr', label: 'QR', icon: QrCode },
-                        ] as const
-                      ).map(({ id, label, icon: Icon }) => (
-                        <button
-                          key={id}
-                          onClick={() => setPaymentMethod(id)}
-                          className={cn(
-                            'flex items-center justify-center gap-1 py-1.5 rounded text-[11px] font-medium transition-all',
-                            paymentMethod === id
-                              ? 'bg-primary text-primary-foreground'
-                              : 'bg-muted text-muted-foreground hover:bg-muted/80',
-                          )}
-                        >
-                          <Icon className="w-3 h-3" />
-                          {label}
-                        </button>
-                      ))}
                     </div>
                   </div>
                 )}
@@ -1379,6 +1234,23 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
           customer={lastOrderCustomer}
           receiptData={generateReceiptData(lastOrder)}
           defaultView={lastOrder.sale_type === 'credit' ? 'invoice' : 'receipt'}
+        />
+      )}
+
+      {postSalePaymentOrder && (
+        <PaymentDialog
+          open={isPostSalePaymentOpen}
+          onOpenChange={(open) => {
+            setIsPostSalePaymentOpen(open);
+            if (!open) setPostSalePaymentOrder(null);
+          }}
+          order={postSalePaymentOrder}
+          onRecordPayment={recordPayment}
+          onPaymentComplete={() => {
+            toast.success('Payment method recorded');
+            setIsInvoiceOpen(true);
+          }}
+          companyName={companyName}
         />
       )}
     </PageLayout>
