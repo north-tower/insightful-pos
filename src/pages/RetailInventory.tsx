@@ -35,7 +35,7 @@ import type { Product } from '@/hooks/useProducts';
 import { useStockAdjustments, type StockAdjustmentRow } from '@/hooks/useStockAdjustments';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
-import { formatCurrency } from '@/lib/currency';
+import { fc } from '@/lib/currency';
 import { generatePlaceholderUrl } from '@/lib/product-images';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
@@ -103,6 +103,15 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
   const [isAssigning, setIsAssigning] = useState(false);
   const getMainStock = (product: Product) => product.mainStock ?? product.stock;
   const canManageCashierStock = user?.role === 'admin' || user?.role === 'manager';
+
+  /** Value of the quantity being assigned at current retail price (KES). */
+  const assignmentDraftValueKes = useMemo(() => {
+    const p = retailProducts.find((x) => x.id === selectedProductId);
+    const q = parseInt(assignedQty, 10);
+    if (!p || assignedQty === '' || Number.isNaN(q) || q < 0) return null;
+    return q * p.price;
+  }, [selectedProductId, assignedQty, retailProducts]);
+
   const staffAllocationReport = useMemo(() => {
     const grouped = new Map<string, {
       cashierName: string;
@@ -110,6 +119,9 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
       assigned: number;
       sold: number;
       remaining: number;
+      assignedValueKes: number;
+      soldValueKes: number;
+      remainingValueKes: number;
       lines: Array<{
         allocationId: string;
         productName: string;
@@ -117,6 +129,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
         sold: number;
         remaining: number;
         isActive: boolean;
+        unitPrice: number;
       }>;
     }>();
 
@@ -124,6 +137,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
       const cashier = staffAllocations.find((c) => c.id === a.cashier_id);
       const product = retailProducts.find((p) => p.id === a.product_id);
       const remaining = Math.max(a.assigned_qty - a.sold_qty, 0);
+      const unitPrice = Number(product?.price ?? 0);
       const key = a.cashier_id;
       const current = grouped.get(key) || {
         cashierName: cashier?.full_name || 'Unknown cashier',
@@ -131,12 +145,18 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
         assigned: 0,
         sold: 0,
         remaining: 0,
+        assignedValueKes: 0,
+        soldValueKes: 0,
+        remainingValueKes: 0,
         lines: [],
       };
 
       current.assigned += a.assigned_qty;
       current.sold += a.sold_qty;
       current.remaining += remaining;
+      current.assignedValueKes += a.assigned_qty * unitPrice;
+      current.soldValueKes += a.sold_qty * unitPrice;
+      current.remainingValueKes += remaining * unitPrice;
       current.lines.push({
         allocationId: a.id,
         productName: product?.name || a.product_id,
@@ -144,6 +164,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
         sold: a.sold_qty,
         remaining,
         isActive: a.is_active,
+        unitPrice,
       });
 
       grouped.set(key, current);
@@ -603,7 +624,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                       {stockSummary.totalProducts}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {formatCurrency(stockSummary.totalValue)} value
+                      {fc(stockSummary.totalValue)} value
                     </p>
                   </div>
                   <Package className="w-8 h-8 text-primary opacity-50" />
@@ -687,7 +708,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                       <SelectContent>
                         {retailProducts.map((p) => (
                           <SelectItem key={p.id} value={p.id}>
-                            {p.name} (Main: {getMainStock(p)})
+                            {p.name} (Main: {getMainStock(p)}) · {fc(p.price)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -702,6 +723,11 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                       onChange={(e) => setAssignedQty(e.target.value)}
                       placeholder="0"
                     />
+                    {assignmentDraftValueKes != null && (
+                      <p className="text-xs text-muted-foreground mt-1.5 tabular-nums">
+                        Stock value: {fc(assignmentDraftValueKes)}
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-end">
                     <Button className="w-full" onClick={handleAssignCashierStock} disabled={isAssigning}>
@@ -719,6 +745,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                       const cashier = staffAllocations.find((c) => c.id === a.cashier_id);
                       const product = retailProducts.find((p) => p.id === a.product_id);
                       const remaining = Math.max(a.assigned_qty - a.sold_qty, 0);
+                      const unit = Number(product?.price ?? 0);
                       return (
                         <div key={a.id} className="rounded border px-3 py-2 text-sm flex items-center justify-between">
                           <span>
@@ -730,8 +757,18 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                                 Pending sync
                               </Badge>
                             )}
-                            <span className="text-muted-foreground">
-                              Assigned {a.assigned_qty} | Sold {a.sold_qty} | Remaining {remaining}
+                            <span className="text-muted-foreground text-right text-xs sm:text-sm tabular-nums">
+                              <span className="block sm:inline">
+                                Assigned {a.assigned_qty} · {fc(a.assigned_qty * unit)}
+                              </span>
+                              <span className="hidden sm:inline"> | </span>
+                              <span className="block sm:inline">
+                                Sold {a.sold_qty} · {fc(a.sold_qty * unit)}
+                              </span>
+                              <span className="hidden sm:inline"> | </span>
+                              <span className="block sm:inline">
+                                Remaining {remaining} · {fc(remaining * unit)}
+                              </span>
                             </span>
                             <Button
                               size="sm"
@@ -770,25 +807,39 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                             <p className="text-xs text-muted-foreground">{entry.cashierEmail}</p>
                           )}
                         </div>
-                        <div className="text-xs text-muted-foreground text-right">
-                          <p>Assigned: {entry.assigned}</p>
-                          <p>Sold: {entry.sold}</p>
-                          <p className="font-semibold text-foreground">Remaining: {entry.remaining}</p>
+                        <div className="text-xs text-muted-foreground text-right tabular-nums">
+                          <p>
+                            Assigned: {entry.assigned} · {fc(entry.assignedValueKes)}
+                          </p>
+                          <p>
+                            Sold: {entry.sold} · {fc(entry.soldValueKes)}
+                          </p>
+                          <p className="font-semibold text-foreground">
+                            Remaining: {entry.remaining} · {fc(entry.remainingValueKes)}
+                          </p>
                         </div>
                       </div>
                       <div className="space-y-1">
                         {entry.lines.map((line) => (
-                          <div key={line.allocationId} className="text-xs flex items-center justify-between">
+                          <div key={line.allocationId} className="text-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
                             <span className="text-muted-foreground">{line.productName}</span>
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 text-right">
                               {line.allocationId.startsWith('local-allocation-') && (
-                                <Badge variant="outline" className="text-[10px] border-warning/30 text-warning">
+                                <Badge variant="outline" className="text-[10px] border-warning/30 text-warning sm:order-2">
                                   Pending sync
                                 </Badge>
                               )}
-                              <span className="text-muted-foreground">
-                                {line.assigned} / {line.sold} / {line.remaining}
-                                {!line.isActive ? ' (returned)' : ''}
+                              <span className="text-muted-foreground tabular-nums sm:order-1">
+                                <span className="block sm:inline">
+                                  {line.assigned} / {line.sold} / {line.remaining} units
+                                </span>
+                                <span className="block sm:inline sm:ml-2 text-foreground font-medium">
+                                  {fc(line.assigned * line.unitPrice)} / {fc(line.sold * line.unitPrice)} /{' '}
+                                  {fc(line.remaining * line.unitPrice)}
+                                </span>
+                                {!line.isActive ? (
+                                  <span className="block sm:inline sm:ml-1 text-muted-foreground">(returned)</span>
+                                ) : null}
                               </span>
                             </div>
                           </div>
