@@ -12,6 +12,7 @@ import {
   PackageMinus,
   ClipboardList,
   Loader2,
+  ChevronDown,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -25,6 +26,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PageLayout } from '@/components/pos/PageLayout';
@@ -34,7 +40,7 @@ import { useProducts } from '@/hooks/useProducts';
 import type { Product } from '@/hooks/useProducts';
 import { useStockAdjustments, type StockAdjustmentRow } from '@/hooks/useStockAdjustments';
 import { toast } from 'sonner';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, format, isValid, parseISO } from 'date-fns';
 import { fc } from '@/lib/currency';
 import { generatePlaceholderUrl } from '@/lib/product-images';
 import { supabase } from '@/lib/supabase';
@@ -52,6 +58,12 @@ interface RetailInventoryProps {
 }
 
 type StockFilter = 'all' | 'in-stock' | 'out';
+
+function formatAssignmentDate(iso: string | undefined): string {
+  if (!iso) return '—';
+  const d = parseISO(iso);
+  return isValid(d) ? format(d, 'dd MMM yyyy, HH:mm') : '—';
+}
 
 const adjustmentTypeStyles: Record<
   StockAdjustmentRow['type'],
@@ -96,6 +108,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
     assigned_qty: number;
     sold_qty: number;
     is_active: boolean;
+    created_at?: string;
   }>>([]);
   const [selectedStaffId, setSelectedStaffId] = useState('');
   const [selectedProductId, setSelectedProductId] = useState('');
@@ -130,6 +143,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
         remaining: number;
         isActive: boolean;
         unitPrice: number;
+        assignedAt: string;
       }>;
     }>();
 
@@ -165,12 +179,24 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
         remaining,
         isActive: a.is_active,
         unitPrice,
+        assignedAt: a.created_at ?? '',
       });
 
       grouped.set(key, current);
     });
 
-    return Array.from(grouped.values()).sort((a, b) => a.cashierName.localeCompare(b.cashierName));
+    return Array.from(grouped.values())
+      .map((entry) => ({
+        ...entry,
+        lines: [...entry.lines].sort((la, lb) => {
+          const da = la.assignedAt ? parseISO(la.assignedAt) : null;
+          const db = lb.assignedAt ? parseISO(lb.assignedAt) : null;
+          const ta = da && isValid(da) ? da.getTime() : 0;
+          const tb = db && isValid(db) ? db.getTime() : 0;
+          return tb - ta;
+        }),
+      }))
+      .sort((a, b) => a.cashierName.localeCompare(b.cashierName));
   }, [allocations, staffAllocations, retailProducts]);
 
   const loadCashierData = useCallback(async () => {
@@ -205,9 +231,11 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
         .in('role_in_store', ['cashier', 'manager']),
       supabase
         .from('cashier_stock_allocations')
-        .select('id, cashier_id, product_id, assigned_qty, sold_qty, is_active')
+        .select(
+          'id, cashier_id, product_id, assigned_qty, sold_qty, is_active, created_at',
+        )
         .eq('store_id', resolvedStoreId)
-        .order('updated_at', { ascending: false }),
+        .order('created_at', { ascending: false }),
     ]);
 
     if (!cashierRes.error) {
@@ -533,6 +561,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
           assigned_qty: qty,
           sold_qty: 0,
           is_active: true,
+          created_at: new Date().toISOString(),
         });
 
         setAllocations(nextAllocations);
@@ -747,10 +776,15 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                       const remaining = Math.max(a.assigned_qty - a.sold_qty, 0);
                       const unit = Number(product?.price ?? 0);
                       return (
-                        <div key={a.id} className="rounded border px-3 py-2 text-sm flex items-center justify-between">
-                          <span>
-                            {(cashier?.full_name || cashier?.email || a.cashier_id)} - {product?.name || a.product_id}
-                          </span>
+                        <div key={a.id} className="rounded border px-3 py-2 text-sm flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <span className="block">
+                              {(cashier?.full_name || cashier?.email || a.cashier_id)} — {product?.name || a.product_id}
+                            </span>
+                            <span className="text-[11px] text-muted-foreground">
+                              Assigned {formatAssignmentDate(a.created_at)}
+                            </span>
+                          </div>
                           <div className="flex items-center gap-3">
                             {a.id.startsWith('local-allocation-') && (
                               <Badge variant="outline" className="text-[10px] border-warning/30 text-warning">
@@ -799,53 +833,82 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                   <p className="text-sm text-muted-foreground">No staff inventory data yet.</p>
                 ) : (
                   staffAllocationReport.map((entry) => (
-                    <div key={`${entry.cashierName}-${entry.cashierEmail}`} className="rounded-md border p-3">
-                      <div className="flex items-center justify-between gap-3 mb-2">
-                        <div>
-                          <p className="text-sm font-semibold">{entry.cashierName}</p>
-                          {entry.cashierEmail && (
-                            <p className="text-xs text-muted-foreground">{entry.cashierEmail}</p>
-                          )}
-                        </div>
-                        <div className="text-xs text-muted-foreground text-right tabular-nums">
-                          <p>
-                            Assigned: {entry.assigned} · {fc(entry.assignedValueKes)}
-                          </p>
-                          <p>
-                            Sold: {entry.sold} · {fc(entry.soldValueKes)}
-                          </p>
-                          <p className="font-semibold text-foreground">
-                            Remaining: {entry.remaining} · {fc(entry.remainingValueKes)}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        {entry.lines.map((line) => (
-                          <div key={line.allocationId} className="text-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
-                            <span className="text-muted-foreground">{line.productName}</span>
-                            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 text-right">
-                              {line.allocationId.startsWith('local-allocation-') && (
-                                <Badge variant="outline" className="text-[10px] border-warning/30 text-warning sm:order-2">
-                                  Pending sync
-                                </Badge>
+                    <Collapsible
+                      key={`${entry.cashierName}-${entry.cashierEmail}`}
+                      defaultOpen={false}
+                      className="group rounded-md border border-border bg-card"
+                    >
+                      <CollapsibleTrigger asChild>
+                        <button
+                          type="button"
+                          className="flex w-full items-start justify-between gap-3 p-3 text-left rounded-md hover:bg-muted/50 transition-colors"
+                        >
+                          <div className="flex items-start gap-2 min-w-0">
+                            <ChevronDown className="h-4 w-4 shrink-0 mt-0.5 text-muted-foreground transition-transform duration-200 group-data-[state=closed]:-rotate-90 group-data-[state=open]:rotate-0" />
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-foreground">
+                                {entry.cashierName}
+                              </p>
+                              {entry.cashierEmail && (
+                                <p className="text-xs text-muted-foreground truncate">
+                                  {entry.cashierEmail}
+                                </p>
                               )}
-                              <span className="text-muted-foreground tabular-nums sm:order-1">
-                                <span className="block sm:inline">
-                                  {line.assigned} / {line.sold} / {line.remaining} units
-                                </span>
-                                <span className="block sm:inline sm:ml-2 text-foreground font-medium">
-                                  {fc(line.assigned * line.unitPrice)} / {fc(line.sold * line.unitPrice)} /{' '}
-                                  {fc(line.remaining * line.unitPrice)}
-                                </span>
-                                {!line.isActive ? (
-                                  <span className="block sm:inline sm:ml-1 text-muted-foreground">(returned)</span>
-                                ) : null}
-                              </span>
                             </div>
                           </div>
-                        ))}
-                      </div>
-                    </div>
+                          <div className="text-xs text-muted-foreground text-right tabular-nums shrink-0">
+                            <p>
+                              Assigned: {entry.assigned} · {fc(entry.assignedValueKes)}
+                            </p>
+                            <p>
+                              Sold: {entry.sold} · {fc(entry.soldValueKes)}
+                            </p>
+                            <p className="font-semibold text-foreground">
+                              Remaining: {entry.remaining} · {fc(entry.remainingValueKes)}
+                            </p>
+                          </div>
+                        </button>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="border-t border-border data-[state=closed]:animate-none">
+                        <div className="p-3 pt-2 space-y-2">
+                          {entry.lines.map((line) => (
+                            <div
+                              key={line.allocationId}
+                              className="text-xs flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1 rounded-md bg-muted/30 px-2 py-1.5"
+                            >
+                              <div className="min-w-0 space-y-0.5">
+                                <span className="text-foreground font-medium">{line.productName}</span>
+                                <p className="text-[10px] text-muted-foreground">
+                                  Assigned {formatAssignmentDate(line.assignedAt)}
+                                </p>
+                              </div>
+                              <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 text-right shrink-0">
+                                {line.allocationId.startsWith('local-allocation-') && (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[10px] border-warning/30 text-warning sm:self-end"
+                                  >
+                                    Pending sync
+                                  </Badge>
+                                )}
+                                <span className="text-muted-foreground tabular-nums">
+                                  <span className="block sm:inline">
+                                    {line.assigned} / {line.sold} / {line.remaining} units
+                                  </span>
+                                  <span className="block sm:inline sm:ml-2 text-foreground font-medium">
+                                    {fc(line.assigned * line.unitPrice)} / {fc(line.sold * line.unitPrice)} /{' '}
+                                    {fc(line.remaining * line.unitPrice)}
+                                  </span>
+                                  {!line.isActive ? (
+                                    <span className="block sm:inline sm:ml-1 text-muted-foreground">(returned)</span>
+                                  ) : null}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
                   ))
                 )}
               </CardContent>
