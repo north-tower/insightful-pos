@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { CartProvider } from '@/context/CartContext';
 import { useBusinessMode } from '@/context/BusinessModeContext';
 import ModeSelector from '@/pages/ModeSelector';
@@ -16,9 +16,61 @@ import Purchases from '@/pages/Purchases';
 import AccountsReceivable from '@/pages/AccountsReceivable';
 import Settings from '@/pages/Settings';
 
+const RESTAURANT_TABS = new Set([
+  'dashboard',
+  'order-line',
+  'order-history',
+  'customers',
+  'accounts',
+  'purchases',
+  'manage-table',
+  'manage-dishes',
+  'settings',
+]);
+
+const RETAIL_TABS = new Set([
+  'dashboard',
+  'pos',
+  'products',
+  'inventory',
+  'purchases',
+  'order-history',
+  'accounts',
+  'customers',
+  'settings',
+]);
+
+function isValidTab(tab: string, isRestaurant: boolean): boolean {
+  return isRestaurant ? RESTAURANT_TABS.has(tab) : RETAIL_TABS.has(tab);
+}
+
+function defaultTab(): string {
+  return 'dashboard';
+}
+
 function POSApp() {
   const { isSetup, isRestaurant } = useBusinessMode();
   const [currentPage, setCurrentPage] = useState('dashboard');
+  const navigationStorageKey = useMemo(
+    () => (isRestaurant ? 'insightful-pos:last-tab:restaurant' : 'insightful-pos:last-tab:retail'),
+    [isRestaurant],
+  );
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const storedTab = window.localStorage.getItem(navigationStorageKey);
+    if (storedTab && isValidTab(storedTab, isRestaurant)) {
+      setCurrentPage(storedTab);
+      return;
+    }
+    setCurrentPage(defaultTab());
+  }, [isRestaurant, navigationStorageKey]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!isValidTab(currentPage, isRestaurant)) return;
+    window.localStorage.setItem(navigationStorageKey, currentPage);
+  }, [currentPage, isRestaurant, navigationStorageKey]);
 
   // Edge case: user authenticated but has no business_mode on their profile
   // (e.g. migrated user). Show mode selector so they can pick.
@@ -27,6 +79,7 @@ function POSApp() {
   }
 
   const handleNavigate = (tab: string) => {
+    if (!isValidTab(tab, isRestaurant)) return;
     setCurrentPage(tab);
   };
 

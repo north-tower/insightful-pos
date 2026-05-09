@@ -786,15 +786,26 @@ export function useOrders() {
 
   const refundOrder = useCallback(
     async (orderId: string) => {
-      const { error: err } = await supabase
-        .from('orders')
-        .update({ payment_status: 'refunded', status: 'cancelled' })
-        .eq('id', orderId);
+      const targetOrder = orders.find((o) => o.id === orderId);
+      let err: any = null;
+
+      if (targetOrder?.business_mode === 'retail') {
+        const { error } = await supabase.rpc('refund_order_and_restore_stock', {
+          p_order_id: orderId,
+        });
+        err = error;
+      } else {
+        const { error } = await supabase
+          .from('orders')
+          .update({ payment_status: 'refunded', status: 'cancelled' })
+          .eq('id', orderId);
+        err = error;
+      }
 
       if (err) throw err;
       await fetchOrders();
     },
-    [fetchOrders],
+    [fetchOrders, orders],
   );
 
   // ── Record payment against an order ───────────────────────────────────
