@@ -538,7 +538,7 @@ export function useDashboardStats() {
     customerName: string;
     total: number;
     items: number;
-    paymentMethod: 'cash' | 'card' | 'qr';
+    paymentMethod: 'cash' | 'card' | 'qr' | 'mpesa';
     time: string;
   }
 
@@ -550,7 +550,7 @@ export function useDashboardStats() {
 
       // Pick the dominant payment method for this order
       const orderPayments = todayPayments.filter((p) => p.order_id === o.id);
-      let paymentMethod: 'cash' | 'card' | 'qr' = 'cash';
+      let paymentMethod: 'cash' | 'card' | 'qr' | 'mpesa' = 'cash';
       if (orderPayments.length > 0) {
         // Use the method with the highest amount
         orderPayments.sort((a, b) => b.amount - a.amount);

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -14,6 +14,7 @@ import {
   Banknote,
   CreditCard,
   QrCode,
+  Smartphone,
   Loader2,
   CheckCircle2,
   AlertCircle,
@@ -58,6 +59,11 @@ interface PaymentDialogProps {
   onPaymentComplete?: () => void;
   /** Company name for SMS notifications */
   companyName?: string;
+  /**
+   * Walk-in cash settlement: choose Cash or M-Pesa only, pay full invoice balance (no amount field).
+   * Does not use account lump-sum payment mode.
+   */
+  variant?: 'default' | 'methodOnly';
 }
 
 const paymentMethods: Array<{
@@ -69,6 +75,29 @@ const paymentMethods: Array<{
   { id: 'card', label: 'Card', icon: CreditCard },
   { id: 'qr', label: 'QR / Mobile', icon: QrCode },
 ];
+
+const methodOnlyMethods: Array<{
+  id: PaymentMethod;
+  label: string;
+  icon: typeof Banknote;
+}> = [
+  { id: 'cash', label: 'Cash', icon: Banknote },
+  { id: 'mpesa', label: 'M-Pesa', icon: Smartphone },
+];
+
+/** Human-readable label for receipts and confirmation copy */
+export function paymentMethodLabel(method: PaymentMethod): string {
+  switch (method) {
+    case 'mpesa':
+      return 'M-Pesa';
+    case 'qr':
+      return 'QR / Mobile';
+    case 'card':
+      return 'Card';
+    default:
+      return 'Cash';
+  }
+}
 
 /** Compute the balance due for an order from its payments array */
 function orderBalanceDue(order: SaleOrder): number {
@@ -137,7 +166,9 @@ export function PaymentDialog({
   onRecordAccountPayment,
   onPaymentComplete,
   companyName,
+  variant = 'default',
 }: PaymentDialogProps) {
+  const isMethodOnly = variant === 'methodOnly';
   const [method, setMethod] = useState<PaymentMethod>('cash');
   const [amount, setAmount] = useState('');
   const [reference, setReference] = useState('');
@@ -172,17 +203,39 @@ export function PaymentDialog({
     0,
   );
   const isAccountPaymentMode = Boolean(customer && onRecordAccountPayment);
+  const effectiveAccountMode = isAccountPaymentMode && !isMethodOnly;
+
+  useEffect(() => {
+    if (!open || !isMethodOnly) return;
+    setMethod('cash');
+    setAmount('');
+    setReference('');
+    setDescription('');
+    setError(null);
+    setPaymentDate(new Date().toISOString().slice(0, 10));
+  }, [open, isMethodOnly, order.id]);
 
   const customerName = customer
     ? `${customer.first_name} ${customer.last_name}`.trim()
     : order.customer_name || 'Unknown';
 
+  const amountToPay = isMethodOnly ? balanceDue : enteredAmount;
+
   const handleSubmit = async () => {
-    if (enteredAmount <= 0) {
+    if (isMethodOnly) {
+      if (balanceDue <= 0) {
+        setError('Nothing to pay on this order');
+        return;
+      }
+      if (!onRecordPayment) {
+        setError('Unable to record payment in this context');
+        return;
+      }
+    } else if (enteredAmount <= 0) {
       setError('Please enter a valid amount');
       return;
     }
-    if (!isAccountPaymentMode && !onRecordPayment) {
+    if (!effectiveAccountMode && !onRecordPayment) {
       setError('Unable to record payment in this context');
       return;
     }
@@ -191,7 +244,7 @@ export function PaymentDialog({
     setError(null);
 
     try {
-      if (isAccountPaymentMode) {
+      if (effectiveAccountMode) {
         const res = await onRecordAccountPayment!(
           customer!.id,
           enteredAmount,
@@ -203,8 +256,14 @@ export function PaymentDialog({
         if (res && res.success === false) {
           throw new Error(res.error || 'Payment failed');
         }
+      } else if (isMethodOnly) {
+        await onRecordPayment!(order.id, {
+          method,
+          amount: balanceDue,
+          reference: reference.trim() || undefined,
+          paid_at: new Date(`${paymentDate}T12:00:00`).toISOString(),
+        });
       } else {
-        // Legacy order-allocation fallback for contexts not yet migrated.
         let recordedAmount = 0;
         for (const line of distribution) {
           if (line.applied <= 0) continue;
@@ -239,15 +298,12 @@ export function PaymentDialog({
       if (companyName) {
         const phone = customer?.phone || order.customer_phone;
         if (phone) {
-          // Use customer account balance when available so opening balance is included.
           const totalBalanceBefore = accountBalanceBefore;
-          const totalBalanceAfter = Math.max(
-            totalBalanceBefore - enteredAmount,
-            0,
-          );
+          const smsAmount = effectiveAccountMode ? enteredAmount : amountToPay;
+          const totalBalanceAfter = Math.max(totalBalanceBefore - smsAmount, 0);
           notifyPaymentReceived(
             order,
-            enteredAmount,
+            smsAmount,
             totalBalanceBefore,
             totalBalanceAfter,
             companyName,
@@ -292,11 +348,14 @@ export function PaymentDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CreditCard className="w-5 h-5" />
-            Record Payment
+            {isMethodOnly ? 'Set payment method' : 'Record Payment'}
           </DialogTitle>
           <DialogDescription>
-            Invoice {order.invoice_number || order.order_number}
-            {customerName && ` — ${customerName}`}
+            {isMethodOnly
+              ? `Full payment ${fc(balanceDue)} · ${order.invoice_number || order.order_number}`
+              : `Invoice ${order.invoice_number || order.order_number}`}
+            {!isMethodOnly && customerName && ` — ${customerName}`}
+            {isMethodOnly && customerName && ` · ${customerName}`}
           </DialogDescription>
         </DialogHeader>
 
@@ -305,8 +364,8 @@ export function PaymentDialog({
             <CheckCircle2 className="w-16 h-16 text-success" />
             <p className="text-lg font-semibold text-success">Payment Recorded!</p>
             <p className="text-sm text-muted-foreground">
-              {fc(enteredAmount)} via {method}
-              {willSpillOver && ` — distributed across ${distribution.length} invoices`}
+              {fc(amountToPay)} via {paymentMethodLabel(method)}
+              {!isMethodOnly && willSpillOver && ` — distributed across ${distribution.length} invoices`}
             </p>
           </div>
         ) : (
@@ -332,7 +391,7 @@ export function PaymentDialog({
                 <span className="shrink-0">This Invoice Balance</span>
                 <span className="text-warning tabular-nums text-right">{fc(balanceDue)}</span>
               </div>
-            {isAccountPaymentMode && (
+            {!isMethodOnly && isAccountPaymentMode && (
               <div className="flex justify-between text-sm font-medium gap-4">
                 <span className="shrink-0">Current Account Balance</span>
                 <span className="text-warning tabular-nums text-right">
@@ -340,7 +399,7 @@ export function PaymentDialog({
                 </span>
               </div>
             )}
-            {!isAccountPaymentMode && otherUnpaidOrders.length > 0 && (
+            {!isMethodOnly && !isAccountPaymentMode && otherUnpaidOrders.length > 0 && (
                 <div className="flex justify-between text-sm text-muted-foreground gap-4">
                   <span className="shrink-0">
                     + {otherUnpaidOrders.length} other unpaid invoice{otherUnpaidOrders.length > 1 ? 's' : ''}
@@ -350,7 +409,7 @@ export function PaymentDialog({
                   </span>
                 </div>
               )}
-            {!isAccountPaymentMode && otherUnpaidOrders.length > 0 && (
+            {!isMethodOnly && !isAccountPaymentMode && otherUnpaidOrders.length > 0 && (
                 <div className="flex justify-between text-sm font-medium gap-4">
                   <span className="shrink-0">Total Account Balance</span>
                   <span className="text-warning tabular-nums text-right">{fc(totalCustomerBalance)}</span>
@@ -367,10 +426,11 @@ export function PaymentDialog({
             {/* Payment Method */}
             <div className="space-y-2">
               <Label className="text-sm font-medium">Payment Method</Label>
-              <div className="grid grid-cols-3 gap-2">
-                {paymentMethods.map(({ id, label, icon: Icon }) => (
+              <div className={cn('grid gap-2', isMethodOnly ? 'grid-cols-2' : 'grid-cols-3')}>
+                {(isMethodOnly ? methodOnlyMethods : paymentMethods).map(({ id, label, icon: Icon }) => (
                   <button
                     key={id}
+                    type="button"
                     onClick={() => setMethod(id)}
                     className={cn(
                       'flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all',
@@ -387,6 +447,7 @@ export function PaymentDialog({
             </div>
 
             {/* Amount */}
+            {!isMethodOnly && (
             <div className="space-y-2">
               <Label htmlFor="payment-amount" className="text-sm font-medium">
                 Amount
@@ -450,9 +511,16 @@ export function PaymentDialog({
                 )}
               </div>
             </div>
+            )}
 
-            {/* Reference (for card/QR) */}
-            {(method === 'card' || method === 'qr') && (
+            {isMethodOnly && balanceDue > 0 && (
+              <p className="text-sm text-muted-foreground text-center py-1">
+                Paying <span className="font-semibold text-foreground tabular-nums">{fc(balanceDue)}</span> in full
+              </p>
+            )}
+
+            {/* Reference (for card/QR/M-Pesa) */}
+            {(method === 'card' || method === 'qr' || method === 'mpesa') && (
               <div className="space-y-2">
                 <Label htmlFor="payment-ref" className="text-sm font-medium">
                   Reference / Transaction ID
@@ -464,13 +532,16 @@ export function PaymentDialog({
                   placeholder={
                     method === 'card'
                       ? 'Last 4 digits or auth code'
-                      : 'Transaction reference'
+                      : method === 'mpesa'
+                        ? 'M-Pesa confirmation code'
+                        : 'Transaction reference'
                   }
                 />
               </div>
             )}
 
             {/* Description */}
+            {!isMethodOnly && (
             <div className="space-y-2">
               <Label htmlFor="payment-description" className="text-sm font-medium">
                 Payment Description (optional)
@@ -482,6 +553,7 @@ export function PaymentDialog({
                 placeholder="e.g. Deposit, part payment, transfer note"
               />
             </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="payment-date" className="text-sm font-medium">
@@ -504,10 +576,10 @@ export function PaymentDialog({
             )}
 
             {/* Distribution Preview */}
-            {enteredAmount > 0 && (
+            {!isMethodOnly && enteredAmount > 0 && (
               <div className="p-3 bg-muted/30 rounded-lg text-sm space-y-3">
                 {/* Account-level mode: show simple before/after account balance */}
-                {isAccountPaymentMode ? (
+                {effectiveAccountMode ? (
                   <>
                     <div className="flex justify-between gap-4">
                       <span className="text-muted-foreground shrink-0">
@@ -645,7 +717,10 @@ export function PaymentDialog({
               <Button
                 className="flex-1 gap-2"
                 onClick={handleSubmit}
-                disabled={isProcessing || enteredAmount <= 0}
+                disabled={
+                  isProcessing ||
+                  (isMethodOnly ? balanceDue <= 0 : enteredAmount <= 0)
+                }
               >
                 {isProcessing ? (
                   <>
@@ -655,7 +730,11 @@ export function PaymentDialog({
                 ) : (
                   <>
                     <CheckCircle2 className="w-4 h-4 shrink-0" />
-                    <span className="truncate tabular-nums">Record {enteredAmount > 0 ? fc(enteredAmount) : fc(0)}</span>
+                    <span className="truncate tabular-nums">
+                      {isMethodOnly
+                        ? `Confirm ${fc(balanceDue)}`
+                        : `Record ${enteredAmount > 0 ? fc(enteredAmount) : fc(0)}`}
+                    </span>
                   </>
                 )}
               </Button>

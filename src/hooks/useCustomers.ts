@@ -197,7 +197,7 @@ export function useCustomers() {
     async (
       customerId: string,
       amount: number,
-      method: 'cash' | 'card' | 'qr',
+      method: 'cash' | 'card' | 'qr' | 'mpesa',
       reference?: string,
       description?: string,
       paidAt?: string,

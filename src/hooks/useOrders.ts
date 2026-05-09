@@ -29,7 +29,7 @@ export type PaymentStatus =
   | 'voided';
 
 export type OrderType = 'dine-in' | 'takeaway' | 'delivery' | 'pos';
-export type PaymentMethod = 'cash' | 'card' | 'qr';
+export type PaymentMethod = 'cash' | 'card' | 'qr' | 'mpesa';
 
 export interface OrderItem {
   id: string;

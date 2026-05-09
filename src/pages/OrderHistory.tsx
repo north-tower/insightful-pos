@@ -109,7 +109,7 @@ function orderToReceiptData(order: SaleOrder): ReceiptData {
 
 export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
   const { mode } = useBusinessMode();
-  const { orders, loading, voidOrder, refundOrder, updatePayment, deletePayment, todaysOrders, todaysRevenue, getOrderBalanceDue } = useOrders();
+  const { orders, loading, voidOrder, refundOrder, updatePayment, deletePayment, todaysOrders, todaysRevenue, getOrderBalanceDue, recordPayment } = useOrders();
   const { customers, getCustomerById, makePaymentOnAccount } = useCustomers();
   const { companyName, settings } = useCompanySettings();
   const smsShopName = settings.fullName || settings.name || companyName;
@@ -168,7 +168,9 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
     }
 
     // "Bank" means all non-cash digital/bank channels.
-    return order.payments.some((p) => p.method === 'card' || p.method === 'qr');
+    return order.payments.some(
+      (p) => p.method === 'card' || p.method === 'qr' || p.method === 'mpesa',
+    );
   };
 
   const filteredOrders = useMemo(() => {
@@ -1301,6 +1303,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
       {/* Payment Dialog */}
       {paymentOrder && (
         <PaymentDialog
+          variant={paymentOrder.sale_type === 'cash' ? 'methodOnly' : 'default'}
           open={isPaymentOpen}
           onOpenChange={(open) => {
             setIsPaymentOpen(open);
@@ -1312,6 +1315,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
           order={paymentOrder}
           customer={paymentCustomer}
           otherUnpaidOrders={getOtherUnpaidOrders(paymentOrder)}
+          onRecordPayment={recordPayment}
           onRecordAccountPayment={makePaymentOnAccount}
           onPaymentComplete={handlePaymentComplete}
           companyName={smsShopName}

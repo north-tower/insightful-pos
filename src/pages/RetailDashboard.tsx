@@ -16,6 +16,7 @@ import {
   CreditCard,
   Banknote,
   QrCode,
+  Smartphone,
   XCircle,
   Loader2,
   RefreshCw,
@@ -31,6 +32,7 @@ const paymentIcons = {
   cash: Banknote,
   card: CreditCard,
   qr: QrCode,
+  mpesa: Smartphone,
 };
 
 export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
@@ -223,7 +225,8 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
                 </div>
               )}
               {recentSales.map((sale) => {
-                const PayIcon = paymentIcons[sale.paymentMethod];
+                const PayIcon =
+                  paymentIcons[sale.paymentMethod as keyof typeof paymentIcons] ?? Banknote;
                 return (
                   <div
                     key={sale.id}

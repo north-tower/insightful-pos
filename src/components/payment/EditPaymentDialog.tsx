@@ -13,6 +13,7 @@ import {
   Banknote,
   CreditCard,
   QrCode,
+  Smartphone,
   Loader2,
   CheckCircle2,
   AlertCircle,
@@ -49,6 +50,7 @@ const paymentMethods: Array<{
   { id: 'cash', label: 'Cash', icon: Banknote },
   { id: 'card', label: 'Card', icon: CreditCard },
   { id: 'qr', label: 'QR / Mobile', icon: QrCode },
+  { id: 'mpesa', label: 'M-Pesa', icon: Smartphone },
 ];
 
 export function EditPaymentDialog({
@@ -158,7 +160,7 @@ export function EditPaymentDialog({
             {/* Payment Method */}
             <div className="space-y-2">
               <Label className="text-sm font-medium">Payment Method</Label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {paymentMethods.map(({ id, label, icon: Icon }) => (
                   <button
                     key={id}

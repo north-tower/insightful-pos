@@ -9,7 +9,7 @@ import { useOrders, SaleOrder, SaleType } from '@/hooks/useOrders';
 import { useCustomers, Customer } from '@/hooks/useCustomers';
 import type { Product } from '@/hooks/useProducts';
 import { InvoiceDialog } from '@/components/receipt/InvoiceDialog';
-import { PaymentDialog } from '@/components/payment/PaymentDialog';
+import { PaymentDialog, paymentMethodLabel } from '@/components/payment/PaymentDialog';
 import { ReceiptData } from '@/data/receiptData';
 import {
   Search,
@@ -329,7 +329,9 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
       tax: order.tax_amount,
       discount: order.discount_amount > 0 ? order.discount_amount : undefined,
       total: order.total,
-      paymentMethod: order.payments[0]?.method || 'cash',
+      paymentMethod: order.payments[0]?.method
+        ? paymentMethodLabel(order.payments[0].method)
+        : 'Cash',
       type: 'dine-in', // Retail doesn't use this field, but type requires it
       staffName: order.staff_name,
     };
@@ -1239,6 +1241,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
 
       {postSalePaymentOrder && (
         <PaymentDialog
+          variant="methodOnly"
           open={isPostSalePaymentOpen}
           onOpenChange={(open) => {
             setIsPostSalePaymentOpen(open);
