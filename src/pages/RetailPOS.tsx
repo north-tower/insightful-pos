@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { PageLayout } from '@/components/pos/PageLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,6 +35,7 @@ import { fc, CURRENCY_SYMBOL } from '@/lib/currency';
 import { toast } from 'sonner';
 import { useCompanySettings } from '@/context/BusinessSettingsContext';
 import { notifyInvoiceCreated } from '@/lib/sendSms';
+import { useAuth } from '@/context/AuthContext';
 
 interface RetailPOSProps {
   onNavigate: (tab: string) => void;
@@ -50,6 +51,13 @@ interface CartItem {
 type ProductViewMode = 'card' | 'list';
 
 const PRODUCT_VIEW_STORAGE_KEY = 'retail-pos:product-view-mode';
+
+/** localStorage snapshot: product ids + qty + optional price override (rehydrated from live catalog). */
+type PersistedRetailCartLine = {
+  productId: string;
+  quantity: number;
+  overridePrice?: number;
+};
 
 function getInitialProductViewMode(): ProductViewMode {
   if (typeof window === 'undefined') return 'card';
@@ -67,6 +75,11 @@ function formatStoredCustomerAddress(c: Customer): string | undefined {
 }
 
 export default function RetailPOS({ onNavigate }: RetailPOSProps) {
+  const { user } = useAuth();
+  const retailCartStorageKey = useMemo(
+    () => `insightful-pos:v1:retail-cart:${user?.id ?? 'guest'}`,
+    [user?.id],
+  );
   const {
     retailProducts,
     loading,
@@ -81,6 +94,9 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
   // All retail products are under one category – no category filter needed
   const activeCategory = 'all';
   const [cart, setCart] = useState<CartItem[]>([]);
+  const retailCartHydratedRef = useRef(false);
+  const retailCartStorageKeySeenRef = useRef<string | null>(null);
+  const [retailCartPersistenceReady, setRetailCartPersistenceReady] = useState(false);
   const [saleType, setSaleType] = useState<SaleType>('cash');
   const [consignmentInfo, setConsignmentInfo] = useState('');
   const [invoiceDate, setInvoiceDate] = useState(
@@ -101,6 +117,85 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
   const [productViewMode, setProductViewMode] = useState<ProductViewMode>(getInitialProductViewMode);
   const getMainStock = (product: Product) => product.mainStock ?? product.stock;
+
+  // When the storage key changes (different user), clear cart and re-run hydration.
+  useEffect(() => {
+    if (retailCartStorageKeySeenRef.current === null) {
+      retailCartStorageKeySeenRef.current = retailCartStorageKey;
+      return;
+    }
+    if (retailCartStorageKeySeenRef.current === retailCartStorageKey) return;
+    retailCartStorageKeySeenRef.current = retailCartStorageKey;
+    setCart([]);
+    retailCartHydratedRef.current = false;
+    setRetailCartPersistenceReady(false);
+  }, [retailCartStorageKey]);
+
+  // Restore cart from localStorage once we can resolve product ids (catalog loaded).
+  useEffect(() => {
+    if (loading || retailCartHydratedRef.current) return;
+
+    let parsed: PersistedRetailCartLine[] | null = null;
+    try {
+      if (typeof window !== 'undefined') {
+        const raw = localStorage.getItem(retailCartStorageKey);
+        if (raw) parsed = JSON.parse(raw) as PersistedRetailCartLine[];
+      }
+    } catch {
+      parsed = null;
+    }
+
+    const lines = Array.isArray(parsed) ? parsed : [];
+
+    retailCartHydratedRef.current = true;
+
+    try {
+      const next: CartItem[] = [];
+      for (const line of lines) {
+        if (!line?.productId) continue;
+        const p = retailProducts.find((x) => x.id === line.productId);
+        if (!p || !p.isActive) continue;
+        const stock = getMainStock(p);
+        const q = Math.floor(Number(line.quantity));
+        if (!Number.isFinite(q) || q < 1) continue;
+        const qty = Math.min(q, Math.max(stock, 0));
+        if (qty < 1) continue;
+        const entry: CartItem = { product: p, quantity: qty };
+        if (
+          typeof line.overridePrice === 'number' &&
+          Number.isFinite(line.overridePrice) &&
+          line.overridePrice >= 0
+        ) {
+          entry.overridePrice = line.overridePrice;
+        }
+        next.push(entry);
+      }
+      if (next.length > 0) setCart(next);
+    } catch {
+      /* ignore corrupt storage */
+    } finally {
+      setRetailCartPersistenceReady(true);
+    }
+  }, [loading, retailProducts, retailCartStorageKey]);
+
+  // Persist cart (after hydration so we don't wipe storage on first paint).
+  useEffect(() => {
+    if (!retailCartPersistenceReady || typeof window === 'undefined') return;
+    try {
+      if (cart.length === 0) {
+        localStorage.removeItem(retailCartStorageKey);
+        return;
+      }
+      const payload: PersistedRetailCartLine[] = cart.map((item) => ({
+        productId: item.product.id,
+        quantity: item.quantity,
+        ...(item.overridePrice !== undefined ? { overridePrice: item.overridePrice } : {}),
+      }));
+      localStorage.setItem(retailCartStorageKey, JSON.stringify(payload));
+    } catch {
+      /* ignore quota / private mode */
+    }
+  }, [cart, retailCartPersistenceReady, retailCartStorageKey]);
 
   // Local editing state so inputs can be cleared / partially typed before committing
   const [editingQty, setEditingQty] = useState<Record<string, string>>({});

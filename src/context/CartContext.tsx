@@ -1,4 +1,13 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  ReactNode,
+} from 'react';
+import { useAuth } from '@/context/AuthContext';
 import { MenuItem } from '@/data/menuData';
 import { OrderModifier, CartItemWithModifiers, HeldOrder } from '@/data/orderData';
 
@@ -31,10 +40,84 @@ interface CartContextType {
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
+const RESTAURANT_CART_V = 1 as const;
+
+interface PersistedRestaurantCart {
+  v: typeof RESTAURANT_CART_V;
+  items: CartItem[];
+  orderNotes: string;
+}
+
 export function CartProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
+  const restaurantCartStorageKey = useMemo(
+    () => `insightful-pos:v1:restaurant-cart:${user?.id ?? 'guest'}`,
+    [user?.id],
+  );
+
   const [items, setItems] = useState<CartItem[]>([]);
   const [orderNotes, setOrderNotes] = useState<string>('');
   const [heldOrders, setHeldOrders] = useState<HeldOrder[]>([]);
+
+  const restaurantCartHydratedRef = useRef(false);
+  const restaurantStorageKeySeenRef = useRef<string | null>(null);
+  const [restaurantCartPersistenceReady, setRestaurantCartPersistenceReady] =
+    useState(false);
+
+  useEffect(() => {
+    if (restaurantStorageKeySeenRef.current === null) {
+      restaurantStorageKeySeenRef.current = restaurantCartStorageKey;
+      return;
+    }
+    if (restaurantStorageKeySeenRef.current === restaurantCartStorageKey) return;
+    restaurantStorageKeySeenRef.current = restaurantCartStorageKey;
+    setItems([]);
+    setOrderNotes('');
+    restaurantCartHydratedRef.current = false;
+    setRestaurantCartPersistenceReady(false);
+  }, [restaurantCartStorageKey]);
+
+  useEffect(() => {
+    if (restaurantCartHydratedRef.current) return;
+    restaurantCartHydratedRef.current = true;
+
+    try {
+      if (typeof window !== 'undefined') {
+        const raw = localStorage.getItem(restaurantCartStorageKey);
+        if (raw) {
+          const data = JSON.parse(raw) as Partial<PersistedRestaurantCart>;
+          if (data?.v === RESTAURANT_CART_V && Array.isArray(data.items)) {
+            setItems(data.items as CartItem[]);
+          }
+          if (typeof data?.orderNotes === 'string') {
+            setOrderNotes(data.orderNotes);
+          }
+        }
+      }
+    } catch {
+      /* ignore corrupt storage */
+    } finally {
+      setRestaurantCartPersistenceReady(true);
+    }
+  }, [restaurantCartStorageKey]);
+
+  useEffect(() => {
+    if (!restaurantCartPersistenceReady || typeof window === 'undefined') return;
+    try {
+      if (items.length === 0 && !orderNotes.trim()) {
+        localStorage.removeItem(restaurantCartStorageKey);
+        return;
+      }
+      const payload: PersistedRestaurantCart = {
+        v: RESTAURANT_CART_V,
+        items,
+        orderNotes,
+      };
+      localStorage.setItem(restaurantCartStorageKey, JSON.stringify(payload));
+    } catch {
+      /* ignore quota / private mode */
+    }
+  }, [items, orderNotes, restaurantCartPersistenceReady, restaurantCartStorageKey]);
 
   const addItem = (item: MenuItem) => {
     setItems((prev) => {
