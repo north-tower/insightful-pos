@@ -29,6 +29,7 @@ import {
   ChevronDown,
   LayoutGrid,
   List,
+  QrCode,
 } from 'lucide-react';
 import { generatePlaceholderUrl } from '@/lib/product-images';
 import { fc, CURRENCY_SYMBOL } from '@/lib/currency';
@@ -49,6 +50,7 @@ interface CartItem {
 }
 
 type ProductViewMode = 'card' | 'list';
+type CreditDepositMethod = 'cash' | 'card' | 'qr';
 
 const PRODUCT_VIEW_STORAGE_KEY = 'retail-pos:product-view-mode';
 
@@ -99,6 +101,9 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
   const [retailCartPersistenceReady, setRetailCartPersistenceReady] = useState(false);
   const [saleType, setSaleType] = useState<SaleType>('cash');
   const [consignmentInfo, setConsignmentInfo] = useState('');
+  const [creditDeposit, setCreditDeposit] = useState('');
+  const [creditPaymentDescription, setCreditPaymentDescription] = useState('');
+  const [creditPaymentMethod, setCreditPaymentMethod] = useState<CreditDepositMethod>('cash');
   const [invoiceDate, setInvoiceDate] = useState(
     () => new Date().toISOString().slice(0, 10),
   );
@@ -334,12 +339,31 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
 
     try {
       const paymentTimestamp = new Date(`${invoiceDate}T12:00:00`).toISOString();
+
+      const creditDepositAmount =
+        saleType === 'credit'
+          ? Math.min(Math.max(parseFloat(creditDeposit) || 0, 0), total)
+          : 0;
+
       const payments: Array<{
         method: 'cash' | 'card' | 'qr';
         amount: number;
         description?: string;
         paid_at?: string;
-      }> = [];
+      }> =
+        saleType === 'credit'
+          ? creditDepositAmount > 0
+            ? [
+                {
+                  method: creditPaymentMethod,
+                  amount: creditDepositAmount,
+                  description:
+                    creditPaymentDescription.trim() || 'Deposit at invoice creation',
+                  paid_at: paymentTimestamp,
+                },
+              ]
+            : []
+          : [];
 
       const dueDate = saleType === 'credit'
         ? new Date(new Date(`${invoiceDate}T12:00:00`).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
@@ -414,6 +438,9 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
         setSelectedCustomer(null);
         setSaleType('cash');
         setConsignmentInfo('');
+        setCreditDeposit('');
+        setCreditPaymentDescription('');
+        setCreditPaymentMethod('cash');
         setInvoiceDate(new Date().toISOString().slice(0, 10));
         setWalkInCustomerName('');
         setWalkInCustomerPhone('');
@@ -763,6 +790,9 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                       onClick={() => {
                         setSaleType('cash');
                         setConsignmentInfo('');
+                        setCreditDeposit('');
+                        setCreditPaymentDescription('');
+                        setCreditPaymentMethod('cash');
                         setInvoiceDate(new Date().toISOString().slice(0, 10));
                         if (saleType === 'credit') setSelectedCustomer(null);
                       }}
@@ -1000,7 +1030,51 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                   {saleType === 'credit' && (
                     <div className="p-2 bg-warning/5 border border-warning/20 rounded text-xs text-muted-foreground space-y-2">
                       <p className="font-semibold text-warning mb-0.5">Credit Sale</p>
-                      <p>Invoice will be added to customer's balance. Payment method is captured after creating the sale.</p>
+                      <p>
+                        An invoice will be added to the customer&apos;s balance. Optionally record a
+                        deposit now; the remainder stays on account.
+                      </p>
+                      <Input
+                        type="number"
+                        min="0"
+                        max={total}
+                        step="0.01"
+                        placeholder={`Deposit amount (max ${fc(total)})`}
+                        value={creditDeposit}
+                        onChange={(e) => setCreditDeposit(e.target.value)}
+                        className="h-8 text-xs"
+                      />
+                      <Input
+                        placeholder="Deposit note (optional)"
+                        value={creditPaymentDescription}
+                        onChange={(e) => setCreditPaymentDescription(e.target.value)}
+                        className="h-8 text-xs"
+                      />
+                      <p className="text-[11px] text-muted-foreground">Deposit paid as</p>
+                      <div className="grid grid-cols-3 gap-2">
+                        {(
+                          [
+                            { id: 'cash' as const, icon: Banknote, label: 'Cash' },
+                            { id: 'card' as const, icon: CreditCard, label: 'Card' },
+                            { id: 'qr' as const, icon: QrCode, label: 'QR' },
+                          ]
+                        ).map(({ id, icon: Icon, label }) => (
+                          <button
+                            key={id}
+                            type="button"
+                            onClick={() => setCreditPaymentMethod(id)}
+                            className={cn(
+                              'flex items-center justify-center gap-1 py-1.5 rounded text-[11px] font-medium transition-all',
+                              creditPaymentMethod === id
+                                ? 'bg-primary text-primary-foreground'
+                                : 'bg-muted text-muted-foreground hover:bg-muted/80',
+                            )}
+                          >
+                            <Icon className="w-3 h-3" />
+                            {label}
+                          </button>
+                        ))}
+                      </div>
                       <div className="grid grid-cols-2 gap-2">
                         <Input
                           placeholder="Consignment / plate no."
@@ -1085,6 +1159,9 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                   onClick={() => {
                     setSaleType('cash');
                     setConsignmentInfo('');
+                    setCreditDeposit('');
+                    setCreditPaymentDescription('');
+                    setCreditPaymentMethod('cash');
                     setInvoiceDate(new Date().toISOString().slice(0, 10));
                     if (saleType === 'credit') setSelectedCustomer(null);
                   }}
@@ -1338,7 +1415,51 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                 {saleType === 'credit' && (
                   <div className="p-2 bg-warning/5 border border-warning/20 rounded text-xs text-muted-foreground space-y-2">
                     <p className="font-semibold text-warning mb-0.5">Credit Sale</p>
-                    <p>Invoice will be added to customer's balance. Payment method is captured after creating the sale.</p>
+                    <p>
+                      An invoice will be added to the customer&apos;s balance. Optionally record a
+                      deposit now; the remainder stays on account.
+                    </p>
+                    <Input
+                      type="number"
+                      min="0"
+                      max={total}
+                      step="0.01"
+                      placeholder={`Deposit amount (max ${fc(total)})`}
+                      value={creditDeposit}
+                      onChange={(e) => setCreditDeposit(e.target.value)}
+                      className="h-8 text-xs"
+                    />
+                    <Input
+                      placeholder="Deposit note (optional)"
+                      value={creditPaymentDescription}
+                      onChange={(e) => setCreditPaymentDescription(e.target.value)}
+                      className="h-8 text-xs"
+                    />
+                    <p className="text-[11px] text-muted-foreground">Deposit paid as</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {(
+                        [
+                          { id: 'cash' as const, icon: Banknote, label: 'Cash' },
+                          { id: 'card' as const, icon: CreditCard, label: 'Card' },
+                          { id: 'qr' as const, icon: QrCode, label: 'QR' },
+                        ]
+                      ).map(({ id, icon: Icon, label }) => (
+                        <button
+                          key={id}
+                          type="button"
+                          onClick={() => setCreditPaymentMethod(id)}
+                          className={cn(
+                            'flex items-center justify-center gap-1 py-1.5 rounded text-[11px] font-medium transition-all',
+                            creditPaymentMethod === id
+                              ? 'bg-primary text-primary-foreground'
+                              : 'bg-muted text-muted-foreground hover:bg-muted/80',
+                          )}
+                        >
+                          <Icon className="w-3 h-3" />
+                          {label}
+                        </button>
+                      ))}
+                    </div>
                     <Input
                       placeholder="Consignment / plate no."
                       value={consignmentInfo}
