@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   endOfDay,
   endOfMonth,
@@ -17,16 +17,34 @@ import {
   Receipt,
   Package,
   Percent,
+  Wallet,
+  Plus,
+  Trash2,
+  PiggyBank,
 } from 'lucide-react';
 import { PageLayout } from '@/components/pos/PageLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useProfitReport } from '@/hooks/useProfitReport';
+import {
+  EXPENSE_CATEGORIES,
+  expenseCategoryLabel,
+  useOperatingExpenses,
+} from '@/hooks/useOperatingExpenses';
 import { useAuth } from '@/context/AuthContext';
 import { fc } from '@/lib/currency';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 interface ProfitLossReportProps {
   onNavigate: (tab: string) => void;
@@ -68,7 +86,7 @@ function exportSummaryCsv(
   endDate: string,
 ) {
   const rows = [
-    ['Profit & Loss (Gross)', `${startDate} to ${endDate}`],
+    ['Profit & Loss', `${startDate} to ${endDate}`],
     ['Gross sales', summary.grossSales.toFixed(2)],
     ['Discounts', summary.discounts.toFixed(2)],
     ['Refunds', summary.refunds.toFixed(2)],
@@ -76,15 +94,19 @@ function exportSummaryCsv(
     ['Cost of goods sold', summary.cogs.toFixed(2)],
     ['Gross profit', summary.grossProfit.toFixed(2)],
     ['Gross margin %', summary.grossMarginPct.toFixed(2)],
+    ['Operating expenses', summary.operatingExpenses.toFixed(2)],
+    ['Net profit', summary.netProfit.toFixed(2)],
+    ['Net margin %', summary.netMarginPct.toFixed(2)],
     ['Orders', String(summary.orderCount)],
     ['Refunded orders', String(summary.refundedOrderCount)],
+    ['Expense entries', String(summary.expenseCount)],
   ];
   const csv = rows.map((r) => r.join(',')).join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `profit-report-${startDate}-${endDate}.csv`;
+  a.download = `profit-loss-${startDate}-${endDate}.csv`;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -93,22 +115,54 @@ export default function ProfitLossReport({ onNavigate }: ProfitLossReportProps) 
   const { user } = useAuth();
   const canView = user?.role === 'admin' || user?.role === 'manager';
   const { summary, loading, error, fetchSummary } = useProfitReport();
+  const {
+    expenses,
+    loading: expensesLoading,
+    fetchInRange,
+    addExpense,
+    deleteExpense,
+  } = useOperatingExpenses();
 
   const initial = presetRange('month');
   const [preset, setPreset] = useState<DatePreset>('month');
   const [startDate, setStartDate] = useState(toDateInputValue(initial.start));
   const [endDate, setEndDate] = useState(toDateInputValue(initial.end));
 
+  const [showExpenseForm, setShowExpenseForm] = useState(false);
+  const [expenseCategory, setExpenseCategory] = useState('other');
+  const [expenseDescription, setExpenseDescription] = useState('');
+  const [expenseAmount, setExpenseAmount] = useState('');
+  const [expenseDate, setExpenseDate] = useState(toDateInputValue(new Date()));
+  const [expenseReference, setExpenseReference] = useState('');
+  const [expenseNotes, setExpenseNotes] = useState('');
+  const [isSavingExpense, setIsSavingExpense] = useState(false);
+  const [deletingExpenseId, setDeletingExpenseId] = useState<string | null>(null);
+
   const periodLabel = useMemo(
-    () => `${format(new Date(`${startDate}T12:00:00`), 'dd MMM yyyy')} – ${format(new Date(`${endDate}T12:00:00`), 'dd MMM yyyy')}`,
+    () =>
+      `${format(new Date(`${startDate}T12:00:00`), 'dd MMM yyyy')} – ${format(new Date(`${endDate}T12:00:00`), 'dd MMM yyyy')}`,
     [startDate, endDate],
   );
 
+  const refreshReport = useCallback(async () => {
+    const { start, end } = rangeToIso(startDate, endDate);
+    await Promise.all([fetchSummary(start, end), fetchInRange(start, end)]);
+  }, [startDate, endDate, fetchSummary, fetchInRange]);
+
   useEffect(() => {
     if (!canView) return;
-    const { start, end } = rangeToIso(startDate, endDate);
-    void fetchSummary(start, end);
-  }, [canView, startDate, endDate, fetchSummary]);
+    void refreshReport();
+  }, [canView, refreshReport]);
+
+  const expenseByCategory = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const e of expenses) {
+      map.set(e.category, (map.get(e.category) ?? 0) + e.amount);
+    }
+    return [...map.entries()]
+      .map(([category, total]) => ({ category, total }))
+      .sort((a, b) => b.total - a.total);
+  }, [expenses]);
 
   const applyPreset = (p: DatePreset) => {
     setPreset(p);
@@ -117,6 +171,63 @@ export default function ProfitLossReport({ onNavigate }: ProfitLossReportProps) 
     setStartDate(toDateInputValue(start));
     setEndDate(toDateInputValue(end));
   };
+
+  const resetExpenseForm = () => {
+    setExpenseCategory('other');
+    setExpenseDescription('');
+    setExpenseAmount('');
+    setExpenseDate(toDateInputValue(new Date()));
+    setExpenseReference('');
+    setExpenseNotes('');
+  };
+
+  const handleAddExpense = async () => {
+    const amount = parseFloat(expenseAmount);
+    if (!expenseDescription.trim()) {
+      toast.error('Enter a description');
+      return;
+    }
+    if (Number.isNaN(amount) || amount <= 0) {
+      toast.error('Enter a valid amount');
+      return;
+    }
+
+    setIsSavingExpense(true);
+    try {
+      const expenseTimestamp = new Date(`${expenseDate}T12:00:00`).toISOString();
+      await addExpense({
+        category: expenseCategory,
+        description: expenseDescription.trim(),
+        amount,
+        expense_date: expenseTimestamp,
+        reference: expenseReference.trim() || undefined,
+        notes: expenseNotes.trim() || undefined,
+      });
+      toast.success('Expense recorded');
+      resetExpenseForm();
+      setShowExpenseForm(false);
+      await refreshReport();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save expense');
+    } finally {
+      setIsSavingExpense(false);
+    }
+  };
+
+  const handleDeleteExpense = async (id: string) => {
+    setDeletingExpenseId(id);
+    try {
+      await deleteExpense(id);
+      toast.success('Expense removed');
+      await refreshReport();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete expense');
+    } finally {
+      setDeletingExpenseId(null);
+    }
+  };
+
+  const isLoading = loading || expensesLoading;
 
   if (!canView) {
     return (
@@ -141,20 +252,12 @@ export default function ProfitLossReport({ onNavigate }: ProfitLossReportProps) 
               Profit & Loss
             </h1>
             <p className="text-muted-foreground text-sm">
-              Gross profit from sales (revenue minus product cost). {periodLabel}
+              Full P&amp;L: sales, product cost, and operating expenses. {periodLabel}
             </p>
           </div>
           <div className="flex gap-2 shrink-0">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                const { start, end } = rangeToIso(startDate, endDate);
-                void fetchSummary(start, end);
-              }}
-              disabled={loading}
-            >
-              {loading ? (
+            <Button variant="outline" size="sm" onClick={() => void refreshReport()} disabled={isLoading}>
+              {isLoading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 <RefreshCw className="w-4 h-4" />
@@ -165,7 +268,7 @@ export default function ProfitLossReport({ onNavigate }: ProfitLossReportProps) 
               variant="outline"
               size="sm"
               onClick={() => exportSummaryCsv(summary, startDate, endDate)}
-              disabled={loading}
+              disabled={isLoading}
             >
               <Download className="w-4 h-4" />
               <span className="ml-2 hidden sm:inline">Export CSV</span>
@@ -238,13 +341,13 @@ export default function ProfitLossReport({ onNavigate }: ProfitLossReportProps) 
           </div>
         )}
 
-        {loading ? (
+        {isLoading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <Card>
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
@@ -263,17 +366,6 @@ export default function ProfitLossReport({ onNavigate }: ProfitLossReportProps) 
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-xs text-muted-foreground mb-1">Cost of goods</p>
-                      <p className="text-2xl font-bold tabular-nums">{fc(summary.cogs)}</p>
-                    </div>
-                    <Package className="w-8 h-8 text-warning opacity-40" />
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
                       <p className="text-xs text-muted-foreground mb-1">Gross profit</p>
                       <p
                         className={cn(
@@ -283,12 +375,61 @@ export default function ProfitLossReport({ onNavigate }: ProfitLossReportProps) 
                       >
                         {fc(summary.grossProfit)}
                       </p>
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        {summary.grossMarginPct.toFixed(1)}% margin
+                      </p>
                     </div>
-                    {summary.grossProfit >= 0 ? (
-                      <TrendingUp className="w-8 h-8 text-success opacity-40" />
+                    <TrendingUp className="w-8 h-8 text-success opacity-40" />
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">Operating expenses</p>
+                      <p className="text-2xl font-bold tabular-nums">{fc(summary.operatingExpenses)}</p>
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        {summary.expenseCount} entries
+                      </p>
+                    </div>
+                    <Wallet className="w-8 h-8 text-warning opacity-40" />
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="sm:col-span-2 lg:col-span-1">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">Net profit</p>
+                      <p
+                        className={cn(
+                          'text-2xl font-bold tabular-nums',
+                          summary.netProfit >= 0 ? 'text-success' : 'text-destructive',
+                        )}
+                      >
+                        {fc(summary.netProfit)}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        {summary.netMarginPct.toFixed(1)}% net margin
+                      </p>
+                    </div>
+                    {summary.netProfit >= 0 ? (
+                      <PiggyBank className="w-8 h-8 text-success opacity-40" />
                     ) : (
                       <TrendingDown className="w-8 h-8 text-destructive opacity-40" />
                     )}
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">Cost of goods</p>
+                      <p className="text-2xl font-bold tabular-nums">{fc(summary.cogs)}</p>
+                    </div>
+                    <Package className="w-8 h-8 text-warning opacity-40" />
                   </div>
                 </CardContent>
               </Card>
@@ -309,7 +450,7 @@ export default function ProfitLossReport({ onNavigate }: ProfitLossReportProps) 
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Statement</CardTitle>
+                <CardTitle className="text-base">Income statement</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
                 <div className="flex justify-between gap-4 tabular-nums">
@@ -336,19 +477,188 @@ export default function ProfitLossReport({ onNavigate }: ProfitLossReportProps) 
                   <span className="text-muted-foreground">Cost of goods sold</span>
                   <span className="font-medium">− {fc(summary.cogs)}</span>
                 </div>
-                <div className="border-t border-border pt-3 flex justify-between gap-4 tabular-nums text-base font-bold">
+                <div className="border-t border-border pt-3 flex justify-between gap-4 tabular-nums font-semibold">
                   <span>Gross profit</span>
                   <span className={summary.grossProfit >= 0 ? 'text-success' : 'text-destructive'}>
                     {fc(summary.grossProfit)}
                   </span>
                 </div>
+                <div className="flex justify-between gap-4 tabular-nums">
+                  <span className="text-muted-foreground">Operating expenses</span>
+                  <span className="font-medium">− {fc(summary.operatingExpenses)}</span>
+                </div>
+                <div className="border-t-2 border-border pt-3 flex justify-between gap-4 tabular-nums text-base font-bold">
+                  <span>Net profit</span>
+                  <span className={summary.netProfit >= 0 ? 'text-success' : 'text-destructive'}>
+                    {fc(summary.netProfit)}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+                <CardTitle className="text-base">Operating expenses</CardTitle>
+                <Button
+                  size="sm"
+                  variant={showExpenseForm ? 'secondary' : 'default'}
+                  onClick={() => setShowExpenseForm((v) => !v)}
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  Record expense
+                </Button>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {showExpenseForm && (
+                  <div className="rounded-md border border-border p-4 space-y-3 bg-muted/20">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label>Category</Label>
+                        <Select value={expenseCategory} onValueChange={setExpenseCategory}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {EXPENSE_CATEGORIES.map((c) => (
+                              <SelectItem key={c.id} value={c.id}>
+                                {c.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Date</Label>
+                        <Input
+                          type="date"
+                          value={expenseDate}
+                          onChange={(e) => setExpenseDate(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-1 sm:col-span-2">
+                        <Label>Description</Label>
+                        <Input
+                          placeholder="e.g. March shop rent"
+                          value={expenseDescription}
+                          onChange={(e) => setExpenseDescription(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Amount (KES)</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="0.00"
+                          value={expenseAmount}
+                          onChange={(e) => setExpenseAmount(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Reference (optional)</Label>
+                        <Input
+                          placeholder="Invoice / receipt no."
+                          value={expenseReference}
+                          onChange={(e) => setExpenseReference(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-1 sm:col-span-2">
+                        <Label>Notes (optional)</Label>
+                        <Textarea
+                          rows={2}
+                          value={expenseNotes}
+                          onChange={(e) => setExpenseNotes(e.target.value)}
+                          className="min-h-[60px]"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-2 justify-end">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setShowExpenseForm(false);
+                          resetExpenseForm();
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                      <Button size="sm" onClick={() => void handleAddExpense()} disabled={isSavingExpense}>
+                        {isSavingExpense && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
+                        Save expense
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {expenseByCategory.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                      By category
+                    </p>
+                    {expenseByCategory.map(({ category, total }) => (
+                      <div
+                        key={category}
+                        className="flex justify-between text-sm tabular-nums"
+                      >
+                        <span>{expenseCategoryLabel(category)}</span>
+                        <span className="font-medium">{fc(total)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {expenses.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-6">
+                    No operating expenses recorded for this period.
+                  </p>
+                ) : (
+                  <div className="space-y-2 max-h-72 overflow-y-auto">
+                    {expenses.map((e) => (
+                      <div
+                        key={e.id}
+                        className="flex items-start justify-between gap-3 rounded-md border border-border px-3 py-2 text-sm"
+                      >
+                        <div className="min-w-0">
+                          <p className="font-medium text-foreground truncate">
+                            {e.description || expenseCategoryLabel(e.category)}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {expenseCategoryLabel(e.category)} ·{' '}
+                            {format(new Date(e.expense_date), 'dd MMM yyyy')}
+                            {e.reference ? ` · ${e.reference}` : ''}
+                          </p>
+                          {e.notes && (
+                            <p className="text-xs text-muted-foreground mt-0.5 truncate">{e.notes}</p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="font-semibold tabular-nums">{fc(e.amount)}</span>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            disabled={deletingExpenseId === e.id}
+                            onClick={() => void handleDeleteExpense(e.id)}
+                          >
+                            {deletingExpenseId === e.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
 
             <p className="text-xs text-muted-foreground">
-              Revenue is counted on order date (accrual). Credit invoices are included when
-              created. COGS uses product cost captured at sale time; older orders without cost
-              use the current product cost where available.
+              Revenue uses order date (accrual). Expenses use the date you record on each entry.
+              Inventory purchases are COGS, not operating expenses — record rent, salaries, utilities,
+              and similar costs here.
             </p>
           </>
         )}

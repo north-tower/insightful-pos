@@ -10,8 +10,12 @@ export interface ProfitSummary {
   cogs: number;
   grossProfit: number;
   grossMarginPct: number;
+  operatingExpenses: number;
+  netProfit: number;
+  netMarginPct: number;
   orderCount: number;
   refundedOrderCount: number;
+  expenseCount: number;
 }
 
 function emptySummary(): ProfitSummary {
@@ -23,8 +27,12 @@ function emptySummary(): ProfitSummary {
     cogs: 0,
     grossProfit: 0,
     grossMarginPct: 0,
+    operatingExpenses: 0,
+    netProfit: 0,
+    netMarginPct: 0,
     orderCount: 0,
     refundedOrderCount: 0,
+    expenseCount: 0,
   };
 }
 
@@ -37,8 +45,12 @@ function mapRow(row: Record<string, unknown>): ProfitSummary {
     cogs: Number(row.cogs ?? 0),
     grossProfit: Number(row.gross_profit ?? 0),
     grossMarginPct: Number(row.gross_margin_pct ?? 0),
+    operatingExpenses: Number(row.operating_expenses ?? 0),
+    netProfit: Number(row.net_profit ?? 0),
+    netMarginPct: Number(row.net_margin_pct ?? 0),
     orderCount: Number(row.order_count ?? 0),
     refundedOrderCount: Number(row.refunded_order_count ?? 0),
+    expenseCount: Number(row.expense_count ?? 0),
   };
 }
 
