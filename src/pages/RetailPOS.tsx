@@ -391,6 +391,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
           product_name: item.product.name,
           product_image: item.product.image,
           unit_price: getUnitPrice(item),
+          unit_cost: item.product.cost,
           quantity: item.quantity,
           sku: item.product.sku,
           barcode: item.product.barcode,

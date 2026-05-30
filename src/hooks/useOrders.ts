@@ -38,6 +38,7 @@ export interface OrderItem {
   product_name: string;
   product_image?: string;
   unit_price: number;
+  unit_cost?: number;
   quantity: number;
   line_total: number;
   discount: number;
@@ -118,6 +119,7 @@ export interface CreateOrderParams {
     product_name: string;
     product_image?: string;
     unit_price: number;
+    unit_cost?: number;
     quantity: number;
     modifiers?: Array<{ id: string; type: string; name: string; price?: number }>;
     notes?: string;
@@ -237,6 +239,61 @@ export function useOrders() {
     [mode, user?.id, user?.role],
   );
 
+  /** Resolve unit cost per product_id for COGS snapshot (online DB or offline cache). */
+  const resolveProductCosts = useCallback(
+    async (
+      items: CreateOrderParams['items'],
+      isOnline: boolean,
+    ): Promise<Map<string, number>> => {
+      const costByProduct = new Map<string, number>();
+
+      for (const item of items) {
+        if (!item.product_id) continue;
+        if (item.unit_cost !== undefined && Number.isFinite(item.unit_cost)) {
+          costByProduct.set(item.product_id, Math.max(item.unit_cost, 0));
+        }
+      }
+
+      const missing = [
+        ...new Set(
+          items
+            .map((i) => i.product_id)
+            .filter((id): id is string => !!id && !costByProduct.has(id)),
+        ),
+      ];
+
+      if (missing.length === 0) return costByProduct;
+
+      if (isOnline) {
+        const { data, error } = await supabase
+          .from('products')
+          .select('id, cost')
+          .in('id', missing);
+        if (error) throw error;
+        (data || []).forEach((row: { id: string; cost: number | null }) => {
+          costByProduct.set(row.id, Number(row.cost ?? 0));
+        });
+        missing.forEach((id) => {
+          if (!costByProduct.has(id)) costByProduct.set(id, 0);
+        });
+        return costByProduct;
+      }
+
+      const productsCacheKey = `snapshot:products:${mode}:${user?.id || 'anon'}`;
+      const legacyProductsCacheKey = `snapshot:products:${mode}:${user?.id || 'anon'}:${user?.role || 'unknown'}`;
+      let snapshot = await getCachedSnapshot<ProductsOfflineSnapshot>(productsCacheKey);
+      if (!snapshot && legacyProductsCacheKey !== productsCacheKey) {
+        snapshot = await getCachedSnapshot<ProductsOfflineSnapshot>(legacyProductsCacheKey);
+      }
+      missing.forEach((id) => {
+        const row = snapshot?.products.find((p) => p.id === id);
+        costByProduct.set(id, Number(row?.cost ?? 0));
+      });
+      return costByProduct;
+    },
+    [mode, user?.id, user?.role],
+  );
+
   const createOrderRemote = useCallback(
     async (params: CreateOrderParams): Promise<SaleOrder | null> => {
       // Calculate financials
@@ -327,18 +384,25 @@ export function useOrders() {
 
       const orderId = orderData.id;
 
+      const costByProduct = await resolveProductCosts(params.items, true);
+
       // 3. Insert order items
       const orderItems = params.items.map((item) => {
         const modifierTotal = (item.modifiers || []).reduce(
           (s, m) => s + (m.price || 0) * item.quantity,
           0,
         );
+        const unitCost =
+          item.unit_cost ??
+          (item.product_id ? costByProduct.get(item.product_id) : undefined) ??
+          0;
         return {
           order_id: orderId,
           product_id: item.product_id || null,
           product_name: item.product_name,
           product_image: item.product_image || null,
           unit_price: item.unit_price,
+          unit_cost: unitCost,
           quantity: item.quantity,
           line_total: item.unit_price * item.quantity + modifierTotal,
           discount: 0,
@@ -412,6 +476,7 @@ export function useOrders() {
           product_name: i.product_name,
           product_image: i.product_image,
           unit_price: Number(i.unit_price),
+          unit_cost: Number(i.unit_cost ?? 0),
           quantity: i.quantity,
           line_total: Number(i.line_total),
           discount: Number(i.discount || 0),
@@ -431,7 +496,7 @@ export function useOrders() {
         })),
       };
     },
-    [mode, user?.id, user?.full_name],
+    [mode, user?.id, user?.full_name, resolveProductCosts],
   );
 
   // ── Fetch orders ────────────────────────────────────────────────────────
@@ -494,6 +559,7 @@ export function useOrders() {
           product_name: item.product_name,
           product_image: item.product_image,
           unit_price: Number(item.unit_price),
+          unit_cost: Number(item.unit_cost ?? 0),
           quantity: item.quantity,
           line_total: Number(item.line_total),
           discount: Number(item.discount || 0),
@@ -666,6 +732,8 @@ export function useOrders() {
         const paymentStatus: PaymentStatus =
           totalPaid >= total ? 'paid' : totalPaid > 0 ? 'partial' : 'unpaid';
 
+        const costByProduct = await resolveProductCosts(params.items, false);
+
         const localOrder: SaleOrder = {
           id: localOrderId,
           order_number: localOrderNumber,
@@ -694,13 +762,19 @@ export function useOrders() {
           staff_name: user?.full_name,
           created_at: localCreatedAt,
           completed_at: saleType === 'cash' ? localCreatedAt : undefined,
-          items: params.items.map((item, index) => ({
+          items: params.items.map((item, index) => {
+            const unitCost =
+              item.unit_cost ??
+              (item.product_id ? costByProduct.get(item.product_id) : undefined) ??
+              0;
+            return {
             id: `local-item-${localOrderId}-${index}`,
             order_id: localOrderId,
             product_id: item.product_id,
             product_name: item.product_name,
             product_image: item.product_image,
             unit_price: item.unit_price,
+            unit_cost: unitCost,
             quantity: item.quantity,
             line_total:
               item.unit_price * item.quantity +
@@ -710,7 +784,8 @@ export function useOrders() {
             notes: item.notes,
             sku: item.sku,
             barcode: item.barcode,
-          })),
+          };
+          }),
           payments: params.payments.map((p, index) => ({
             id: `local-payment-${localOrderId}-${index}`,
             order_id: localOrderId,
@@ -745,13 +820,13 @@ export function useOrders() {
       }
     },
     [
-      isRestaurant,
       mode,
       user,
       orders,
       createOrderRemote,
       persistOrdersSnapshot,
       applyOfflineInventoryDeduction,
+      resolveProductCosts,
     ],
   );
 
