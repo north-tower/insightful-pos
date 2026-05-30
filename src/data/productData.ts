@@ -1,5 +1,7 @@
 // Retail product data types and mock data
 
+export type ProductType = 'finished' | 'raw';
+
 export interface Product {
   id: string;
   name: string;
@@ -17,6 +19,8 @@ export interface Product {
   variants?: ProductVariant[];
   isActive: boolean;
   discount?: number;
+  /** Retail: finished goods are sellable; raw materials are for production only. */
+  productType: ProductType;
 }
 
 export interface ProductVariant {
@@ -85,6 +89,7 @@ export const retailProducts: Product[] = [
     unit: 'pcs',
     brand: 'SoundMax',
     isActive: true,
+    productType: 'finished' as const,
   },
   {
     id: 'p2',
@@ -100,6 +105,7 @@ export const retailProducts: Product[] = [
     unit: 'pcs',
     brand: 'ChargePro',
     isActive: true,
+    productType: 'finished' as const,
   },
   {
     id: 'p3',
@@ -115,6 +121,7 @@ export const retailProducts: Product[] = [
     unit: 'pcs',
     brand: 'FitGear',
     isActive: true,
+    productType: 'finished' as const,
   },
   {
     id: 'p4',
@@ -136,6 +143,7 @@ export const retailProducts: Product[] = [
       { id: 'v4', name: 'XL', sku: 'CLT-001-XL', price: 21.99, stock: 15 },
     ],
     isActive: true,
+    productType: 'finished' as const,
   },
   {
     id: 'p5',
@@ -151,6 +159,7 @@ export const retailProducts: Product[] = [
     unit: 'pcs',
     brand: 'DenimWorks',
     isActive: true,
+    productType: 'finished' as const,
   },
   {
     id: 'p6',
@@ -165,6 +174,7 @@ export const retailProducts: Product[] = [
     lowStockThreshold: 8,
     unit: 'set',
     isActive: true,
+    productType: 'finished' as const,
   },
   {
     id: 'p7',
@@ -179,6 +189,7 @@ export const retailProducts: Product[] = [
     lowStockThreshold: 10,
     unit: 'pcs',
     isActive: true,
+    productType: 'finished' as const,
   },
   {
     id: 'p8',
@@ -194,6 +205,7 @@ export const retailProducts: Product[] = [
     unit: 'pcs',
     brand: 'GlowUp',
     isActive: true,
+    productType: 'finished' as const,
   },
   {
     id: 'p9',
@@ -208,6 +220,7 @@ export const retailProducts: Product[] = [
     lowStockThreshold: 10,
     unit: 'pcs',
     isActive: true,
+    productType: 'finished' as const,
   },
   {
     id: 'p10',
@@ -223,6 +236,7 @@ export const retailProducts: Product[] = [
     unit: 'pcs',
     brand: 'BeanCraft',
     isActive: true,
+    productType: 'finished' as const,
   },
   {
     id: 'p11',
@@ -237,6 +251,7 @@ export const retailProducts: Product[] = [
     lowStockThreshold: 5,
     unit: 'pcs',
     isActive: true,
+    productType: 'finished' as const,
   },
   {
     id: 'p12',
@@ -252,6 +267,7 @@ export const retailProducts: Product[] = [
     unit: 'pcs',
     brand: 'SoundMax',
     isActive: true,
+    productType: 'finished' as const,
   },
 ];
 

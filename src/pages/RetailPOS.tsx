@@ -83,7 +83,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
     [user?.id],
   );
   const {
-    retailProducts,
+    sellableRetailProducts,
     loading,
     refetch: refetchProducts,
     debugOfflineCacheKey,
@@ -158,7 +158,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
       const next: CartItem[] = [];
       for (const line of lines) {
         if (!line?.productId) continue;
-        const p = retailProducts.find((x) => x.id === line.productId);
+        const p = sellableRetailProducts.find((x) => x.id === line.productId);
         if (!p || !p.isActive) continue;
         const stock = getMainStock(p);
         const q = Math.floor(Number(line.quantity));
@@ -181,7 +181,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
     } finally {
       setRetailCartPersistenceReady(true);
     }
-  }, [loading, retailProducts, retailCartStorageKey]);
+  }, [loading, sellableRetailProducts, retailCartStorageKey]);
 
   // Persist cart (after hydration so we don't wipe storage on first paint).
   useEffect(() => {
@@ -246,7 +246,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
 
   // Filter products
   const filteredProducts = useMemo(() => {
-    let products = retailProducts.filter((p) => p.isActive);
+    let products = sellableRetailProducts.filter((p) => p.isActive);
     if (activeCategory !== 'all') {
       products = products.filter((p) => p.category === activeCategory);
     }
@@ -260,7 +260,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
       );
     }
     return products;
-  }, [activeCategory, searchQuery, retailProducts]);
+  }, [activeCategory, searchQuery, sellableRetailProducts]);
 
   // Cart functions
   const addToCart = (product: Product) => {

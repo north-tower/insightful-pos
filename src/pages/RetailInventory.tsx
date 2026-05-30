@@ -89,6 +89,8 @@ const adjustmentTypeStyles: Record<
     color: 'text-warning',
     icon: ClipboardList,
   },
+  production_in: { label: 'Produced', color: 'text-success', icon: PackagePlus },
+  production_out: { label: 'Production use', color: 'text-warning', icon: PackageMinus },
 };
 
 export default function RetailInventory({ onNavigate }: RetailInventoryProps) {

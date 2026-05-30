@@ -18,6 +18,7 @@ import {
   Warehouse,
   X,
   TrendingUp,
+  Factory,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -61,6 +62,7 @@ const retailNavItems: NavItem[] = [
   { id: 'pos', label: 'Point of Sale', icon: ShoppingCart },
   { id: 'products', label: 'Products', icon: Package, roles: ['admin', 'manager'] },
   { id: 'inventory', label: 'Inventory', icon: Warehouse, roles: ['admin', 'manager'] },
+  { id: 'production', label: 'Production', icon: Factory, roles: ['admin', 'manager'] },
   { id: 'purchases', label: 'Purchases', icon: Truck, roles: ['admin', 'manager'] },
   { id: 'profit-loss', label: 'Profit & Loss', icon: TrendingUp, roles: ['admin', 'manager'] },
   { id: 'order-history', label: 'Transactions', icon: Receipt },

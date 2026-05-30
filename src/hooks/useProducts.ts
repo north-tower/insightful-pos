@@ -7,7 +7,7 @@ import { getCachedSnapshot, setCachedSnapshot } from '@/lib/offline/cache';
 // ── Re-export types consumers already rely on ────────────────────────────────
 import type { MenuItem, Category } from '@/data/menuData';
 import type { Product, ProductCategory, ProductVariant } from '@/data/productData';
-export type { MenuItem, Category, Product, ProductCategory, ProductVariant };
+export type { MenuItem, Category, Product, ProductCategory, ProductVariant, ProductType };
 
 // ─── Supabase row types ──────────────────────────────────────────────────────
 
@@ -41,6 +41,7 @@ interface SupabaseProduct {
   low_stock_threshold: number | null;
   unit: string | null;
   brand: string | null;
+  product_type: string | null;
 }
 
 interface SupabaseVariant {
@@ -107,6 +108,7 @@ function toProduct(
     brand: row.brand || undefined,
     isActive: row.is_active,
     discount: row.discount ? Number(row.discount) : undefined,
+    productType: row.product_type === 'raw' ? 'raw' : 'finished',
     variants: variants?.map((v) => ({
       id: v.id,
       name: v.name,
@@ -333,6 +335,22 @@ export function useProducts() {
     });
   }, [supaProducts, supaVariants, categoryMap, cashierAllocations, mode, user?.role]);
 
+  /** Finished goods only — raw materials are excluded from POS. */
+  const sellableRetailProducts: Product[] = useMemo(
+    () => retailProducts.filter((p) => p.productType !== 'raw'),
+    [retailProducts],
+  );
+
+  const rawMaterialProducts: Product[] = useMemo(
+    () => retailProducts.filter((p) => p.productType === 'raw'),
+    [retailProducts],
+  );
+
+  const finishedProducts: Product[] = useMemo(
+    () => retailProducts.filter((p) => p.productType === 'finished'),
+    [retailProducts],
+  );
+
   const retailCategories: ProductCategory[] = useMemo(() => {
     const counts = new Map<string, number>();
     supaProducts.forEach((p) => {
@@ -412,6 +430,9 @@ export function useProducts() {
 
     // Retail
     retailProducts,
+    sellableRetailProducts,
+    rawMaterialProducts,
+    finishedProducts,
     retailCategories,
 
     // Raw category data (for edit forms)

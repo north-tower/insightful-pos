@@ -56,7 +56,7 @@ import { PageLayout } from '@/components/pos/PageLayout';
 import { PaginationControls } from '@/components/ui/pagination-controls';
 import { cn } from '@/lib/utils';
 import { useProducts } from '@/hooks/useProducts';
-import type { Product, ProductCategory } from '@/hooks/useProducts';
+import type { Product, ProductCategory, ProductType } from '@/hooks/useProducts';
 import EditProductDialog from '@/components/product/EditProductDialog';
 import ImageUploader from '@/components/product/ImageUploader';
 import { generatePlaceholderUrl } from '@/lib/product-images';
@@ -117,6 +117,7 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
     brand: '',
     categoryId: '',
     imageUrl: '',
+    productType: 'finished' as ProductType,
   });
 
   const resetAddForm = () => {
@@ -132,6 +133,7 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
       brand: '',
       categoryId: '',
       imageUrl: '',
+      productType: 'finished',
     });
   };
 
@@ -187,6 +189,7 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
         category_id: addForm.categoryId || null,
         image_url: addForm.imageUrl || null,
         is_active: true,
+        product_type: addForm.productType,
       });
       toast.success(`"${addForm.name.trim()}" added successfully`);
       setShowAddDialog(false);
@@ -762,6 +765,24 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
                   onChange={(e) => setAddForm((f) => ({ ...f, barcode: e.target.value }))}
                   disabled={isAdding}
                 />
+              </div>
+              <div>
+                <Label>Product type</Label>
+                <Select
+                  value={addForm.productType}
+                  onValueChange={(v) =>
+                    setAddForm((f) => ({ ...f, productType: v as ProductType }))
+                  }
+                  disabled={isAdding}
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="finished">Finished good (sellable)</SelectItem>
+                    <SelectItem value="raw">Raw material (production only)</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label>Selling Price *</Label>

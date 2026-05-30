@@ -26,7 +26,7 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import ImageUploader from '@/components/product/ImageUploader';
-import type { Product } from '@/data/productData';
+import type { Product, ProductType } from '@/data/productData';
 import { toast } from 'sonner';
 
 interface RawCategory {
@@ -71,6 +71,7 @@ export default function EditProductDialog({
   const [isActive, setIsActive] = useState(true);
   const [discount, setDiscount] = useState('');
   const [imageUrl, setImageUrl] = useState('');
+  const [productType, setProductType] = useState<ProductType>('finished');
 
   // Reset form when product changes
   useEffect(() => {
@@ -87,6 +88,7 @@ export default function EditProductDialog({
       setIsActive(product.isActive);
       setDiscount(product.discount?.toString() || '');
       setImageUrl(product.image || '');
+      setProductType(product.productType);
       // Resolve slug → category UUID
       const catId = slugToCategoryId.get(product.category) || '';
       setCategoryId(catId);
@@ -120,6 +122,7 @@ export default function EditProductDialog({
         is_active: isActive,
         discount: discount ? parseFloat(discount) : null,
         image_url: imageUrl || null,
+        product_type: productType,
       });
       toast.success(`"${name.trim()}" updated successfully`);
       onOpenChange(false);
@@ -184,6 +187,26 @@ export default function EditProductDialog({
                 disabled={isSaving}
               />
             </div>
+          </div>
+
+          <div>
+            <Label>Product type</Label>
+            <Select
+              value={productType}
+              onValueChange={(v) => setProductType(v as ProductType)}
+              disabled={isSaving}
+            >
+              <SelectTrigger className="mt-1">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="finished">Finished good (sellable)</SelectItem>
+                <SelectItem value="raw">Raw material (production only)</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground mt-1">
+              Raw materials are hidden from POS and used in production recipes.
+            </p>
           </div>
 
           {/* Price + Cost */}
