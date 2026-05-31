@@ -6,6 +6,8 @@ import { useBusinessMode } from '@/context/BusinessModeContext';
 import { useAuth } from '@/context/AuthContext';
 import { Badge } from '@/components/ui/badge';
 import { SyncStatusIndicator } from '@/components/pos/SyncStatusIndicator';
+import { ShopLogo } from '@/components/branding/ShopLogo';
+import { useCompanySettings } from '@/context/BusinessSettingsContext';
 
 interface HeaderProps {
   onMenuToggle?: () => void;
@@ -14,6 +16,7 @@ interface HeaderProps {
 export function Header({ onMenuToggle }: HeaderProps) {
   const { config, isRestaurant } = useBusinessMode();
   const { user } = useAuth();
+  const { shopLogoUrl, companyName } = useCompanySettings();
 
   const searchPlaceholder = isRestaurant
     ? 'Search menu, tickets and more'
@@ -54,10 +57,16 @@ export function Header({ onMenuToggle }: HeaderProps) {
         />
         </div>
 
-        {/* Mode badge — hidden on xs, visible on md+ */}
-        <Badge variant="outline" className="hidden md:flex text-xs font-medium text-muted-foreground shrink-0">
-          {config.icon} {config.label}
-        </Badge>
+        {shopLogoUrl ? (
+          <div className="hidden md:flex items-center gap-2 shrink-0 max-w-[140px]">
+            <ShopLogo size="xs" showFallback={false} className="!h-8" />
+            <span className="text-sm font-semibold text-foreground truncate">{companyName}</span>
+          </div>
+        ) : (
+          <Badge variant="outline" className="hidden md:flex text-xs font-medium text-muted-foreground shrink-0">
+            {config.icon} {config.label}
+          </Badge>
+        )}
       </div>
 
       {/* Right Side */}

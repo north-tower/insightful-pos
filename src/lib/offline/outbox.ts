@@ -7,6 +7,7 @@ import {
   PendingOperationRecord,
   PendingOperationStatus,
 } from '@/lib/offline/db';
+import { assertCanWriteLocally } from '@/lib/demoMode';
 
 function nowIso() {
   return new Date().toISOString();
@@ -20,6 +21,7 @@ export interface EnqueueOperationInput {
 }
 
 export async function enqueueOperation(input: EnqueueOperationInput): Promise<PendingOperationRecord> {
+  assertCanWriteLocally();
   const record: PendingOperationRecord = {
     id: input.id ?? crypto.randomUUID(),
     entity: input.entity,

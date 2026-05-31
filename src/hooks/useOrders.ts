@@ -10,6 +10,7 @@ import {
   markOperationSynced,
   updateOperationStatus,
 } from '@/lib/offline/outbox';
+import { assertCanWriteLocally } from '@/lib/demoMode';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -704,6 +705,7 @@ export function useOrders() {
   const createOrder = useCallback(
     async (params: CreateOrderParams): Promise<SaleOrder | null> => {
       try {
+        assertCanWriteLocally();
         const isOnline = typeof navigator === 'undefined' ? true : navigator.onLine;
         if (isOnline) {
           const newOrder = await createOrderRemote(params);

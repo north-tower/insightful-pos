@@ -12,7 +12,7 @@ interface InvoicePreviewProps {
 }
 
 export function InvoicePreview({ order, customer }: InvoicePreviewProps) {
-  const { settings: company } = useCompanySettings();
+  const { settings: company, shopLogoUrl, companyName } = useCompanySettings();
   const invoiceNumber = order.invoice_number || order.order_number;
   const isCreditSale = order.sale_type === 'credit';
   const isPaid = order.payment_status === 'paid';
@@ -37,6 +37,13 @@ export function InvoicePreview({ order, customer }: InvoicePreviewProps) {
       {/* ── Header: Company + Invoice title ─────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 sm:gap-6 mb-6 sm:mb-8">
         <div>
+          {shopLogoUrl && (
+            <img
+              src={shopLogoUrl}
+              alt={companyName}
+              className="h-16 max-w-[200px] object-contain mb-3"
+            />
+          )}
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight">
             {company.fullName}
           </h1>

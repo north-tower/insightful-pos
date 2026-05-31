@@ -12,9 +12,15 @@ import {
   Store,
   AlertCircle,
   Loader2,
+  Presentation,
 } from 'lucide-react';
+import { DEMO_BRANDING } from '@/lib/demoMode';
 
 type AuthTab = 'login' | 'signup';
+
+const demoEmail = import.meta.env.VITE_DEMO_EMAIL as string | undefined;
+const demoPassword = import.meta.env.VITE_DEMO_PASSWORD as string | undefined;
+const hasDemoLogin = Boolean(demoEmail && demoPassword);
 
 export default function Login() {
   const { signIn, signUp, requestPasswordReset } = useAuth();
@@ -53,6 +59,16 @@ export default function Login() {
       }
     }
 
+    setLoading(false);
+  };
+
+  const handleDemoLogin = async () => {
+    if (!demoEmail || !demoPassword) return;
+    setError('');
+    setInfo('');
+    setLoading(true);
+    const result = await signIn(demoEmail, demoPassword);
+    if (result.error) setError(result.error);
     setLoading(false);
   };
 
@@ -100,11 +116,25 @@ export default function Login() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 bg-primary/10 rounded-2xl mb-4">
-            <Store className="w-7 h-7 text-primary" />
-          </div>
-          <h1 className="text-3xl font-bold text-foreground">INSIGHTFUL POS</h1>
-          <p className="text-muted-foreground mt-1">Sign in to your account</p>
+          {hasDemoLogin ? (
+            <>
+              <img
+                src={DEMO_BRANDING.logoUrl}
+                alt={DEMO_BRANDING.name}
+                className="h-24 w-24 mx-auto mb-4 rounded-2xl object-cover shadow-md border border-border"
+              />
+              <h1 className="text-3xl font-bold text-foreground">{DEMO_BRANDING.name}</h1>
+              <p className="text-muted-foreground mt-1">Demo — sign in or use view-only access below</p>
+            </>
+          ) : (
+            <>
+              <div className="inline-flex items-center justify-center w-14 h-14 bg-primary/10 rounded-2xl mb-4">
+                <Store className="w-7 h-7 text-primary" />
+              </div>
+              <h1 className="text-3xl font-bold text-foreground">INSIGHTFUL POS</h1>
+              <p className="text-muted-foreground mt-1">Sign in to your account</p>
+            </>
+          )}
         </div>
 
         {/* Tab Switcher */}
@@ -220,6 +250,19 @@ export default function Login() {
             {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
             {tab === 'login' ? 'Sign In' : 'Create Account'}
           </Button>
+
+          {tab === 'login' && hasDemoLogin && (
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full h-11 border-amber-500/50 text-amber-900 dark:text-amber-100 hover:bg-amber-500/10"
+              disabled={loading}
+              onClick={() => void handleDemoLogin()}
+            >
+              <Presentation className="w-4 h-4 mr-2" />
+              Demo {DEMO_BRANDING.name} (view only)
+            </Button>
+          )}
         </form>
 
         {/* Footer */}

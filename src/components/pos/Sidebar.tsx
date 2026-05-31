@@ -27,6 +27,7 @@ import { Badge } from '@/components/ui/badge';
 import { useBusinessMode } from '@/context/BusinessModeContext';
 import { useAuth, UserRole } from '@/context/AuthContext';
 import { useCompanySettings } from '@/context/BusinessSettingsContext';
+import { ShopLogo } from '@/components/branding/ShopLogo';
 
 interface SidebarProps {
   activeTab: string;
@@ -78,7 +79,7 @@ const bottomNavItems: NavItem[] = [
 export function Sidebar({ activeTab, onTabChange, mobileOpen, onMobileClose }: SidebarProps) {
   const { isRestaurant, config } = useBusinessMode();
   const { user, signOut } = useAuth();
-  const { companyName, settings: company } = useCompanySettings();
+  const { companyName } = useCompanySettings();
   const allNavItems = isRestaurant ? restaurantNavItems : retailNavItems;
   const LogoIcon = isRestaurant ? UtensilsCrossed : Store;
 
@@ -118,18 +119,18 @@ export function Sidebar({ activeTab, onTabChange, mobileOpen, onMobileClose }: S
       {/* Logo Section */}
       <div className="p-6 pb-8 border-b border-sidebar-border/50">
         <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <div className="w-12 h-12 bg-gradient-to-br from-sidebar-primary to-sidebar-accent rounded-2xl flex items-center justify-center shadow-lg">
-                <LogoIcon className="w-6 h-6 text-sidebar-primary-foreground" />
-            </div>
-            <div className="absolute -top-1 -right-1 w-4 h-4 bg-success rounded-full border-2 border-sidebar"></div>
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="relative shrink-0">
+            <ShopLogo size="sidebar" fallbackIcon={LogoIcon} className="rounded-2xl shadow-lg" />
+            <div className="absolute -top-1 -right-1 w-4 h-4 bg-success rounded-full border-2 border-sidebar" />
           </div>
-          <div>
-            <h1 className="font-bold text-xl leading-tight tracking-tight">{companyName || 'POS'}</h1>
-              <p className="text-xs text-sidebar-foreground/60 font-medium">{config.label} POS</p>
-            </div>
+          <div className="min-w-0">
+            <h1 className="font-bold text-xl leading-tight tracking-tight truncate">
+              {companyName || 'POS'}
+            </h1>
+            <p className="text-xs text-sidebar-foreground/60 font-medium">{config.label} POS</p>
           </div>
+        </div>
           {/* Close button – mobile only */}
           <button
             onClick={onMobileClose}

@@ -8,6 +8,7 @@ import {
   ReactNode,
 } from 'react';
 import { supabase } from '@/lib/supabase';
+import { setDemoModeActive } from '@/lib/demoMode';
 import type { User, Session } from '@supabase/supabase-js';
 import type { BusinessMode } from '@/types/business';
 
@@ -55,6 +56,8 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   hasAssignedStore: boolean;
+  /** Read-only demo: shows live store data, writes blocked client + server */
+  isDemo: boolean;
 
   // Actions
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
@@ -101,6 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hasAssignedStore, setHasAssignedStore] = useState(false);
+  const [isDemo, setIsDemo] = useState(false);
   const assignmentUserIdRef = useRef<string | null>(null);
 
   // ── Enrich profile from the `profiles` table (best-effort) ────────────
@@ -129,6 +133,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setHasAssignedStore(readCachedStoreAssignment(supaUser.id));
       }
 
+      const demo = Boolean(data?.is_demo);
+      setIsDemo(demo);
+      setDemoModeActive(demo);
+
       if (error || !data) return; // Keep the metadata-based profile
 
       setUser({
@@ -141,6 +149,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         business_name: data.business_name,
       });
     } catch {
+      setIsDemo(false);
+      setDemoModeActive(false);
       // Silently ignore – the metadata-based profile is good enough
     }
   }, []);
@@ -166,6 +176,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         setUser(null);
         setHasAssignedStore(false);
+        setIsDemo(false);
+        setDemoModeActive(false);
         assignmentUserIdRef.current = null;
       }
       setIsLoading(false);
@@ -243,6 +255,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setSession(null);
     setHasAssignedStore(false);
+    setIsDemo(false);
+    setDemoModeActive(false);
     assignmentUserIdRef.current = null;
   }, []);
 
@@ -264,6 +278,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         isAuthenticated: !!user,
         hasAssignedStore,
+        isDemo,
         signIn,
         signUp,
         requestPasswordReset,

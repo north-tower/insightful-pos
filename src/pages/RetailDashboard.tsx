@@ -23,6 +23,8 @@ import {
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/currency';
 import { Button } from '@/components/ui/button';
+import { useCompanySettings } from '@/context/BusinessSettingsContext';
+import { ShopLogo } from '@/components/branding/ShopLogo';
 
 interface RetailDashboardProps {
   onNavigate: (tab: string) => void;
@@ -36,6 +38,7 @@ const paymentIcons = {
 };
 
 export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
+  const { companyName, shopLogoUrl } = useCompanySettings();
   const { retailProducts, loading: productsLoading } = useProducts();
   const {
     loading: statsLoading,
@@ -73,9 +76,13 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
   return (
     <PageLayout activeTab="dashboard" onNavigate={onNavigate}>
       {/* Header */}
-      <div className="mb-6 flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">Store Overview</h1>
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div className="flex items-start gap-4 min-w-0">
+          {shopLogoUrl && <ShopLogo size="lg" showFallback={false} className="hidden sm:block" />}
+          <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2 truncate">
+            {shopLogoUrl ? companyName : 'Store Overview'}
+          </h1>
           <p className="text-muted-foreground">
             {retailStats.todaySales} sales today
             {(lowStockProducts.length > 0 || outOfStockProducts.length > 0) && (
@@ -87,6 +94,7 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
           <p className="text-xs text-muted-foreground mt-1">
             Last synced at {lastSyncedAt ? new Date(lastSyncedAt).toLocaleString() : 'Not synced yet'}
           </p>
+          </div>
         </div>
         <Button
           variant="outline"

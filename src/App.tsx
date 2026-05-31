@@ -10,6 +10,7 @@ import { BusinessSettingsProvider } from "@/context/BusinessSettingsContext";
 import { OrderQueueProvider } from "@/context/OrderQueueContext";
 import { CartProvider } from "@/context/CartContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { DemoBrandingEffect } from "@/components/branding/DemoBrandingEffect";
 import Index from "./pages/Index";
 import CustomerOrder from "./pages/CustomerOrder";
 import CustomerOrderTracking from "./pages/CustomerOrderTracking";
@@ -21,6 +22,7 @@ const queryClient = new QueryClient();
 const App = () => (
   <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
     <AuthProvider>
+      <DemoBrandingEffect />
       <BusinessModeProvider>
         <BusinessSettingsProvider>
     <QueryClientProvider client={queryClient}>

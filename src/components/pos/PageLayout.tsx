@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useBusinessMode } from '@/context/BusinessModeContext';
+import { DemoModeBanner } from '@/components/pos/DemoModeBanner';
 
 interface PageLayoutProps {
   activeTab: string;
@@ -61,6 +62,7 @@ export function PageLayout({ activeTab, onNavigate, children, flexContent }: Pag
       />
 
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+        <DemoModeBanner />
         <Header onMenuToggle={() => setMobileMenuOpen(true)} />
 
         {flexContent ? (

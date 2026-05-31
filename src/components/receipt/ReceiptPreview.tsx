@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Printer, Mail, MessageSquare, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { fc } from '@/lib/currency';
-import { useCompanySettings } from '@/context/BusinessSettingsContext';
+import { ReceiptBrandHeader } from '@/components/branding/ReceiptBrandHeader';
 
 interface ReceiptPreviewProps {
   receiptData: ReceiptData;
@@ -26,19 +26,13 @@ export function ReceiptPreview({
   onSMS,
   showActions = true,
 }: ReceiptPreviewProps) {
-  const { settings: company } = useCompanySettings();
   const amountOnly = (value: number) =>
     fc(value).replace(/^([A-Za-z]{2,4}|\p{Sc})\s*/u, '');
   const dateTimeOneLine = `${format(receiptData.date, 'dd/MM/yy')}\u00A0${format(receiptData.date, 'HH:mm')}`;
 
   const renderCompact = () => (
     <div className="space-y-2 text-[10px] leading-tight thermal-58">
-      {/* Header */}
-      <div className="text-center border-b border-dashed pb-2">
-        <h2 className="font-bold text-[13px]">{company.fullName}</h2>
-        <p className="text-[10px] text-black">{company.address}</p>
-        <p className="text-[10px] text-black">{company.city}</p>
-      </div>
+      <ReceiptBrandHeader variant="compact" />
 
       {/* Order Info */}
       <div className="space-y-0.5">
@@ -111,16 +105,7 @@ export function ReceiptPreview({
 
   const renderStandard = () => (
     <div className="space-y-4 text-sm">
-      {/* Header */}
-      <div className="text-center border-b pb-4">
-        <h2 className="font-bold text-xl">{company.fullName}</h2>
-        <p className="text-sm text-muted-foreground mt-1">{company.address}</p>
-        <p className="text-sm text-muted-foreground">{company.city}</p>
-        <p className="text-sm text-muted-foreground mt-1">{company.phone}</p>
-        {company.website && (
-          <p className="text-xs text-muted-foreground">{company.website}</p>
-        )}
-      </div>
+      <ReceiptBrandHeader variant="standard" showContact className="border-b pb-4 border-solid" />
 
       {/* Order Info */}
       <div className="space-y-1">
@@ -233,10 +218,9 @@ export function ReceiptPreview({
 
   const renderKitchenTicket = () => (
     <div className="space-y-3 text-sm">
-      {/* Header */}
-      <div className="text-center border-b-2 border-foreground pb-3">
-        <h2 className="font-bold text-xl">{company.fullName}</h2>
-        <p className="font-semibold">KITCHEN TICKET</p>
+      <div className="border-b-2 border-foreground pb-3">
+        <ReceiptBrandHeader variant="standard" className="border-0 pb-2" />
+        <p className="text-center font-semibold">KITCHEN TICKET</p>
       </div>
 
       {/* Order Info */}
