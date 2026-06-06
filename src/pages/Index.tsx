@@ -12,6 +12,7 @@ import RetailDashboard from '@/pages/RetailDashboard';
 import RetailPOS from '@/pages/RetailPOS';
 import RetailProducts from '@/pages/RetailProducts';
 import RetailInventory from '@/pages/RetailInventory';
+import RetailStaffInventory from '@/pages/RetailStaffInventory';
 import Purchases from '@/pages/Purchases';
 import AccountsReceivable from '@/pages/AccountsReceivable';
 import ProfitLossReport from '@/pages/ProfitLossReport';
@@ -36,6 +37,7 @@ const RETAIL_TABS = new Set([
   'pos',
   'products',
   'inventory',
+  'inventory-assign-staff',
   'production',
   'purchases',
   'profit-loss',
@@ -126,6 +128,8 @@ function POSApp() {
       return <RetailProducts onNavigate={handleNavigate} />;
     case 'inventory':
       return <RetailInventory onNavigate={handleNavigate} />;
+    case 'inventory-assign-staff':
+      return <RetailStaffInventory onNavigate={handleNavigate} />;
     case 'production':
       return <RetailProduction onNavigate={handleNavigate} />;
     case 'purchases':

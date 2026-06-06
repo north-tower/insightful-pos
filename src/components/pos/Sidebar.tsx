@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
   ClipboardList, 
@@ -8,6 +9,7 @@ import {
   HelpCircle,
   LogOut,
   ChevronRight,
+  ChevronDown,
   History,
   Receipt,
   Store,
@@ -38,12 +40,18 @@ interface SidebarProps {
   onMobileClose?: () => void;
 }
 
+interface NavChild {
+  id: string;
+  label: string;
+}
+
 interface NavItem {
   id: string;
   label: string;
   icon: LucideIcon;
   /** Roles that can see this nav item. If omitted, visible to all. */
   roles?: UserRole[];
+  children?: NavChild[];
 }
 
 const restaurantNavItems: NavItem[] = [
@@ -62,7 +70,16 @@ const retailNavItems: NavItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'pos', label: 'Point of Sale', icon: ShoppingCart },
   { id: 'products', label: 'Products', icon: Package, roles: ['admin', 'manager'] },
-  { id: 'inventory', label: 'Inventory', icon: Warehouse, roles: ['admin', 'manager'] },
+  {
+    id: 'inventory',
+    label: 'Inventory',
+    icon: Warehouse,
+    roles: ['admin', 'manager'],
+    children: [
+      { id: 'inventory', label: 'Overview' },
+      { id: 'inventory-assign-staff', label: 'Assign Staff Inventory' },
+    ],
+  },
   { id: 'production', label: 'Production', icon: Factory, roles: ['admin', 'manager'] },
   { id: 'purchases', label: 'Purchases', icon: Truck, roles: ['admin', 'manager'] },
   { id: 'profit-loss', label: 'Profit & Loss', icon: TrendingUp, roles: ['admin', 'manager'] },
@@ -76,12 +93,20 @@ const bottomNavItems: NavItem[] = [
   { id: 'help', label: 'Help Center', icon: HelpCircle },
 ];
 
+function isNavGroupActive(item: NavItem, activeTab: string): boolean {
+  if (item.children?.length) {
+    return item.children.some((child) => child.id === activeTab);
+  }
+  return activeTab === item.id;
+}
+
 export function Sidebar({ activeTab, onTabChange, mobileOpen, onMobileClose }: SidebarProps) {
   const { isRestaurant, config } = useBusinessMode();
   const { user, signOut } = useAuth();
   const { companyName } = useCompanySettings();
   const allNavItems = isRestaurant ? restaurantNavItems : retailNavItems;
   const LogoIcon = isRestaurant ? UtensilsCrossed : Store;
+  const [expandedMenus, setExpandedMenus] = useState<Set<string>>(() => new Set());
 
   // Filter nav items by the current user's role
   const userRole = user?.role || 'cashier';
@@ -108,10 +133,34 @@ export function Sidebar({ activeTab, onTabChange, mobileOpen, onMobileClose }: S
     await signOut();
   };
 
+  useEffect(() => {
+    const parentsToExpand = allNavItems.filter(
+      (item) => item.children?.some((child) => child.id === activeTab),
+    );
+    if (parentsToExpand.length === 0) return;
+    setExpandedMenus((prev) => {
+      const next = new Set(prev);
+      parentsToExpand.forEach((item) => next.add(item.id));
+      return next;
+    });
+  }, [activeTab, allNavItems]);
+
   const handleNavClick = (tab: string) => {
     onTabChange(tab);
     // Close mobile drawer on navigation
     onMobileClose?.();
+  };
+
+  const toggleMenuExpanded = (menuId: string) => {
+    setExpandedMenus((prev) => {
+      const next = new Set(prev);
+      if (next.has(menuId)) {
+        next.delete(menuId);
+      } else {
+        next.add(menuId);
+      }
+      return next;
+    });
   };
 
   const sidebarContent = (
@@ -149,6 +198,62 @@ export function Sidebar({ activeTab, onTabChange, mobileOpen, onMobileClose }: S
           </p>
           {mainNavItems.map((item) => {
             const Icon = item.icon;
+            const hasChildren = Boolean(item.children?.length);
+            const isGroupActive = isNavGroupActive(item, activeTab);
+            const isExpanded = hasChildren && (expandedMenus.has(item.id) || isGroupActive);
+
+            if (hasChildren) {
+              return (
+                <div key={item.id} className="space-y-1">
+                  <button
+                    onClick={() => toggleMenuExpanded(item.id)}
+                    className={cn(
+                      'w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 group relative',
+                      isGroupActive
+                        ? 'bg-sidebar-primary/15 text-sidebar-foreground'
+                        : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground'
+                    )}
+                  >
+                    <Icon className={cn(
+                      'w-5 h-5 transition-transform duration-200',
+                      isGroupActive ? 'scale-110' : 'group-hover:scale-110'
+                    )} />
+                    <span className="flex-1 text-left">{item.label}</span>
+                    <ChevronDown
+                      className={cn(
+                        'w-4 h-4 opacity-70 transition-transform duration-200',
+                        isExpanded && 'rotate-180'
+                      )}
+                    />
+                  </button>
+                  {isExpanded && (
+                    <div className="ml-4 pl-3 border-l border-sidebar-border/50 space-y-1">
+                      {item.children!.map((child) => {
+                        const isChildActive = activeTab === child.id;
+                        return (
+                          <button
+                            key={child.id}
+                            onClick={() => handleNavClick(child.id)}
+                            className={cn(
+                              'w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200',
+                              isChildActive
+                                ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-md shadow-sidebar-primary/20'
+                                : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground'
+                            )}
+                          >
+                            <span className="flex-1 text-left">{child.label}</span>
+                            {isChildActive && (
+                              <ChevronRight className="w-3.5 h-3.5 opacity-70" />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
             const isActive = activeTab === item.id;
             return (
               <button

@@ -110,9 +110,15 @@ export function usePurchases() {
       items: NewPurchaseItem[],
       opts?: { notes?: string; reference?: string; receivedImmediately?: boolean },
     ) => {
-      // Generate purchase number
-      const { data: poNum, error: poErr } = await supabase
-        .rpc('generate_purchase_number');
+      const { data: currentStoreId, error: currentStoreErr } = await supabase.rpc(
+        'current_store_id',
+      );
+      if (currentStoreErr) throw currentStoreErr;
+
+      const { data: poNum, error: poErr } = await supabase.rpc(
+        'generate_purchase_number',
+        { p_store_id: currentStoreId },
+      );
       if (poErr) throw poErr;
 
       const subtotal = items.reduce((s, i) => s + i.quantity * i.unit_cost, 0);

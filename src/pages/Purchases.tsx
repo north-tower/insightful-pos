@@ -12,12 +12,26 @@ import {
   Trash2,
   Edit,
   X,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  Clock,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog,
@@ -51,8 +65,11 @@ import { usePurchases, type NewPurchaseItem } from '@/hooks/usePurchases';
 import { useSuppliers, type Supplier } from '@/hooks/useSuppliers';
 import { useProducts } from '@/hooks/useProducts';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
+import { format, subMonths, startOfMonth, isAfter, isSameMonth } from 'date-fns';
 import { formatCurrency } from '@/lib/currency';
+
+type PurchaseSortKey = 'purchase_number' | 'supplier' | 'date' | 'items' | 'status' | 'total';
+type SortDirection = 'asc' | 'desc';
 
 interface PurchasesProps {
   onNavigate: (tab: string) => void;
@@ -60,10 +77,14 @@ interface PurchasesProps {
 
 // ── Status badge helper ──────────────────────────────────────────────────────
 
-const statusStyles: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
-  draft: { label: 'Draft', variant: 'secondary' },
-  received: { label: 'Received', variant: 'default' },
-  cancelled: { label: 'Cancelled', variant: 'destructive' },
+const statusStyles: Record<string, { label: string; tableLabel: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
+  draft: { label: 'Draft', tableLabel: 'Pending', variant: 'secondary' },
+  received: { label: 'Received', tableLabel: 'Received', variant: 'default' },
+  cancelled: { label: 'Cancelled', tableLabel: 'Cancelled', variant: 'destructive' },
+};
+
+const spendChartConfig = {
+  spend: { label: 'Spend', color: 'hsl(var(--primary))' },
 };
 
 // ── Main Component ───────────────────────────────────────────────────────────
@@ -77,6 +98,10 @@ export default function Purchases({ onNavigate }: PurchasesProps) {
   const [activeTab, setActiveTab] = useState('orders');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [supplierFilter, setSupplierFilter] = useState('all');
+  const [dateFilter, setDateFilter] = useState('all');
+  const [sortKey, setSortKey] = useState<PurchaseSortKey>('date');
+  const [sortDir, setSortDir] = useState<SortDirection>('desc');
 
   // ── Purchase order state ──────────────────────────────────────────────
   const [showPoDialog, setShowPoDialog] = useState(false);
@@ -125,8 +150,24 @@ export default function Purchases({ onNavigate }: PurchasesProps) {
 
   const filteredPurchases = useMemo(() => {
     let list = [...purchases];
+    const now = new Date();
+
     if (statusFilter !== 'all') {
       list = list.filter((p) => p.status === statusFilter);
+    }
+    if (supplierFilter !== 'all') {
+      list = list.filter((p) => p.supplier_id === supplierFilter);
+    }
+    if (dateFilter === 'last7') {
+      const cutoff = new Date(now);
+      cutoff.setDate(cutoff.getDate() - 7);
+      list = list.filter((p) => isAfter(new Date(p.order_date), cutoff));
+    } else if (dateFilter === 'last30') {
+      const cutoff = new Date(now);
+      cutoff.setDate(cutoff.getDate() - 30);
+      list = list.filter((p) => isAfter(new Date(p.order_date), cutoff));
+    } else if (dateFilter === 'this_month') {
+      list = list.filter((p) => isSameMonth(new Date(p.order_date), now));
     }
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
@@ -137,11 +178,50 @@ export default function Purchases({ onNavigate }: PurchasesProps) {
           (p.reference || '').toLowerCase().includes(q),
       );
     }
+
+    const dir = sortDir === 'asc' ? 1 : -1;
+    list.sort((a, b) => {
+      switch (sortKey) {
+        case 'purchase_number':
+          return a.purchase_number.localeCompare(b.purchase_number) * dir;
+        case 'supplier':
+          return (a.supplier_name || '').localeCompare(b.supplier_name || '') * dir;
+        case 'date':
+          return (new Date(a.order_date).getTime() - new Date(b.order_date).getTime()) * dir;
+        case 'items':
+          return ((a.items || []).length - (b.items || []).length) * dir;
+        case 'status':
+          return a.status.localeCompare(b.status) * dir;
+        case 'total':
+          return (a.total - b.total) * dir;
+        default:
+          return 0;
+      }
+    });
+
     return list;
-  }, [purchases, statusFilter, searchQuery]);
+  }, [purchases, statusFilter, supplierFilter, dateFilter, searchQuery, sortKey, sortDir]);
+
+  const toggleSort = (key: PurchaseSortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir(key === 'date' || key === 'total' ? 'desc' : 'asc');
+    }
+  };
+
+  const SortIcon = ({ column }: { column: PurchaseSortKey }) => {
+    if (sortKey !== column) return <ArrowUpDown className="w-3.5 h-3.5 opacity-40" />;
+    return sortDir === 'asc'
+      ? <ArrowUp className="w-3.5 h-3.5" />
+      : <ArrowDown className="w-3.5 h-3.5" />;
+  };
 
   // Reset page when filters change
-  useEffect(() => { setPoPage(1); }, [searchQuery, statusFilter]);
+  useEffect(() => {
+    setPoPage(1);
+  }, [searchQuery, statusFilter, supplierFilter, dateFilter, sortKey, sortDir]);
 
   const poTotalPages = Math.ceil(filteredPurchases.length / poPageSize);
   const paginatedPurchases = useMemo(
@@ -438,11 +518,46 @@ export default function Purchases({ onNavigate }: PurchasesProps) {
     const total = purchases.length;
     const draft = purchases.filter((p) => p.status === 'draft').length;
     const received = purchases.filter((p) => p.status === 'received').length;
-    const totalValue = purchases
+    const outstandingValue = purchases
+      .filter((p) => p.status === 'draft')
+      .reduce((s, p) => s + p.total, 0);
+    const receivedValue = purchases
       .filter((p) => p.status === 'received')
       .reduce((s, p) => s + p.total, 0);
-    return { total, draft, received, totalValue };
+    return { total, draft, received, outstandingValue, receivedValue };
   }, [purchases]);
+
+  const topSuppliers = useMemo(() => {
+    const totals = new Map<string, number>();
+    purchases
+      .filter((p) => p.status === 'received')
+      .forEach((p) => {
+        const name = p.supplier_name || 'Unknown supplier';
+        totals.set(name, (totals.get(name) || 0) + p.total);
+      });
+    return Array.from(totals.entries())
+      .map(([name, total]) => ({ name, total }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 5);
+  }, [purchases]);
+
+  const monthlySpend = useMemo(() => {
+    const months = Array.from({ length: 6 }, (_, i) => startOfMonth(subMonths(new Date(), 5 - i)));
+    return months.map((monthStart) => {
+      const total = purchases
+        .filter((p) => p.status === 'received' && isSameMonth(new Date(p.order_date), monthStart))
+        .reduce((s, p) => s + p.total, 0);
+      return { month: format(monthStart, 'MMM'), spend: total };
+    });
+  }, [purchases]);
+
+  const recentActivity = useMemo(() => {
+    return [...purchases]
+      .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+      .slice(0, 6);
+  }, [purchases]);
+
+  const topSupplierMax = topSuppliers[0]?.total || 1;
 
   // ── RENDER ────────────────────────────────────────────────────────────
 
@@ -486,9 +601,9 @@ export default function Purchases({ onNavigate }: PurchasesProps) {
         </Card>
         <Card>
           <CardContent className="p-4 min-w-0">
-            <p className="text-xs text-muted-foreground mb-1">Total Spent</p>
-            <p className="text-2xl font-bold tabular-nums truncate">
-              {formatCurrency(stats.totalValue)}
+            <p className="text-xs text-muted-foreground mb-1">Outstanding Value</p>
+            <p className="text-2xl font-bold text-warning tabular-nums truncate">
+              {formatCurrency(stats.outstandingValue)}
             </p>
           </CardContent>
         </Card>
@@ -508,140 +623,283 @@ export default function Purchases({ onNavigate }: PurchasesProps) {
               Suppliers
             </TabsTrigger>
           </TabsList>
-
-          <div className="relative w-full sm:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder={activeTab === 'orders' ? 'Search orders...' : 'Search suppliers...'}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
-          </div>
         </div>
 
         {/* ═══════════════════ Purchase Orders Tab ═══════════════════════════ */}
-        <TabsContent value="orders">
-          {/* Status filter pills */}
-          <div className="flex gap-2 mb-4 overflow-x-auto scrollbar-hide">
-            {(['all', 'draft', 'received', 'cancelled'] as const).map((s) => (
-              <button
-                key={s}
-                onClick={() => setStatusFilter(s)}
-                className={cn(
-                  'px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all capitalize',
-                  statusFilter === s
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted text-muted-foreground hover:bg-muted/80',
-                )}
-              >
-                {s === 'all' ? 'All' : s}
-              </button>
-            ))}
+        <TabsContent value="orders" className="space-y-6">
+          {/* Filters */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="relative lg:col-span-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Search PO, supplier, reference..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <Select value={supplierFilter} onValueChange={setSupplierFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Supplier" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All suppliers</SelectItem>
+                {suppliers.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={dateFilter} onValueChange={setDateFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Date" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All dates</SelectItem>
+                <SelectItem value="last7">Last 7 days</SelectItem>
+                <SelectItem value="last30">Last 30 days</SelectItem>
+                <SelectItem value="this_month">This month</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                <SelectItem value="draft">Pending</SelectItem>
+                <SelectItem value="received">Received</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
-          {purchasesLoading ? (
-            <div className="flex items-center justify-center py-20">
-              <div className="text-center">
-                <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-3" />
-                <p className="text-sm text-muted-foreground">Loading purchases...</p>
-              </div>
-            </div>
-          ) : filteredPurchases.length === 0 ? (
-            <div className="text-center py-20">
-              <Truck className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-40" />
-              <p className="text-muted-foreground">No purchase orders found</p>
-              <Button
-                variant="outline"
-                className="mt-4"
-                onClick={openNewPurchase}
-              >
-                Create your first purchase
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {paginatedPurchases.map((po) => {
-                const style = statusStyles[po.status] || statusStyles.draft;
-                return (
-                  <Card key={po.id} className="hover:shadow-md transition-shadow">
-                    <CardContent className="p-4">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        {/* Left info */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-bold text-foreground">
-                              {po.purchase_number}
-                            </span>
-                            <Badge variant={style.variant}>{style.label}</Badge>
-                          </div>
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1 flex-wrap">
-                            {po.supplier_name && (
-                              <>
-                                <span>{po.supplier_name}</span>
-                                <span>•</span>
-                              </>
-                            )}
-                            <span>{format(new Date(po.order_date), 'MMM dd, yyyy')}</span>
-                            <span>•</span>
-                            <span>{(po.items || []).length} item(s)</span>
-                          </div>
-                        </div>
-
-                        {/* Right: total + actions */}
-                        <div className="flex items-center gap-3 shrink-0">
-                          <p className="text-lg font-bold tabular-nums whitespace-nowrap">
-                            {formatCurrency(po.total)}
-                          </p>
-                          <div className="flex gap-1 shrink-0">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => setViewPurchase(po)}
-                            >
-                              <Eye className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => openEditPurchase(po)}
-                            >
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="text-destructive"
-                              onClick={() => setDeletingPurchaseId(po.id)}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-
-              {/* Pagination */}
-              {filteredPurchases.length > 0 && (
-                <PaginationControls
-                  currentPage={poPage}
-                  totalPages={poTotalPages}
-                  totalItems={filteredPurchases.length}
-                  pageSize={poPageSize}
-                  onPageChange={setPoPage}
-                  onPageSizeChange={(size) => { setPoPageSize(size); setPoPage(1); }}
-                />
+          {/* Orders table */}
+          <Card>
+            <CardContent className="p-0">
+              {purchasesLoading ? (
+                <div className="flex items-center justify-center py-20">
+                  <div className="text-center">
+                    <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-3" />
+                    <p className="text-sm text-muted-foreground">Loading purchases...</p>
+                  </div>
+                </div>
+              ) : filteredPurchases.length === 0 ? (
+                <div className="text-center py-20">
+                  <Truck className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-40" />
+                  <p className="text-muted-foreground">No purchase orders found</p>
+                  <Button variant="outline" className="mt-4" onClick={openNewPurchase}>
+                    Create your first purchase
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>
+                          <button type="button" className="inline-flex items-center gap-1 hover:text-foreground" onClick={() => toggleSort('purchase_number')}>
+                            PO No <SortIcon column="purchase_number" />
+                          </button>
+                        </TableHead>
+                        <TableHead>
+                          <button type="button" className="inline-flex items-center gap-1 hover:text-foreground" onClick={() => toggleSort('supplier')}>
+                            Supplier <SortIcon column="supplier" />
+                          </button>
+                        </TableHead>
+                        <TableHead>
+                          <button type="button" className="inline-flex items-center gap-1 hover:text-foreground" onClick={() => toggleSort('date')}>
+                            Date <SortIcon column="date" />
+                          </button>
+                        </TableHead>
+                        <TableHead className="text-center">
+                          <button type="button" className="inline-flex items-center gap-1 hover:text-foreground mx-auto" onClick={() => toggleSort('items')}>
+                            Items <SortIcon column="items" />
+                          </button>
+                        </TableHead>
+                        <TableHead>
+                          <button type="button" className="inline-flex items-center gap-1 hover:text-foreground" onClick={() => toggleSort('status')}>
+                            Status <SortIcon column="status" />
+                          </button>
+                        </TableHead>
+                        <TableHead className="text-right">
+                          <button type="button" className="inline-flex items-center gap-1 hover:text-foreground ml-auto" onClick={() => toggleSort('total')}>
+                            Total <SortIcon column="total" />
+                          </button>
+                        </TableHead>
+                        <TableHead className="w-[120px] text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {paginatedPurchases.map((po) => {
+                        const style = statusStyles[po.status] || statusStyles.draft;
+                        return (
+                          <TableRow key={po.id} className="cursor-pointer" onClick={() => setViewPurchase(po)}>
+                            <TableCell className="font-semibold">{po.purchase_number}</TableCell>
+                            <TableCell className="max-w-[180px] truncate">
+                              {po.supplier_name || '—'}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap">
+                              {format(new Date(po.order_date), 'dd MMM yyyy')}
+                            </TableCell>
+                            <TableCell className="text-center tabular-nums">
+                              {(po.items || []).length}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={style.variant}>{style.tableLabel}</Badge>
+                            </TableCell>
+                            <TableCell className="text-right font-semibold tabular-nums">
+                              {formatCurrency(po.total)}
+                            </TableCell>
+                            <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex justify-end gap-0.5">
+                                <Button size="sm" variant="ghost" onClick={() => setViewPurchase(po)}>
+                                  <Eye className="w-4 h-4" />
+                                </Button>
+                                <Button size="sm" variant="ghost" onClick={() => openEditPurchase(po)}>
+                                  <Edit className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="text-destructive"
+                                  onClick={() => setDeletingPurchaseId(po.id)}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                  <div className="p-4 border-t">
+                    <PaginationControls
+                      currentPage={poPage}
+                      totalPages={poTotalPages}
+                      totalItems={filteredPurchases.length}
+                      pageSize={poPageSize}
+                      onPageChange={setPoPage}
+                      onPageSizeChange={(size) => { setPoPageSize(size); setPoPage(1); }}
+                    />
+                  </div>
+                </>
               )}
-            </div>
-          )}
+            </CardContent>
+          </Card>
+
+          {/* Analytics */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Top Suppliers</CardTitle>
+                <CardDescription>By received spend</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {topSuppliers.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No received purchases yet</p>
+                ) : (
+                  topSuppliers.map((s) => (
+                    <div key={s.name} className="space-y-1">
+                      <div className="flex justify-between text-sm gap-2">
+                        <span className="truncate font-medium">{s.name}</span>
+                        <span className="tabular-nums text-muted-foreground shrink-0">
+                          {formatCurrency(s.total)}
+                        </span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                        <div
+                          className="h-full bg-primary rounded-full"
+                          style={{ width: `${Math.max(4, (s.total / topSupplierMax) * 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Monthly Spend</CardTitle>
+                <CardDescription>Received orders, last 6 months</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ChartContainer config={spendChartConfig} className="h-[220px] w-full">
+                  <BarChart data={monthlySpend} margin={{ left: 0, right: 8, top: 8, bottom: 0 }}>
+                    <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                    <XAxis dataKey="month" tickLine={false} axisLine={false} />
+                    <YAxis
+                      tickLine={false}
+                      axisLine={false}
+                      tickFormatter={(v) => `${Math.round(v / 1000)}k`}
+                      width={36}
+                    />
+                    <ChartTooltip
+                      content={
+                        <ChartTooltipContent
+                          formatter={(value) => formatCurrency(Number(value))}
+                        />
+                      }
+                    />
+                    <Bar dataKey="spend" fill="var(--color-spend)" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ChartContainer>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Recent Activity</CardTitle>
+                <CardDescription>Latest purchase updates</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {recentActivity.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No activity yet</p>
+                ) : (
+                  recentActivity.map((po) => {
+                    const style = statusStyles[po.status] || statusStyles.draft;
+                    return (
+                      <button
+                        key={po.id}
+                        type="button"
+                        className="w-full flex items-start gap-3 text-left rounded-md p-2 hover:bg-muted/50 transition-colors"
+                        onClick={() => setViewPurchase(po)}
+                      >
+                        <div className="mt-0.5 p-1.5 rounded-md bg-muted shrink-0">
+                          <Clock className="w-3.5 h-3.5 text-muted-foreground" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium truncate">
+                            {po.purchase_number}
+                            {po.supplier_name ? ` · ${po.supplier_name}` : ''}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {style.tableLabel} · {formatCurrency(po.total)} ·{' '}
+                            {format(new Date(po.updated_at), 'dd MMM yyyy')}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         {/* ═══════════════════ Suppliers Tab ═════════════════════════════════ */}
         <TabsContent value="suppliers">
-          <div className="flex justify-end mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+            <div className="relative w-full sm:w-72">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Search suppliers..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
             <Button size="sm" onClick={openAddSupplier}>
               <Plus className="w-4 h-4 mr-1.5" />
               Add Supplier

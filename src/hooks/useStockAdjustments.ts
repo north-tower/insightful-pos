@@ -15,7 +15,16 @@ export interface StockAdjustmentRow {
   id: string;
   product_id: string;
   variant_id: string | null;
-  type: 'restock' | 'damaged' | 'returned' | 'sold' | 'adjustment' | 'production_in' | 'production_out';
+  type:
+    | 'restock'
+    | 'damaged'
+    | 'returned'
+    | 'sold'
+    | 'adjustment'
+    | 'production_in'
+    | 'production_out'
+    | 'staff_assign_out'
+    | 'staff_assign_return';
   quantity: number;
   previous_stock: number;
   new_stock: number;
