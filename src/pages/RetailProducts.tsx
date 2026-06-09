@@ -594,6 +594,7 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
                   {paginatedProducts.map((product) => {
                     const categoryLabel = getSubcategoryLabel(product);
                     const marginLabel = formatMarginLabel(product.price, product.cost);
+                    const stockTier = getStockTier(product);
                     return (
                       <div
                         key={product.id}
@@ -626,7 +627,7 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
                           </p>
                         </div>
                         <div className="col-span-1">
-                          <span className={cn('text-sm font-semibold', getStockTier(product) === 'out' ? 'text-destructive' : getStockTier(product) === 'low' ? 'text-warning' : 'text-foreground')}>
+                          <span className={cn('text-sm font-semibold', stockTier === 'out' ? 'text-destructive' : stockTier === 'low' ? 'text-warning' : 'text-foreground')}>
                             {product.stock}
                           </span>
                           <p className="text-xs text-muted-foreground">{product.unit}</p>
@@ -746,7 +747,7 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
                           <span className="mx-1.5">•</span>
                           {marginLabel}
                         </p>
-                        <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center justify-end gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                           <Button
                             size="icon"
                             variant="ghost"
