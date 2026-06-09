@@ -547,7 +547,6 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
           setIsInvoiceOpen(true);
         }
         clearCart();
-        resetDiscount();
         setSelectedCustomer(null);
         setSaleType('cash');
         setConsignmentInfo('');
