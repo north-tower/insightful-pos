@@ -15,6 +15,8 @@ import {
   Eye,
   Copy,
   Loader2,
+  FlaskConical,
+  ShoppingBag,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -52,6 +54,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PageLayout } from '@/components/pos/PageLayout';
 import { PaginationControls } from '@/components/ui/pagination-controls';
 import { cn } from '@/lib/utils';
@@ -69,10 +72,12 @@ interface RetailProductsProps {
 
 type SortField = 'name' | 'price' | 'stock' | 'sku';
 type SortDir = 'asc' | 'desc';
+type ProductTypeTab = 'finished' | 'raw';
 
 export default function RetailProducts({ onNavigate }: RetailProductsProps) {
   const {
-    retailProducts,
+    finishedProducts,
+    rawMaterialProducts,
     loading,
     rawCategories,
     slugToCategoryId,
@@ -80,6 +85,9 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
     deleteProduct,
     addProduct,
   } = useProducts();
+  const [productTypeTab, setProductTypeTab] = useState<ProductTypeTab>('finished');
+  const sourceProducts =
+    productTypeTab === 'raw' ? rawMaterialProducts : finishedProducts;
   // All retail products are under one category – no category filter needed
   const activeCategory = 'all';
   const [viewMode, setViewMode] = useState<'grid' | 'list'>(
@@ -120,7 +128,7 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
     productType: 'finished' as ProductType,
   });
 
-  const resetAddForm = () => {
+  const resetAddForm = (type: ProductType = productTypeTab === 'raw' ? 'raw' : 'finished') => {
     setAddForm({
       name: '',
       sku: '',
@@ -129,11 +137,11 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
       cost: '',
       stock: '',
       lowStockThreshold: '10',
-      unit: 'pcs',
+      unit: type === 'raw' ? 'kg' : 'pcs',
       brand: '',
       categoryId: '',
       imageUrl: '',
-      productType: 'finished',
+      productType: type,
     });
   };
 
@@ -203,7 +211,7 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
   };
 
   const filteredProducts = useMemo(() => {
-    let products = [...retailProducts];
+    let products = [...sourceProducts];
 
     // Filter by category
     if (activeCategory !== 'all') {
@@ -240,10 +248,10 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
     });
 
     return products;
-  }, [activeCategory, searchQuery, sortField, sortDir, retailProducts]);
+  }, [activeCategory, searchQuery, sortField, sortDir, sourceProducts]);
 
-  // Reset page on filter/search change
-  useEffect(() => { setCurrentPage(1); }, [searchQuery, sortField, sortDir]);
+  // Reset page on filter/search/tab change
+  useEffect(() => { setCurrentPage(1); }, [searchQuery, sortField, sortDir, productTypeTab]);
 
   const totalPages = Math.ceil(filteredProducts.length / pageSize);
   const paginatedProducts = useMemo(
@@ -268,27 +276,53 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
     return { label: 'In Stock', color: 'bg-success/10 text-success' };
   };
 
-  const categoryStats = useMemo(() => {
-    const total = retailProducts.length;
-    const active = retailProducts.filter((p) => p.isActive).length;
-    const lowStock = retailProducts.filter(
-      (p) => p.stock > 0 && p.stock <= p.lowStockThreshold
-    ).length;
-    const outOfStock = retailProducts.filter((p) => p.stock <= 0).length;
-    return { total, active, lowStock, outOfStock };
-  }, [retailProducts]);
+  const openAddDialog = () => {
+    resetAddForm(productTypeTab === 'raw' ? 'raw' : 'finished');
+    setShowAddDialog(true);
+  };
 
   return (
     <PageLayout activeTab="products" onNavigate={onNavigate} flexContent>
           {/* Product List Area */}
           <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+            {/* Product type tabs */}
+            <div className="px-3 sm:px-4 pt-3 sm:pt-4 border-b border-border">
+              <Tabs
+                value={productTypeTab}
+                onValueChange={(v) => setProductTypeTab(v as ProductTypeTab)}
+              >
+                <TabsList>
+                  <TabsTrigger value="finished" className="gap-1.5">
+                    <ShoppingBag className="w-4 h-4" />
+                    <span className="hidden sm:inline">Finished Goods</span>
+                    <span className="sm:hidden">Finished</span>
+                    <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-[10px]">
+                      {finishedProducts.length}
+                    </Badge>
+                  </TabsTrigger>
+                  <TabsTrigger value="raw" className="gap-1.5">
+                    <FlaskConical className="w-4 h-4" />
+                    <span className="hidden sm:inline">Raw Materials</span>
+                    <span className="sm:hidden">Raw</span>
+                    <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-[10px]">
+                      {rawMaterialProducts.length}
+                    </Badge>
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+
             {/* Toolbar */}
             <div className="p-3 sm:p-4 border-b border-border">
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4">
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
-                    placeholder="Search products..."
+                    placeholder={
+                      productTypeTab === 'raw'
+                        ? 'Search raw materials...'
+                        : 'Search finished goods...'
+                    }
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-10"
@@ -321,9 +355,11 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
                     </button>
                   </div>
 
-                  <Button onClick={() => setShowAddDialog(true)} size="sm">
+                  <Button onClick={openAddDialog} size="sm">
                     <Plus className="w-4 h-4 mr-1 sm:mr-2" />
-                    <span className="hidden sm:inline">Add Product</span>
+                    <span className="hidden sm:inline">
+                      {productTypeTab === 'raw' ? 'Add Raw Material' : 'Add Product'}
+                    </span>
                     <span className="sm:hidden">Add</span>
                   </Button>
                 </div>
@@ -333,7 +369,11 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
             {/* Results count */}
             <div className="px-3 sm:px-4 py-1.5 sm:py-2 flex items-center justify-between text-xs sm:text-sm text-muted-foreground">
               <span>
-                {loading ? 'Loading products...' : `Showing ${filteredProducts.length} of ${retailProducts.length} products`}
+                {loading
+                  ? 'Loading products...'
+                  : `Showing ${filteredProducts.length} of ${sourceProducts.length} ${
+                      productTypeTab === 'raw' ? 'raw materials' : 'finished goods'
+                    }`}
               </span>
             </div>
 
@@ -571,9 +611,17 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
               <div className="flex-1 flex items-center justify-center text-muted-foreground">
                 <div className="text-center">
                   <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p className="font-medium">No products found</p>
+                  <p className="font-medium">
+                    {productTypeTab === 'raw'
+                      ? 'No raw materials found'
+                      : 'No finished goods found'}
+                  </p>
                   <p className="text-sm mt-1">
-                    Try adjusting your search
+                    {searchQuery
+                      ? 'Try adjusting your search'
+                      : productTypeTab === 'raw'
+                        ? 'Add raw materials used in production'
+                        : 'Add sellable products to your catalog'}
                   </p>
                 </div>
               </div>
@@ -728,9 +776,13 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
       <Dialog open={showAddDialog} onOpenChange={(v) => { if (!isAdding) { setShowAddDialog(v); if (!v) resetAddForm(); } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Add New Product</DialogTitle>
+            <DialogTitle>
+              {addForm.productType === 'raw' ? 'Add Raw Material' : 'Add New Product'}
+            </DialogTitle>
             <DialogDescription>
-              Fill in the product details to add to your catalog.
+              {addForm.productType === 'raw'
+                ? 'Raw materials are used in production and are not sold at POS.'
+                : 'Fill in the product details to add to your catalog.'}
             </DialogDescription>
           </DialogHeader>
 
