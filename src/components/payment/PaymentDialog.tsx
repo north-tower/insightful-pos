@@ -82,18 +82,19 @@ const methodOnlyMethods: Array<{
   icon: typeof Banknote;
 }> = [
   { id: 'cash', label: 'Cash', icon: Banknote },
-  { id: 'mpesa', label: 'M-Pesa', icon: Smartphone },
+  { id: 'mpesa', label: 'M-Pesa / Paybill', icon: Smartphone },
+  { id: 'card', label: 'Direct Bank', icon: CreditCard },
 ];
 
 /** Human-readable label for receipts and confirmation copy */
 export function paymentMethodLabel(method: PaymentMethod): string {
   switch (method) {
     case 'mpesa':
-      return 'M-Pesa';
+      return 'M-Pesa / Paybill';
     case 'qr':
       return 'QR / Mobile';
     case 'card':
-      return 'Card';
+      return 'Direct Bank';
     default:
       return 'Cash';
   }
@@ -426,7 +427,7 @@ export function PaymentDialog({
             {/* Payment Method */}
             <div className="space-y-2">
               <Label className="text-sm font-medium">Payment Method</Label>
-              <div className={cn('grid gap-2', isMethodOnly ? 'grid-cols-2' : 'grid-cols-3')}>
+              <div className={cn('grid gap-2', isMethodOnly ? 'grid-cols-3' : 'grid-cols-3')}>
                 {(isMethodOnly ? methodOnlyMethods : paymentMethods).map(({ id, label, icon: Icon }) => (
                   <button
                     key={id}

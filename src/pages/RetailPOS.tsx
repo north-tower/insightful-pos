@@ -6,7 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useProducts } from '@/hooks/useProducts';
-import { useOrders, SaleOrder, SaleType } from '@/hooks/useOrders';
+import { useOrders, SaleOrder, SaleType, PaymentMethod } from '@/hooks/useOrders';
 import { useCustomers, Customer } from '@/hooks/useCustomers';
 import type { Product } from '@/hooks/useProducts';
 import { InvoiceDialog } from '@/components/receipt/InvoiceDialog';
@@ -30,6 +30,8 @@ import {
   LayoutGrid,
   List,
   QrCode,
+  Smartphone,
+  Landmark,
 } from 'lucide-react';
 import { generatePlaceholderUrl } from '@/lib/product-images';
 import { fc, CURRENCY_SYMBOL } from '@/lib/currency';
@@ -77,6 +79,64 @@ function formatStoredCustomerAddress(c: Customer): string | undefined {
   if (cityLine) parts.push(cityLine);
   if (c.country?.trim()) parts.push(c.country.trim());
   return parts.length ? parts.join(', ') : undefined;
+}
+
+const cashPaymentOptions: Array<{
+  id: PaymentMethod;
+  label: string;
+  icon: typeof Banknote;
+}> = [
+  { id: 'cash', label: 'Cash', icon: Banknote },
+  { id: 'mpesa', label: 'M-Pesa / Paybill', icon: Smartphone },
+  { id: 'card', label: 'Direct Bank', icon: Landmark },
+];
+
+function CartPaymentMethodSection({
+  method,
+  onMethodChange,
+  reference,
+  onReferenceChange,
+}: {
+  method: PaymentMethod;
+  onMethodChange: (method: PaymentMethod) => void;
+  reference: string;
+  onReferenceChange: (value: string) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-medium text-muted-foreground">Payment method</p>
+      <div className="grid grid-cols-3 gap-2">
+        {cashPaymentOptions.map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => onMethodChange(id)}
+            className={cn(
+              'flex flex-col items-center gap-1 py-2 px-1 rounded-lg border-2 transition-all text-center',
+              method === id
+                ? 'border-primary bg-primary/5 text-primary'
+                : 'border-border bg-card text-muted-foreground hover:border-primary/30',
+            )}
+          >
+            <Icon className="w-4 h-4" />
+            <span className="text-[10px] font-medium leading-tight">{label}</span>
+          </button>
+        ))}
+      </div>
+      {(method === 'mpesa' || method === 'card') && (
+        <Input
+          placeholder={
+            method === 'mpesa'
+              ? 'M-Pesa confirmation code (optional)'
+              : 'Bank reference / transaction ID (optional)'
+          }
+          value={reference}
+          onChange={(e) => onReferenceChange(e.target.value)}
+          className="h-8 text-xs"
+        />
+      )}
+    </div>
+  );
 }
 
 function CartTotalsSection({
@@ -207,6 +267,8 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
   const [productViewMode, setProductViewMode] = useState<ProductViewMode>(getInitialProductViewMode);
   const [discountMode, setDiscountMode] = useState<DiscountMode>('amount');
   const [discountInput, setDiscountInput] = useState('');
+  const [cashPaymentMethod, setCashPaymentMethod] = useState<PaymentMethod>('cash');
+  const [cashPaymentReference, setCashPaymentReference] = useState('');
   const getMainStock = (product: Product) => product.mainStock ?? product.stock;
 
   // When the storage key changes (different user), clear cart and re-run hydration.
@@ -404,9 +466,15 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
     setDiscountMode('amount');
   };
 
+  const resetCashPayment = () => {
+    setCashPaymentMethod('cash');
+    setCashPaymentReference('');
+  };
+
   const clearCart = () => {
     setCart([]);
     resetDiscount();
+    resetCashPayment();
   };
 
   const subtotal = cart.reduce(
@@ -451,8 +519,9 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
           : 0;
 
       const payments: Array<{
-        method: 'cash' | 'card' | 'qr';
+        method: PaymentMethod;
         amount: number;
+        reference?: string;
         description?: string;
         paid_at?: string;
       }> =
@@ -468,7 +537,14 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                 },
               ]
             : []
-          : [];
+          : [
+              {
+                method: cashPaymentMethod,
+                amount: total,
+                reference: cashPaymentReference.trim() || undefined,
+                paid_at: paymentTimestamp,
+              },
+            ];
 
       const dueDate = saleType === 'credit'
         ? new Date(new Date(`${invoiceDate}T12:00:00`).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
@@ -523,7 +599,13 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
         setLastOrderCustomer(freshCustomer);
 
         const label = saleType === 'credit' ? 'Credit invoice' : 'Sale';
-        toast.success(`${label} #${order.invoice_number || order.order_number} — ${fc(order.total)}`);
+        const paidVia =
+          saleType === 'cash' && order.payments[0]
+            ? ` · ${paymentMethodLabel(order.payments[0].method)}`
+            : '';
+        toast.success(
+          `${label} #${order.invoice_number || order.order_number} — ${fc(order.total)}${paidVia}`,
+        );
 
         // Send SMS notification for credit invoices (fire-and-forget)
         if (saleType === 'credit') {
@@ -540,7 +622,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
           );
         }
 
-        if (saleType === 'cash') {
+        if (saleType === 'cash' && order.payment_status !== 'paid') {
           setPostSalePaymentOrder(order);
           setIsPostSalePaymentOpen(true);
         } else {
@@ -1142,6 +1224,15 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                     total={total}
                   />
 
+                  {saleType === 'cash' && (
+                    <CartPaymentMethodSection
+                      method={cashPaymentMethod}
+                      onMethodChange={setCashPaymentMethod}
+                      reference={cashPaymentReference}
+                      onReferenceChange={setCashPaymentReference}
+                    />
+                  )}
+
                   {saleType === 'credit' && (
                     <div className="p-2 bg-warning/5 border border-warning/20 rounded text-xs text-muted-foreground space-y-2">
                       <p className="font-semibold text-warning mb-0.5">Credit Sale</p>
@@ -1527,6 +1618,15 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                   discountAmount={discountAmount}
                   total={total}
                 />
+
+                {saleType === 'cash' && (
+                  <CartPaymentMethodSection
+                    method={cashPaymentMethod}
+                    onMethodChange={setCashPaymentMethod}
+                    reference={cashPaymentReference}
+                    onReferenceChange={setCashPaymentReference}
+                  />
+                )}
 
                 {/* Credit sale info */}
                 {saleType === 'credit' && (
