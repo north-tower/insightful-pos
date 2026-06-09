@@ -15,10 +15,29 @@ export const EXPENSE_CATEGORIES = [
   { id: 'other', label: 'Other' },
 ] as const;
 
+/** Route / van-run expenses shown on daily assignment reports */
+export const ROUTE_EXPENSE_CATEGORIES = [
+  { id: 'route_fuel', label: 'Fuel' },
+  { id: 'route_food', label: 'Food' },
+  { id: 'route_oil', label: 'Oil & maintenance' },
+  { id: 'route_debt', label: 'Customer debt payment' },
+  { id: 'route_discount', label: 'Discount out' },
+  { id: 'route_other', label: 'Other route expense' },
+] as const;
+
+export const ALL_EXPENSE_CATEGORIES = [
+  ...EXPENSE_CATEGORIES,
+  ...ROUTE_EXPENSE_CATEGORIES,
+] as const;
+
 export type ExpenseCategoryId = (typeof EXPENSE_CATEGORIES)[number]['id'];
 
 export function expenseCategoryLabel(id: string): string {
-  return EXPENSE_CATEGORIES.find((c) => c.id === id)?.label ?? id;
+  return ALL_EXPENSE_CATEGORIES.find((c) => c.id === id)?.label ?? id;
+}
+
+export function isRouteExpenseCategory(id: string): boolean {
+  return ROUTE_EXPENSE_CATEGORIES.some((c) => c.id === id);
 }
 
 export interface OperatingExpense {
@@ -33,6 +52,7 @@ export interface OperatingExpense {
   notes: string | null;
   staff_id: string | null;
   staff_name: string | null;
+  assignment_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -44,6 +64,7 @@ export interface CreateExpenseParams {
   expense_date: string;
   reference?: string;
   notes?: string;
+  assignment_id?: string;
 }
 
 function mapRow(row: Record<string, unknown>): OperatingExpense {
@@ -59,6 +80,7 @@ function mapRow(row: Record<string, unknown>): OperatingExpense {
     notes: (row.notes as string) || null,
     staff_id: (row.staff_id as string) || null,
     staff_name: (row.staff_name as string) || null,
+    assignment_id: (row.assignment_id as string) || null,
     created_at: row.created_at as string,
     updated_at: row.updated_at as string,
   };
@@ -111,6 +133,7 @@ export function useOperatingExpenses() {
           notes: params.notes?.trim() || null,
           staff_id: user?.id || null,
           staff_name: user?.full_name || null,
+          assignment_id: params.assignment_id || null,
         })
         .select()
         .single();
