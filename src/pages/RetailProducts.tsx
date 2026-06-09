@@ -4,16 +4,11 @@ import {
   Search,
   LayoutGrid,
   List,
-  SlidersHorizontal,
-  MoreVertical,
   Edit,
   Trash2,
   Package,
-  AlertTriangle,
-  XCircle,
   ArrowUpDown,
   Eye,
-  Copy,
   Loader2,
   FlaskConical,
   ShoppingBag,
@@ -55,6 +50,12 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { PageLayout } from '@/components/pos/PageLayout';
 import { PaginationControls } from '@/components/ui/pagination-controls';
 import { cn } from '@/lib/utils';
@@ -73,6 +74,140 @@ interface RetailProductsProps {
 type SortField = 'name' | 'price' | 'stock' | 'sku';
 type SortDir = 'asc' | 'desc';
 type ProductTypeTab = 'finished' | 'raw';
+type StockFilter = 'all' | 'in-stock' | 'low-stock' | 'out';
+
+/** Default low-stock threshold for catalog badges (units) */
+const LOW_STOCK_UNITS = 5;
+
+function escapeRegex(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function getStockTier(product: Product): 'out' | 'low' | 'in' {
+  if (product.stock <= 0) return 'out';
+  if (product.stock <= LOW_STOCK_UNITS) return 'low';
+  return 'in';
+}
+
+function matchesStockFilter(product: Product, filter: StockFilter) {
+  const tier = getStockTier(product);
+  switch (filter) {
+    case 'in-stock':
+      return tier === 'in';
+    case 'low-stock':
+      return tier === 'low';
+    case 'out':
+      return tier === 'out';
+    default:
+      return true;
+  }
+}
+
+function calcMarginPercent(price: number, cost: number): number | null {
+  if (!price || price <= 0) return null;
+  const margin = ((price - cost) / price) * 100;
+  return Number.isFinite(margin) ? margin : null;
+}
+
+function formatMarginLabel(price: number, cost: number) {
+  const margin = calcMarginPercent(price, cost);
+  return margin === null ? '—' : `${Math.round(margin)}% margin`;
+}
+
+function getSubcategoryLabel(product: Product) {
+  if (product.brand) return product.brand;
+  if (product.category && product.category !== 'uncategorized') {
+    return product.category;
+  }
+  return null;
+}
+
+function filterProducts(
+  products: Product[],
+  search: string,
+  stockFilter: StockFilter,
+) {
+  let result = [...products];
+  if (search.trim()) {
+    const q = search.toLowerCase();
+    result = result.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        (p.sku || '').toLowerCase().includes(q),
+    );
+  }
+  if (stockFilter !== 'all') {
+    result = result.filter((p) => matchesStockFilter(p, stockFilter));
+  }
+  return result;
+}
+
+function HighlightText({ text, query }: { text: string; query: string }) {
+  if (!query.trim()) return <>{text}</>;
+  const parts = text.split(new RegExp(`(${escapeRegex(query)})`, 'gi'));
+  return (
+    <>
+      {parts.map((part, i) =>
+        part.toLowerCase() === query.toLowerCase() ? (
+          <mark key={i} className="bg-warning/30 text-foreground rounded px-0.5">
+            {part}
+          </mark>
+        ) : (
+          <span key={i}>{part}</span>
+        ),
+      )}
+    </>
+  );
+}
+
+function StockStatusBadge({ product, className }: { product: Product; className?: string }) {
+  const tier = getStockTier(product);
+  const styles = {
+    out: 'bg-destructive text-destructive-foreground',
+    low: 'bg-warning text-warning-foreground',
+    in: 'bg-success text-success-foreground',
+  };
+  const labels = {
+    out: 'Out of Stock',
+    low: 'Low Stock',
+    in: 'In Stock',
+  };
+  return (
+    <Badge className={cn('text-xs border-0', styles[tier], className)}>
+      {labels[tier]}
+    </Badge>
+  );
+}
+
+function StockPillBadge({ product }: { product: Product }) {
+  const tier = getStockTier(product);
+  if (tier === 'out') {
+    return (
+      <span className="rounded-full bg-destructive px-2 py-0.5 text-[10px] sm:text-xs font-semibold text-white shadow-sm">
+        Out of stock
+      </span>
+    );
+  }
+  if (tier === 'low') {
+    return (
+      <span className="rounded-full bg-warning px-2 py-0.5 text-[10px] sm:text-xs font-semibold text-white shadow-sm">
+        {product.stock} left
+      </span>
+    );
+  }
+  return (
+    <span className="rounded-full bg-success px-2 py-0.5 text-[10px] sm:text-xs font-semibold text-white shadow-sm">
+      {product.stock} left
+    </span>
+  );
+}
+
+const STOCK_FILTER_OPTIONS: { id: StockFilter; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'in-stock', label: 'In Stock' },
+  { id: 'low-stock', label: 'Low Stock' },
+  { id: 'out', label: 'Out of Stock' },
+];
 
 export default function RetailProducts({ onNavigate }: RetailProductsProps) {
   const {
@@ -88,12 +223,12 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
   const [productTypeTab, setProductTypeTab] = useState<ProductTypeTab>('finished');
   const sourceProducts =
     productTypeTab === 'raw' ? rawMaterialProducts : finishedProducts;
-  // All retail products are under one category – no category filter needed
-  const activeCategory = 'all';
   const [viewMode, setViewMode] = useState<'grid' | 'list'>(
     typeof window !== 'undefined' && window.innerWidth < 768 ? 'grid' : 'list'
   );
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [stockFilter, setStockFilter] = useState<StockFilter>('all');
   const [sortField, setSortField] = useState<SortField>('name');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -210,27 +345,14 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
     }
   };
 
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   const filteredProducts = useMemo(() => {
-    let products = [...sourceProducts];
+    const products = filterProducts(sourceProducts, debouncedSearch, stockFilter);
 
-    // Filter by category
-    if (activeCategory !== 'all') {
-      products = products.filter((p) => p.category === activeCategory);
-    }
-
-    // Filter by search
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      products = products.filter(
-        (p) =>
-          p.name.toLowerCase().includes(q) ||
-          p.sku.toLowerCase().includes(q) ||
-          p.brand?.toLowerCase().includes(q) ||
-          p.barcode?.includes(q)
-      );
-    }
-
-    // Sort
     products.sort((a, b) => {
       const dir = sortDir === 'asc' ? 1 : -1;
       switch (sortField) {
@@ -248,10 +370,24 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
     });
 
     return products;
-  }, [activeCategory, searchQuery, sortField, sortDir, sourceProducts]);
+  }, [debouncedSearch, stockFilter, sortField, sortDir, sourceProducts]);
 
-  // Reset page on filter/search/tab change
-  useEffect(() => { setCurrentPage(1); }, [searchQuery, sortField, sortDir, productTypeTab]);
+  const finishedFilteredCount = useMemo(
+    () => filterProducts(finishedProducts, debouncedSearch, stockFilter).length,
+    [finishedProducts, debouncedSearch, stockFilter],
+  );
+  const rawFilteredCount = useMemo(
+    () => filterProducts(rawMaterialProducts, debouncedSearch, stockFilter).length,
+    [rawMaterialProducts, debouncedSearch, stockFilter],
+  );
+
+  const isFilterActive =
+    stockFilter !== 'all' || debouncedSearch.trim().length > 0;
+
+  // Reset page on filter/search/tab change (not on view mode switch)
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, sortField, sortDir, productTypeTab, stockFilter]);
 
   const totalPages = Math.ceil(filteredProducts.length / pageSize);
   const paginatedProducts = useMemo(
@@ -268,20 +404,13 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
     }
   };
 
-  const getStockStatus = (product: Product) => {
-    if (product.stock <= 0)
-      return { label: 'Out of Stock', color: 'bg-destructive/10 text-destructive' };
-    if (product.stock <= product.lowStockThreshold)
-      return { label: 'Low Stock', color: 'bg-warning/10 text-warning' };
-    return { label: 'In Stock', color: 'bg-success/10 text-success' };
-  };
-
   const openAddDialog = () => {
     resetAddForm(productTypeTab === 'raw' ? 'raw' : 'finished');
     setShowAddDialog(true);
   };
 
   return (
+    <TooltipProvider delayDuration={300}>
     <PageLayout activeTab="products" onNavigate={onNavigate} flexContent>
           {/* Product List Area */}
           <div className="flex-1 flex flex-col overflow-hidden min-w-0">
@@ -297,7 +426,9 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
                     <span className="hidden sm:inline">Finished Goods</span>
                     <span className="sm:hidden">Finished</span>
                     <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-[10px]">
-                      {finishedProducts.length}
+                      {isFilterActive
+                        ? `${finishedFilteredCount} / ${finishedProducts.length}`
+                        : finishedProducts.length}
                     </Badge>
                   </TabsTrigger>
                   <TabsTrigger value="raw" className="gap-1.5">
@@ -305,7 +436,9 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
                     <span className="hidden sm:inline">Raw Materials</span>
                     <span className="sm:hidden">Raw</span>
                     <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-[10px]">
-                      {rawMaterialProducts.length}
+                      {isFilterActive
+                        ? `${rawFilteredCount} / ${rawMaterialProducts.length}`
+                        : rawMaterialProducts.length}
                     </Badge>
                   </TabsTrigger>
                 </TabsList>
@@ -363,6 +496,25 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
                     <span className="sm:hidden">Add</span>
                   </Button>
                 </div>
+              </div>
+
+              {/* Stock filter bar */}
+              <div className="flex flex-wrap gap-2 mt-3">
+                {STOCK_FILTER_OPTIONS.map((btn) => (
+                  <button
+                    key={btn.id}
+                    type="button"
+                    onClick={() => setStockFilter(btn.id)}
+                    className={cn(
+                      'px-3 py-1.5 rounded-full text-xs font-medium transition-colors',
+                      stockFilter === btn.id
+                        ? 'bg-primary text-primary-foreground shadow-sm'
+                        : 'bg-muted text-muted-foreground hover:text-foreground',
+                    )}
+                  >
+                    {btn.label}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -440,41 +592,50 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
                 {/* ── Desktop rows (hidden on mobile) ── */}
                 <div className="hidden md:block divide-y divide-border">
                   {paginatedProducts.map((product) => {
-                    const status = getStockStatus(product);
+                    const categoryLabel = getSubcategoryLabel(product);
+                    const marginLabel = formatMarginLabel(product.price, product.cost);
                     return (
                       <div
                         key={product.id}
-                        className="px-4 py-3 grid grid-cols-12 gap-4 items-center hover:bg-muted/30 transition-colors"
+                        className="group px-4 py-3 grid grid-cols-12 gap-4 items-center hover:bg-muted/30 transition-colors"
                       >
                         <div className="col-span-4 flex items-center gap-3">
                           <img src={getProductImage(product)} alt={product.name} className="w-10 h-10 rounded object-cover" />
                           <div className="min-w-0">
-                            <p className="text-sm font-semibold text-foreground truncate">{product.name}</p>
-                            <p className="text-xs text-muted-foreground">{product.brand || product.category}</p>
+                            <p className="text-sm font-semibold text-foreground truncate">
+                              <HighlightText text={product.name} query={debouncedSearch} />
+                            </p>
+                            {categoryLabel && (
+                              <p className="text-xs text-muted-foreground">{categoryLabel}</p>
+                            )}
                           </div>
                         </div>
                         <div className="col-span-2">
-                          <span className="text-sm font-mono text-foreground">{product.sku}</span>
+                          <span className={cn('text-sm font-mono', product.sku ? 'text-foreground' : 'text-muted-foreground')}>
+                            {product.sku || '—'}
+                          </span>
                           {product.barcode && <p className="text-xs text-muted-foreground font-mono">{product.barcode}</p>}
                         </div>
                         <div className="col-span-1">
-                          <span className="text-sm font-semibold">{formatCurrency(product.price)}</span>
+                          <span className="text-base font-bold text-foreground">{formatCurrency(product.price)}</span>
                         </div>
                         <div className="col-span-1">
-                          <span className="text-sm text-muted-foreground">{formatCurrency(product.cost)}</span>
-                          <p className="text-xs text-success">{Math.round(((product.price - product.cost) / product.price) * 100)}% margin</p>
+                          <span className="text-sm text-foreground">{formatCurrency(product.cost)}</span>
+                          <p className={cn('text-xs', marginLabel === '—' ? 'text-muted-foreground' : 'text-success')}>
+                            {marginLabel === '—' ? '—' : marginLabel}
+                          </p>
                         </div>
                         <div className="col-span-1">
-                          <span className={cn('text-sm font-semibold', product.stock <= 0 ? 'text-destructive' : product.stock <= product.lowStockThreshold ? 'text-warning' : 'text-foreground')}>
+                          <span className={cn('text-sm font-semibold', getStockTier(product) === 'out' ? 'text-destructive' : getStockTier(product) === 'low' ? 'text-warning' : 'text-foreground')}>
                             {product.stock}
                           </span>
                           <p className="text-xs text-muted-foreground">{product.unit}</p>
                         </div>
                         <div className="col-span-2 flex items-center gap-2">
-                          <Badge className={cn('text-xs', status.color)}>{status.label}</Badge>
+                          <StockStatusBadge product={product} />
                           {product.variants && <Badge variant="outline" className="text-xs">{product.variants.length} variants</Badge>}
                         </div>
-                        <div className="col-span-1 flex items-center justify-end gap-1">
+                        <div className="col-span-1 flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setSelectedProduct(product)}>
                             <Eye className="w-4 h-4" />
                           </Button>
@@ -493,7 +654,8 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
                 {/* ── Mobile card rows (hidden on desktop) ── */}
                 <div className="md:hidden divide-y divide-border">
                   {paginatedProducts.map((product) => {
-                    const status = getStockStatus(product);
+                    const categoryLabel = getSubcategoryLabel(product);
+                    const marginLabel = formatMarginLabel(product.price, product.cost);
                     return (
                       <div
                         key={product.id}
@@ -507,25 +669,27 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
                         />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5">
-                            <p className="text-sm font-semibold text-foreground truncate">{product.name}</p>
-                            <Badge className={cn('text-[10px] px-1.5 py-0 shrink-0', status.color)}>
-                              {product.stock <= 0 ? 'Out' : product.stock <= product.lowStockThreshold ? 'Low' : product.stock}
-                            </Badge>
+                            <p className="text-sm font-semibold text-foreground truncate">
+                              <HighlightText text={product.name} query={debouncedSearch} />
+                            </p>
+                            <StockStatusBadge product={product} className="text-[10px] px-1.5 py-0 shrink-0" />
                           </div>
                           <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-xs text-muted-foreground font-mono">{product.sku}</span>
-                            {product.brand && (
+                            <span className={cn('text-xs font-mono', product.sku ? 'text-muted-foreground' : 'text-muted-foreground/70')}>
+                              {product.sku || '—'}
+                            </span>
+                            {categoryLabel && (
                               <>
                                 <span className="text-muted-foreground">·</span>
-                                <span className="text-xs text-muted-foreground truncate">{product.brand}</span>
+                                <span className="text-xs text-muted-foreground truncate">{categoryLabel}</span>
                               </>
                             )}
                           </div>
                         </div>
                         <div className="text-right shrink-0">
-                          <p className="text-sm font-bold text-foreground">{formatCurrency(product.price)}</p>
-                          <p className="text-[10px] text-success">
-                            {Math.round(((product.price - product.cost) / product.price) * 100)}% margin
+                          <p className="text-base font-bold text-foreground">{formatCurrency(product.price)}</p>
+                          <p className={cn('text-[10px]', marginLabel === '—' ? 'text-muted-foreground' : 'text-success')}>
+                            {marginLabel === '—' ? '—' : marginLabel}
                           </p>
                         </div>
                       </div>
@@ -540,53 +704,73 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
               <div className="flex-1 overflow-y-auto p-2 sm:p-4">
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-4">
                   {paginatedProducts.map((product) => {
-                    const status = getStockStatus(product);
+                    const marginLabel = formatMarginLabel(product.price, product.cost);
+                    const isOutOfStock = product.stock <= 0;
                     return (
                       <div
                         key={product.id}
                         className="bg-card border border-border rounded-lg p-2 sm:p-3 group hover:border-primary/40 active:bg-muted/30 transition-all cursor-pointer"
                         onClick={() => setSelectedProduct(product)}
                       >
-                        <div className="relative aspect-square rounded-md overflow-hidden bg-muted mb-2 sm:mb-3">
-                          <img
-                            src={getProductImage(product)}
-                            alt={product.name}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                          />
-                          <div className="absolute top-1 right-1 sm:top-2 sm:right-2">
-                            <Badge className={cn('text-[10px] sm:text-xs px-1.5 sm:px-2', status.color)}>
-                              {product.stock} left
-                            </Badge>
-                          </div>
-                        </div>
-                        <p className="text-xs sm:text-sm font-semibold text-foreground line-clamp-1 sm:line-clamp-2 mb-0.5 sm:mb-1">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="relative aspect-square rounded-md overflow-hidden bg-muted mb-2 sm:mb-3">
+                              <img
+                                src={getProductImage(product)}
+                                alt={product.name}
+                                className={cn(
+                                  'w-full h-full object-cover group-hover:scale-105 transition-transform duration-300',
+                                  isOutOfStock && 'opacity-40 grayscale',
+                                )}
+                              />
+                              {isOutOfStock && (
+                                <div className="absolute inset-0 bg-gray-500/25 pointer-events-none" />
+                              )}
+                              <div className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2">
+                                <StockPillBadge product={product} />
+                              </div>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-[200px] text-center">
+                            {product.name}
+                          </TooltipContent>
+                        </Tooltip>
+                        <p className="text-xs sm:text-sm font-semibold text-foreground line-clamp-1 sm:line-clamp-2 mb-0.5">
                           {product.name}
                         </p>
-                        <p className="text-[10px] sm:text-xs text-muted-foreground mb-1 sm:mb-2 truncate">
-                          {product.sku}
+                        <p className="text-sm sm:text-base font-bold text-foreground mb-0.5">
+                          {formatCurrency(product.price)}
                         </p>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm sm:text-base font-bold">
-                            {formatCurrency(product.price)}
-                          </span>
-                          <div className="hidden sm:flex gap-1">
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-7 w-7"
-                              onClick={(e) => { e.stopPropagation(); setSelectedProduct(product); }}
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-7 w-7"
-                              onClick={(e) => { e.stopPropagation(); handleOpenEdit(product); }}
-                            >
-                              <Edit className="w-3.5 h-3.5" />
-                            </Button>
-                          </div>
+                        <p className="text-[10px] sm:text-xs text-muted-foreground mb-1.5 sm:mb-2">
+                          {product.stock} {product.unit}
+                          <span className="mx-1.5">•</span>
+                          {marginLabel}
+                        </p>
+                        <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7"
+                            onClick={(e) => { e.stopPropagation(); setSelectedProduct(product); }}
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7"
+                            onClick={(e) => { e.stopPropagation(); handleOpenEdit(product); }}
+                          >
+                            <Edit className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7 text-destructive hover:text-destructive"
+                            onClick={(e) => { e.stopPropagation(); setDeletingProduct(product); }}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
                         </div>
                       </div>
                     );
@@ -617,8 +801,8 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
                       : 'No finished goods found'}
                   </p>
                   <p className="text-sm mt-1">
-                    {searchQuery
-                      ? 'Try adjusting your search'
+                    {debouncedSearch || stockFilter !== 'all'
+                      ? 'Try adjusting your search or filters'
                       : productTypeTab === 'raw'
                         ? 'Add raw materials used in production'
                         : 'Add sellable products to your catalog'}
@@ -1025,5 +1209,6 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
         </AlertDialogContent>
       </AlertDialog>
     </PageLayout>
+    </TooltipProvider>
   );
 }
