@@ -65,6 +65,7 @@ interface RetailInventoryProps {
 type StockFilter = 'all' | 'in-stock' | 'out' | 'low-stock';
 type SortField = 'name' | 'sku' | 'stock';
 type SortDir = 'asc' | 'desc';
+type BulkAdjustMode = 'uniform' | 'individual';
 
 const BANNER_DISMISS_KEY = 'inventory-oos-banner-dismissed';
 
@@ -191,12 +192,14 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
   const [showAdjustDialog, setShowAdjustDialog] = useState(false);
   const [adjustProduct, setAdjustProduct] = useState<Product | null>(null);
   const [bulkAdjustProducts, setBulkAdjustProducts] = useState<Product[]>([]);
+  const [bulkAdjustMode, setBulkAdjustMode] = useState<BulkAdjustMode>('uniform');
+  const [individualQtys, setIndividualQtys] = useState<Record<string, string>>({});
   const [adjustType, setAdjustType] = useState<'add' | 'subtract'>('add');
   const [adjustQty, setAdjustQty] = useState('');
   const [adjustNote, setAdjustNote] = useState('');
   const [isAdjusting, setIsAdjusting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(10);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bannerDismissed, setBannerDismissed] = useState(
     () => sessionStorage.getItem(BANNER_DISMISS_KEY) === '1',
@@ -304,7 +307,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
 
   useEffect(() => {
     setSelectedIds(new Set());
-  }, [stockFilter, debouncedSearch, currentPage]);
+  }, [stockFilter, debouncedSearch]);
 
   const totalPages = Math.ceil(filteredProducts.length / pageSize);
   const paginatedProducts = useMemo(
@@ -342,16 +345,80 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
     sessionStorage.setItem(BANNER_DISMISS_KEY, '1');
   };
 
+  const resetAdjustDialog = () => {
+    setBulkAdjustProducts([]);
+    setBulkAdjustMode('uniform');
+    setIndividualQtys({});
+  };
+
   const openAdjustDialog = (product: Product, bulk?: Product[]) => {
     setAdjustProduct(product);
     setBulkAdjustProducts(bulk || []);
+    setBulkAdjustMode('uniform');
+    setIndividualQtys({});
     setAdjustType('add');
     setAdjustQty('');
     setAdjustNote('');
     setShowAdjustDialog(true);
   };
 
+  const getIndividualAdjustments = () =>
+    bulkAdjustProducts
+      .map((product) => ({
+        product,
+        qty: parseInt(individualQtys[product.id] || '', 10),
+      }))
+      .filter(({ qty }) => !isNaN(qty) && qty > 0);
+
+  const switchToIndividualMode = () => {
+    setBulkAdjustMode('individual');
+    if (adjustQty && parseInt(adjustQty, 10) > 0) {
+      const seeded: Record<string, string> = {};
+      bulkAdjustProducts.forEach((p) => {
+        seeded[p.id] = adjustQty;
+      });
+      setIndividualQtys(seeded);
+    }
+  };
+
   const handleAdjustment = async () => {
+    const isBulkIndividual =
+      bulkAdjustProducts.length > 1 && bulkAdjustMode === 'individual';
+
+    if (isBulkIndividual) {
+      const adjustments = getIndividualAdjustments();
+      if (adjustments.length === 0) {
+        toast.error('Enter a quantity for at least one product');
+        return;
+      }
+
+      setIsAdjusting(true);
+      try {
+        const type = adjustType === 'add' ? 'restock' : 'adjustment';
+        for (const { product, qty } of adjustments) {
+          const effectiveQty = adjustType === 'add' ? qty : -qty;
+          await adjustStock(product.id, type, effectiveQty, adjustNote || undefined);
+        }
+
+        await refetchProducts();
+
+        const action = adjustType === 'add' ? 'added to' : 'removed from';
+        const totalUnits = adjustments.reduce((sum, a) => sum + a.qty, 0);
+        toast.success(
+          `${totalUnits} units ${action} ${adjustments.length} product${adjustments.length !== 1 ? 's' : ''}`,
+        );
+        setShowAdjustDialog(false);
+        resetAdjustDialog();
+        setSelectedIds(new Set());
+      } catch (err: any) {
+        console.error('Stock adjustment failed:', err);
+        toast.error(err.message || 'Failed to adjust stock');
+      } finally {
+        setIsAdjusting(false);
+      }
+      return;
+    }
+
     const targets =
       bulkAdjustProducts.length > 0
         ? bulkAdjustProducts
@@ -384,7 +451,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
         toast.success(`${qty} units ${action} ${targets.length} products`);
       }
       setShowAdjustDialog(false);
-      setBulkAdjustProducts([]);
+      resetAdjustDialog();
       setSelectedIds(new Set());
     } catch (err: any) {
       console.error('Stock adjustment failed:', err);
@@ -393,6 +460,11 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
       setIsAdjusting(false);
     }
   };
+
+  const canSubmitAdjustment =
+    bulkAdjustProducts.length > 1 && bulkAdjustMode === 'individual'
+      ? getIndividualAdjustments().length > 0
+      : Boolean(adjustQty && parseInt(adjustQty, 10) > 0);
 
   const handleReverseAdjustment = async (adj: StockAdjustmentRow) => {
     setReversingId(adj.id);
@@ -413,11 +485,15 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
   };
 
   const toggleSelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedIds(new Set(paginatedProducts.map((p) => p.id)));
-    } else {
-      setSelectedIds(new Set());
-    }
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) {
+        paginatedProducts.forEach((p) => next.add(p.id));
+      } else {
+        paginatedProducts.forEach((p) => next.delete(p.id));
+      }
+      return next;
+    });
   };
 
   const toggleSelectRow = (id: string, checked: boolean) => {
@@ -573,7 +649,17 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
     { id: 'low-stock', label: 'Low Stock' },
   ];
 
-  const selectedProducts = retailProducts.filter((p) => selectedIds.has(p.id));
+  const selectedProducts = useMemo(
+    () =>
+      retailProducts
+        .filter((p) => selectedIds.has(p.id))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [retailProducts, selectedIds],
+  );
+
+  const selectedOnCurrentPage = paginatedProducts.filter((p) =>
+    selectedIds.has(p.id),
+  ).length;
 
   return (
     <PageLayout activeTab="inventory" onNavigate={onNavigate}>
@@ -759,7 +845,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
               </div>
             </CardHeader>
 
-            <CardContent className="overflow-x-auto pb-16">
+            <CardContent className="overflow-x-auto">
               {loading ? (
                 <div className="flex items-center justify-center py-16">
                   <div className="text-center">
@@ -786,7 +872,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                           somePageSelected ? 'indeterminate' : allPageSelected
                         }
                         onCheckedChange={(v) => toggleSelectAll(!!v)}
-                        aria-label="Select all"
+                        aria-label="Select all on this page"
                       />
                     </div>
                     <button
@@ -897,6 +983,45 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                     </div>
                   )}
 
+                  {selectedIds.size > 0 && (
+                    <div className="mt-3 flex flex-col gap-2 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium">
+                          {selectedIds.size} product{selectedIds.size !== 1 ? 's' : ''}{' '}
+                          selected
+                        </p>
+                        {selectedOnCurrentPage < selectedIds.size && (
+                          <p className="text-xs text-muted-foreground">
+                            {selectedOnCurrentPage} on this page,{' '}
+                            {selectedIds.size - selectedOnCurrentPage} on other pages
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-2 shrink-0">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setSelectedIds(new Set())}
+                        >
+                          Clear
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            openAdjustDialog(selectedProducts[0], selectedProducts)
+                          }
+                        >
+                          Adjust selected
+                        </Button>
+                        <Button size="sm" onClick={handleMarkForPurchase}>
+                          <ShoppingCart className="w-4 h-4 mr-1.5" />
+                          Mark for purchase
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
                   {filteredProducts.length > 0 && (
                     <PaginationControls
                       currentPage={currentPage}
@@ -910,30 +1035,6 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                       }}
                     />
                   )}
-                </div>
-              )}
-
-              {/* Bulk action bar */}
-              {selectedIds.size > 0 && (
-                <div className="absolute bottom-0 left-0 right-0 mx-4 mb-4 flex items-center justify-between gap-3 rounded-lg border border-border bg-background/95 backdrop-blur px-4 py-3 shadow-lg">
-                  <span className="text-sm font-medium">
-                    {selectedIds.size} selected
-                  </span>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() =>
-                        openAdjustDialog(selectedProducts[0], selectedProducts)
-                      }
-                    >
-                      Adjust selected
-                    </Button>
-                    <Button size="sm" onClick={handleMarkForPurchase}>
-                      <ShoppingCart className="w-4 h-4 mr-1.5" />
-                      Mark for purchase
-                    </Button>
-                  </div>
                 </div>
               )}
             </CardContent>
@@ -1060,11 +1161,16 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
         onOpenChange={(open) => {
           if (!isAdjusting) {
             setShowAdjustDialog(open);
-            if (!open) setBulkAdjustProducts([]);
+            if (!open) resetAdjustDialog();
           }
         }}
       >
-        <DialogContent className="max-w-sm">
+        <DialogContent
+          className={cn(
+            'max-h-[90vh] overflow-y-auto',
+            bulkAdjustProducts.length > 1 ? 'max-w-lg' : 'max-w-sm',
+          )}
+        >
           {adjustProduct && (
             <>
               <DialogHeader>
@@ -1075,12 +1181,44 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                 </DialogTitle>
                 <DialogDescription>
                   {bulkAdjustProducts.length > 1
-                    ? `Apply the same change to ${bulkAdjustProducts.length} selected products`
+                    ? bulkAdjustMode === 'individual'
+                      ? `Set a quantity for each product — leave blank to skip`
+                      : `Apply the same quantity change to all ${bulkAdjustProducts.length} selected products`
                     : `${adjustProduct.name} — Current: ${getMainStock(adjustProduct)} ${adjustProduct.unit}`}
                 </DialogDescription>
               </DialogHeader>
 
               <div className="space-y-4">
+                {bulkAdjustProducts.length > 1 && (
+                  <div className="flex gap-1 rounded-lg bg-muted p-1">
+                    <button
+                      type="button"
+                      onClick={() => setBulkAdjustMode('uniform')}
+                      disabled={isAdjusting}
+                      className={cn(
+                        'flex-1 rounded-md px-3 py-2 text-xs font-medium transition-all',
+                        bulkAdjustMode === 'uniform'
+                          ? 'bg-background text-foreground shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground',
+                      )}
+                    >
+                      Same for all
+                    </button>
+                    <button
+                      type="button"
+                      onClick={switchToIndividualMode}
+                      disabled={isAdjusting}
+                      className={cn(
+                        'flex-1 rounded-md px-3 py-2 text-xs font-medium transition-all',
+                        bulkAdjustMode === 'individual'
+                          ? 'bg-background text-foreground shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground',
+                      )}
+                    >
+                      Per product
+                    </button>
+                  </div>
+                )}
                 <div className="flex gap-2">
                   <button
                     onClick={() => setAdjustType('add')}
@@ -1110,18 +1248,73 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                   </button>
                 </div>
 
-                <div>
-                  <Label>Quantity</Label>
-                  <Input
-                    type="number"
-                    placeholder="Enter quantity"
-                    value={adjustQty}
-                    onChange={(e) => setAdjustQty(e.target.value)}
-                    className="mt-1 text-lg"
-                    min="1"
-                    disabled={isAdjusting}
-                  />
-                </div>
+                {bulkAdjustProducts.length > 1 && bulkAdjustMode === 'individual' ? (
+                  <div className="rounded-lg border border-border">
+                    <div className="grid grid-cols-[1fr_4.5rem_4.5rem] gap-2 border-b border-border px-3 py-2 text-[10px] font-medium uppercase text-muted-foreground">
+                      <span>Product</span>
+                      <span className="text-center">Stock</span>
+                      <span className="text-center">Qty</span>
+                    </div>
+                    <ul className="max-h-56 overflow-y-auto divide-y divide-border">
+                      {bulkAdjustProducts.map((product) => {
+                        const current = getMainStock(product);
+                        const rowQty = parseInt(individualQtys[product.id] || '', 10);
+                        const hasQty = !isNaN(rowQty) && rowQty > 0;
+                        const next = hasQty
+                          ? adjustType === 'add'
+                            ? current + rowQty
+                            : Math.max(0, current - rowQty)
+                          : null;
+
+                        return (
+                          <li
+                            key={product.id}
+                            className="grid grid-cols-[1fr_4.5rem_4.5rem] items-center gap-2 px-3 py-2.5"
+                          >
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-medium">{product.name}</p>
+                              {hasQty && next !== null && (
+                                <p className="text-[10px] text-muted-foreground">
+                                  {current} → {next} {product.unit}
+                                </p>
+                              )}
+                            </div>
+                            <span className="text-center text-xs text-muted-foreground">
+                              {current}
+                            </span>
+                            <Input
+                              type="number"
+                              placeholder="0"
+                              value={individualQtys[product.id] || ''}
+                              onChange={(e) =>
+                                setIndividualQtys((prev) => ({
+                                  ...prev,
+                                  [product.id]: e.target.value,
+                                }))
+                              }
+                              className="h-8 text-center text-sm"
+                              min="0"
+                              disabled={isAdjusting}
+                            />
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                ) : (
+                  <div>
+                    <Label>Quantity</Label>
+                    <Input
+                      type="number"
+                      placeholder="Enter quantity"
+                      value={adjustQty}
+                      onChange={(e) => setAdjustQty(e.target.value)}
+                      className="mt-1 text-lg"
+                      min="1"
+                      disabled={isAdjusting}
+                    />
+                  </div>
+                )}
 
                 <div>
                   <Label>Note (optional)</Label>
@@ -1134,45 +1327,94 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                   />
                 </div>
 
-                {bulkAdjustProducts.length <= 1 &&
-                  adjustQty &&
-                  parseInt(adjustQty) > 0 && (
-                    <div className="p-3 rounded bg-muted text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Current</span>
-                        <span className="font-medium">
-                          {getMainStock(adjustProduct)} {adjustProduct.unit}
-                        </span>
-                      </div>
-                      <div className="flex justify-between mt-1">
-                        <span className="text-muted-foreground">Change</span>
-                        <span
-                          className={cn(
-                            'font-medium',
-                            adjustType === 'add'
-                              ? 'text-success'
-                              : 'text-destructive',
-                          )}
-                        >
-                          {adjustType === 'add' ? '+' : '-'}
-                          {adjustQty}
-                        </span>
-                      </div>
-                      <div className="flex justify-between mt-1 pt-1 border-t border-border">
-                        <span className="font-medium">New Stock</span>
-                        <span className="font-bold">
-                          {adjustType === 'add'
-                            ? getMainStock(adjustProduct) + parseInt(adjustQty)
-                            : Math.max(
-                                0,
-                                getMainStock(adjustProduct) -
-                                  parseInt(adjustQty),
-                              )}{' '}
-                          {adjustProduct.unit}
-                        </span>
-                      </div>
+                {bulkAdjustProducts.length > 1 &&
+                  bulkAdjustMode === 'individual' &&
+                  getIndividualAdjustments().length > 0 && (
+                    <div className="rounded bg-muted p-3 text-sm">
+                      <p className="font-medium">
+                        {adjustType === 'add' ? 'Adding' : 'Removing'} stock for{' '}
+                        {getIndividualAdjustments().length} product
+                        {getIndividualAdjustments().length !== 1 ? 's' : ''}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Total units:{' '}
+                        {getIndividualAdjustments().reduce((sum, a) => sum + a.qty, 0)}
+                      </p>
                     </div>
                   )}
+
+                {adjustQty && parseInt(adjustQty) > 0 && bulkAdjustMode === 'uniform' && (
+                  <div className="rounded bg-muted p-3 text-sm">
+                    {bulkAdjustProducts.length > 1 ? (
+                      <>
+                        <p className="font-medium">
+                          {adjustType === 'add' ? 'Adding' : 'Removing'}{' '}
+                          {adjustQty} {bulkAdjustProducts[0]?.unit || 'units'} per
+                          product
+                        </p>
+                        <ul className="mt-2 max-h-36 space-y-1 overflow-y-auto">
+                          {bulkAdjustProducts.map((product) => {
+                            const current = getMainStock(product);
+                            const qty = parseInt(adjustQty, 10);
+                            const next =
+                              adjustType === 'add'
+                                ? current + qty
+                                : Math.max(0, current - qty);
+                            return (
+                              <li
+                                key={product.id}
+                                className="flex justify-between gap-2 text-xs"
+                              >
+                                <span className="truncate text-muted-foreground">
+                                  {product.name}
+                                </span>
+                                <span className="shrink-0 font-medium">
+                                  {current} → {next} {product.unit}
+                                </span>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Current</span>
+                          <span className="font-medium">
+                            {getMainStock(adjustProduct)} {adjustProduct.unit}
+                          </span>
+                        </div>
+                        <div className="mt-1 flex justify-between">
+                          <span className="text-muted-foreground">Change</span>
+                          <span
+                            className={cn(
+                              'font-medium',
+                              adjustType === 'add'
+                                ? 'text-success'
+                                : 'text-destructive',
+                            )}
+                          >
+                            {adjustType === 'add' ? '+' : '-'}
+                            {adjustQty}
+                          </span>
+                        </div>
+                        <div className="mt-1 flex justify-between border-t border-border pt-1">
+                          <span className="font-medium">New Stock</span>
+                          <span className="font-bold">
+                            {adjustType === 'add'
+                              ? getMainStock(adjustProduct) + parseInt(adjustQty)
+                              : Math.max(
+                                  0,
+                                  getMainStock(adjustProduct) -
+                                    parseInt(adjustQty),
+                                )}{' '}
+                            {adjustProduct.unit}
+                          </span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
 
               <DialogFooter>
@@ -1185,9 +1427,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                 </Button>
                 <Button
                   onClick={handleAdjustment}
-                  disabled={
-                    isAdjusting || !adjustQty || parseInt(adjustQty) <= 0
-                  }
+                  disabled={isAdjusting || !canSubmitAdjustment}
                   className={cn(
                     adjustType === 'add'
                       ? 'bg-success hover:bg-success/90'
