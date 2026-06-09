@@ -37,6 +37,8 @@ import { toast } from 'sonner';
 import { useCompanySettings } from '@/context/BusinessSettingsContext';
 import { notifyInvoiceCreated } from '@/lib/sendSms';
 import { useAuth } from '@/context/AuthContext';
+import { resolveActiveAssignmentId } from '@/lib/activeAssignment';
+import { format } from 'date-fns';
 
 interface RetailPOSProps {
   onNavigate: (tab: string) => void;
@@ -51,6 +53,7 @@ interface CartItem {
 
 type ProductViewMode = 'card' | 'list';
 type CreditDepositMethod = 'cash' | 'card' | 'qr';
+type DiscountMode = 'amount' | 'percent';
 
 const PRODUCT_VIEW_STORAGE_KEY = 'retail-pos:product-view-mode';
 
@@ -74,6 +77,87 @@ function formatStoredCustomerAddress(c: Customer): string | undefined {
   if (cityLine) parts.push(cityLine);
   if (c.country?.trim()) parts.push(c.country.trim());
   return parts.length ? parts.join(', ') : undefined;
+}
+
+function CartTotalsSection({
+  subtotal,
+  discountMode,
+  onDiscountModeChange,
+  discountInput,
+  onDiscountInputChange,
+  discountAmount,
+  total,
+}: {
+  subtotal: number;
+  discountMode: DiscountMode;
+  onDiscountModeChange: (mode: DiscountMode) => void;
+  discountInput: string;
+  onDiscountInputChange: (value: string) => void;
+  discountAmount: number;
+  total: number;
+}) {
+  return (
+    <div className="space-y-2 text-sm">
+      <div className="flex justify-between text-muted-foreground">
+        <span>Subtotal</span>
+        <span className="tabular-nums">{fc(subtotal)}</span>
+      </div>
+
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-muted-foreground text-xs">Discount</span>
+          <div className="flex gap-1">
+            <button
+              type="button"
+              onClick={() => onDiscountModeChange('amount')}
+              className={cn(
+                'px-2 py-0.5 rounded text-[10px] font-medium transition-colors',
+                discountMode === 'amount'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted text-muted-foreground',
+              )}
+            >
+              {CURRENCY_SYMBOL}
+            </button>
+            <button
+              type="button"
+              onClick={() => onDiscountModeChange('percent')}
+              className={cn(
+                'px-2 py-0.5 rounded text-[10px] font-medium transition-colors',
+                discountMode === 'percent'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted text-muted-foreground',
+              )}
+            >
+              %
+            </button>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Input
+            type="number"
+            min="0"
+            step={discountMode === 'percent' ? '1' : '0.01'}
+            max={discountMode === 'percent' ? 100 : undefined}
+            placeholder={discountMode === 'percent' ? '0' : '0.00'}
+            value={discountInput}
+            onChange={(e) => onDiscountInputChange(e.target.value)}
+            className="h-8 text-xs"
+          />
+          {discountAmount > 0 && (
+            <span className="text-destructive text-xs font-medium whitespace-nowrap tabular-nums">
+              −{fc(discountAmount)}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="flex justify-between font-bold text-foreground text-lg border-t border-border pt-2">
+        <span>Total</span>
+        <span className="tabular-nums">{fc(total)}</span>
+      </div>
+    </div>
+  );
 }
 
 export default function RetailPOS({ onNavigate }: RetailPOSProps) {
@@ -121,6 +205,8 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
   const [lastOrderCustomer, setLastOrderCustomer] = useState<Customer | null>(null);
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
   const [productViewMode, setProductViewMode] = useState<ProductViewMode>(getInitialProductViewMode);
+  const [discountMode, setDiscountMode] = useState<DiscountMode>('amount');
+  const [discountInput, setDiscountInput] = useState('');
   const getMainStock = (product: Product) => product.mainStock ?? product.stock;
 
   // When the storage key changes (different user), clear cart and re-run hydration.
@@ -313,14 +399,33 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
     setCart((prev) => prev.filter((item) => item.product.id !== productId));
   };
 
-  const clearCart = () => setCart([]);
+  const resetDiscount = () => {
+    setDiscountInput('');
+    setDiscountMode('amount');
+  };
+
+  const clearCart = () => {
+    setCart([]);
+    resetDiscount();
+  };
 
   const subtotal = cart.reduce(
     (sum, item) => sum + getUnitPrice(item) * item.quantity,
-    0
+    0,
   );
+
+  const discountAmount = useMemo(() => {
+    if (!discountInput.trim() || subtotal <= 0) return 0;
+    const raw = parseFloat(discountInput);
+    if (Number.isNaN(raw) || raw <= 0) return 0;
+    if (discountMode === 'percent') {
+      return Math.min(subtotal, (subtotal * Math.min(raw, 100)) / 100);
+    }
+    return Math.min(subtotal, raw);
+  }, [discountInput, discountMode, subtotal]);
+
   const tax = 0;
-  const total = subtotal;
+  const total = Math.max(subtotal - discountAmount, 0);
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   const handleCompleteSale = async () => {
@@ -369,9 +474,14 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
         ? new Date(new Date(`${invoiceDate}T12:00:00`).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
         : undefined;
 
+      const assignmentId = user?.id
+        ? await resolveActiveAssignmentId(user.id, invoiceDate || format(new Date(), 'yyyy-MM-dd'))
+        : null;
+
       const order = await createOrder({
         order_type: 'pos',
         sale_type: saleType,
+        assignment_id: assignmentId || undefined,
         customer_id: selectedCustomer?.id,
         customer_name: selectedCustomer
           ? getCustomerDisplayName(selectedCustomer)
@@ -386,6 +496,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
         created_at: paymentTimestamp,
         due_date: dueDate,
         consignment_info: saleType === 'credit' ? consignmentInfo.trim() || undefined : undefined,
+        discount_amount: discountAmount > 0 ? discountAmount : undefined,
         items: cart.map((item) => ({
           product_id: item.product.id,
           product_name: item.product.name,
@@ -436,6 +547,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
           setIsInvoiceOpen(true);
         }
         clearCart();
+        resetDiscount();
         setSelectedCustomer(null);
         setSaleType('cash');
         setConsignmentInfo('');
@@ -1021,12 +1133,15 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
 
                 {/* Totals + Payment + CTA */}
                 <div className="p-3 border-t border-border space-y-3">
-                  <div className="space-y-1 text-sm">
-                    <div className="flex justify-between font-bold text-foreground text-lg">
-                      <span>Total</span>
-                      <span>{fc(total)}</span>
-                    </div>
-                  </div>
+                  <CartTotalsSection
+                    subtotal={subtotal}
+                    discountMode={discountMode}
+                    onDiscountModeChange={setDiscountMode}
+                    discountInput={discountInput}
+                    onDiscountInputChange={setDiscountInput}
+                    discountAmount={discountAmount}
+                    total={total}
+                  />
 
                   {saleType === 'credit' && (
                     <div className="p-2 bg-warning/5 border border-warning/20 rounded text-xs text-muted-foreground space-y-2">
@@ -1404,13 +1519,15 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
             {/* Payment & Totals */}
             {cart.length > 0 && (
               <div className="p-4 border-t border-border space-y-4">
-                {/* Totals */}
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between font-bold text-foreground text-lg">
-                    <span>Total</span>
-                    <span>{fc(total)}</span>
-                  </div>
-                </div>
+                <CartTotalsSection
+                  subtotal={subtotal}
+                  discountMode={discountMode}
+                  onDiscountModeChange={setDiscountMode}
+                  discountInput={discountInput}
+                  onDiscountInputChange={setDiscountInput}
+                  discountAmount={discountAmount}
+                  total={total}
+                />
 
                 {/* Credit sale info */}
                 {saleType === 'credit' && (

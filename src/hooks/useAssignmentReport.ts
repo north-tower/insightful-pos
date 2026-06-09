@@ -34,6 +34,19 @@ export interface AssignmentSalesBreakdown {
   totalSales: number;
 }
 
+export interface AssignmentReportSettlement {
+  id: string;
+  expected_remittance: number;
+  cash_submitted: number;
+  mpesa_submitted: number;
+  bank_submitted: number;
+  variance: number;
+  notes: string | null;
+  is_finalized: boolean;
+  finalized_by_name: string | null;
+  finalized_at: string | null;
+}
+
 export interface AssignmentDailyReportData {
   assignmentId: string;
   routeName: string;
@@ -58,6 +71,7 @@ export interface AssignmentDailyReportData {
   totalOutstandingCredit: number;
   totalCollectedExCredit: number;
   netAfterExpensesAndDiscount: number;
+  settlement: AssignmentReportSettlement | null;
 }
 
 function dayBounds(isoDate: string) {
@@ -287,6 +301,29 @@ export function useAssignmentReport() {
         }
       })();
 
+      const { data: settlementRow } = await supabase
+        .from('route_settlements')
+        .select(
+          'id, expected_remittance, cash_submitted, mpesa_submitted, bank_submitted, variance, notes, is_finalized, finalized_by_name, finalized_at',
+        )
+        .eq('assignment_id', assignmentId)
+        .maybeSingle();
+
+      const settlement: AssignmentReportSettlement | null = settlementRow
+        ? {
+            id: settlementRow.id,
+            expected_remittance: Number(settlementRow.expected_remittance ?? 0),
+            cash_submitted: Number(settlementRow.cash_submitted ?? 0),
+            mpesa_submitted: Number(settlementRow.mpesa_submitted ?? 0),
+            bank_submitted: Number(settlementRow.bank_submitted ?? 0),
+            variance: Number(settlementRow.variance ?? 0),
+            notes: settlementRow.notes,
+            is_finalized: Boolean(settlementRow.is_finalized),
+            finalized_by_name: settlementRow.finalized_by_name,
+            finalized_at: settlementRow.finalized_at,
+          }
+        : null;
+
       return {
         assignmentId,
         routeName: assignment.route_name,
@@ -311,6 +348,7 @@ export function useAssignmentReport() {
         totalOutstandingCredit,
         totalCollectedExCredit,
         netAfterExpensesAndDiscount,
+        settlement,
       };
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to load assignment report';

@@ -4,7 +4,9 @@ import {
   Loader2,
   ChevronDown,
   Trash2,
+  FileText,
 } from 'lucide-react';
+import AssignmentDailyReportDialog from '@/components/reports/AssignmentDailyReportDialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -110,6 +112,11 @@ export default function RetailStaffInventory({ onNavigate }: RetailStaffInventor
     newAllocationFormLine(),
   ]);
   const [isAssigning, setIsAssigning] = useState(false);
+  const [reportAssignmentId, setReportAssignmentId] = useState<string | null>(null);
+  const [showReportDialog, setShowReportDialog] = useState(false);
+  const [settlementByAssignment, setSettlementByAssignment] = useState<
+    Map<string, { is_finalized: boolean; variance: number }>
+  >(new Map());
 
   const getMainStock = (product: Product) => product.mainStock ?? product.stock;
 
@@ -385,6 +392,26 @@ export default function RetailStaffInventory({ onNavigate }: RetailStaffInventor
 
     if (!allocationRes.error) {
       setAllocations(allocationRes.data || []);
+    }
+
+    const batchIds = (batchRes.data || [])
+      .map((b) => b.id)
+      .filter((id) => !id.startsWith('local-assignment-'));
+    if (batchIds.length > 0) {
+      const { data: settlements } = await supabase
+        .from('route_settlements')
+        .select('assignment_id, is_finalized, variance')
+        .in('assignment_id', batchIds);
+      const map = new Map<string, { is_finalized: boolean; variance: number }>();
+      for (const s of settlements || []) {
+        map.set(s.assignment_id, {
+          is_finalized: Boolean(s.is_finalized),
+          variance: Number(s.variance ?? 0),
+        });
+      }
+      setSettlementByAssignment(map);
+    } else {
+      setSettlementByAssignment(new Map());
     }
   }, [user?.id]);
 
@@ -896,6 +923,7 @@ export default function RetailStaffInventory({ onNavigate }: RetailStaffInventor
           ) : (
             assignmentHistory.map((batch) => {
               const cashier = staffAllocations.find((c) => c.id === batch.cashierId);
+              const settlement = settlementByAssignment.get(batch.id);
               return (
                 <div key={batch.id} className="rounded-md border border-border p-3 space-y-2">
                   <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
@@ -912,7 +940,21 @@ export default function RetailStaffInventory({ onNavigate }: RetailStaffInventor
                         Total: {fc(batch.totalValueKes)}
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap justify-end">
+                      {!batch.id.startsWith('local-assignment-') && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs gap-1"
+                          onClick={() => {
+                            setReportAssignmentId(batch.id);
+                            setShowReportDialog(true);
+                          }}
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                          Daily report
+                        </Button>
+                      )}
                       {batch.isPending && (
                         <Badge variant="outline" className="text-[10px] border-warning/30 text-warning">
                           Pending sync
@@ -921,6 +963,16 @@ export default function RetailStaffInventory({ onNavigate }: RetailStaffInventor
                       {!batch.isActive && (
                         <Badge variant="outline" className="text-[10px]">
                           Returned
+                        </Badge>
+                      )}
+                      {settlement?.is_finalized && (
+                        <Badge className="text-[10px] bg-success/15 text-success border-success/30">
+                          Settled
+                        </Badge>
+                      )}
+                      {settlement && !settlement.is_finalized && (
+                        <Badge variant="outline" className="text-[10px] border-warning/40 text-warning">
+                          Draft settlement
                         </Badge>
                       )}
                     </div>
@@ -1071,6 +1123,14 @@ export default function RetailStaffInventory({ onNavigate }: RetailStaffInventor
           )}
         </CardContent>
       </Card>
+      <AssignmentDailyReportDialog
+        assignmentId={reportAssignmentId}
+        open={showReportDialog}
+        onOpenChange={(open) => {
+          setShowReportDialog(open);
+          if (!open) setReportAssignmentId(null);
+        }}
+      />
     </PageLayout>
   );
 }

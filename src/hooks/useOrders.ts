@@ -115,6 +115,7 @@ export interface CreateOrderParams {
   due_date?: string; // ISO string, for credit sales
   consignment_info?: string;
   created_at?: string; // Optional invoice/order datetime (supports backdating)
+  assignment_id?: string; // Route assignment batch (daily sales report)
   items: Array<{
     product_id: string | null;
     product_name: string;
@@ -375,6 +376,7 @@ export function useOrders() {
           notes: params.notes || null,
           staff_id: user?.id || null,
           staff_name: user?.full_name || null,
+          assignment_id: params.assignment_id || null,
           created_at: orderCreatedAt,
           completed_at: saleType === 'cash' ? orderCreatedAt : null,
         })

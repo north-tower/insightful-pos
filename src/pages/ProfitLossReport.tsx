@@ -37,11 +37,14 @@ import {
 } from '@/components/ui/select';
 import { useProfitReport } from '@/hooks/useProfitReport';
 import {
-  EXPENSE_CATEGORIES,
+  ALL_EXPENSE_CATEGORIES,
+  ROUTE_EXPENSE_CATEGORIES,
   expenseCategoryLabel,
+  isRouteExpenseCategory,
   useOperatingExpenses,
 } from '@/hooks/useOperatingExpenses';
 import { useAuth } from '@/context/AuthContext';
+import { supabase } from '@/lib/supabase';
 import { fc } from '@/lib/currency';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -135,6 +138,10 @@ export default function ProfitLossReport({ onNavigate }: ProfitLossReportProps) 
   const [expenseDate, setExpenseDate] = useState(toDateInputValue(new Date()));
   const [expenseReference, setExpenseReference] = useState('');
   const [expenseNotes, setExpenseNotes] = useState('');
+  const [expenseAssignmentId, setExpenseAssignmentId] = useState('');
+  const [routeAssignments, setRouteAssignments] = useState<
+    Array<{ id: string; route_name: string; assignment_date: string; cashier_id: string }>
+  >([]);
   const [isSavingExpense, setIsSavingExpense] = useState(false);
   const [deletingExpenseId, setDeletingExpenseId] = useState<string | null>(null);
 
@@ -153,6 +160,19 @@ export default function ProfitLossReport({ onNavigate }: ProfitLossReportProps) 
     if (!canView) return;
     void refreshReport();
   }, [canView, refreshReport]);
+
+  useEffect(() => {
+    if (!showExpenseForm || !canView) return;
+    void (async () => {
+      const { data } = await supabase
+        .from('staff_inventory_assignments')
+        .select('id, route_name, assignment_date, cashier_id')
+        .order('assignment_date', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(30);
+      setRouteAssignments(data || []);
+    })();
+  }, [showExpenseForm, canView]);
 
   const expenseByCategory = useMemo(() => {
     const map = new Map<string, number>();
@@ -179,6 +199,7 @@ export default function ProfitLossReport({ onNavigate }: ProfitLossReportProps) 
     setExpenseDate(toDateInputValue(new Date()));
     setExpenseReference('');
     setExpenseNotes('');
+    setExpenseAssignmentId('');
   };
 
   const handleAddExpense = async () => {
@@ -189,6 +210,10 @@ export default function ProfitLossReport({ onNavigate }: ProfitLossReportProps) 
     }
     if (Number.isNaN(amount) || amount <= 0) {
       toast.error('Enter a valid amount');
+      return;
+    }
+    if (isRouteExpenseCategory(expenseCategory) && !expenseAssignmentId) {
+      toast.error('Select a route assignment for route expenses');
       return;
     }
 
@@ -202,6 +227,7 @@ export default function ProfitLossReport({ onNavigate }: ProfitLossReportProps) 
         expense_date: expenseTimestamp,
         reference: expenseReference.trim() || undefined,
         notes: expenseNotes.trim() || undefined,
+        assignment_id: expenseAssignmentId || undefined,
       });
       toast.success('Expense recorded');
       resetExpenseForm();
@@ -519,13 +545,39 @@ export default function ProfitLossReport({ onNavigate }: ProfitLossReportProps) 
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {EXPENSE_CATEGORIES.map((c) => (
+                            {ALL_EXPENSE_CATEGORIES.map((c) => (
                               <SelectItem key={c.id} value={c.id}>
-                                {c.label}
+                                {ROUTE_EXPENSE_CATEGORIES.some((r) => r.id === c.id)
+                                  ? `Route: ${c.label}`
+                                  : c.label}
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
+                      </div>
+                      <div className="space-y-1 sm:col-span-2">
+                        <Label>
+                          Route assignment
+                          {isRouteExpenseCategory(expenseCategory) ? ' *' : ' (optional)'}
+                        </Label>
+                        <Select
+                          value={expenseAssignmentId || undefined}
+                          onValueChange={setExpenseAssignmentId}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select route assignment" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {routeAssignments.map((a) => (
+                              <SelectItem key={a.id} value={a.id}>
+                                {a.route_name} · {a.assignment_date}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-[10px] text-muted-foreground">
+                          Link fuel, food, and other van-run costs to a route for the daily sales report.
+                        </p>
                       </div>
                       <div className="space-y-1">
                         <Label>Date</Label>
