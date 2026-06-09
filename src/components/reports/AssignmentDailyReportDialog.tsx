@@ -13,6 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { useAssignmentReport, type AssignmentDailyReportData } from '@/hooks/useAssignmentReport';
 import { useRouteSettlement } from '@/hooks/useRouteSettlement';
+import { AssignmentDailyReportPrint } from '@/components/reports/AssignmentDailyReportPrint';
 import { generateInvoicePdf } from '@/lib/generateInvoicePdf';
 import { fc } from '@/lib/currency';
 import { cn } from '@/lib/utils';
@@ -335,183 +336,11 @@ export default function AssignmentDailyReportDialog({
               )}
             </div>
 
-            <div
-              id="assignment-daily-report"
-              className="bg-white text-black p-6 space-y-4 text-sm"
-            >
-              <div className="text-center space-y-1 border-b pb-4">
-                <p className="text-xs uppercase tracking-widest text-red-600 font-bold">
-                  Daily Sales Report Invoice
-                </p>
-                <p className="text-lg font-bold uppercase">{report.routeName} Route</p>
-                <p className="text-sm font-semibold">{report.assignmentDateLabel}</p>
-                <p className="text-xs text-gray-600">Staff: {report.cashierName}</p>
-              </div>
-
-              <table className="w-full border-collapse text-xs">
-                <thead>
-                  <tr className="bg-gray-100">
-                    <th className="border p-1.5 text-left">Product</th>
-                    <th className="border p-1.5 text-center">Pack</th>
-                    <th className="border p-1.5 text-center">Qty</th>
-                    <th className="border p-1.5 text-right">Sales Work Out</th>
-                    <th className="border p-1.5 text-center">Returns</th>
-                    <th className="border p-1.5 text-center">Sold</th>
-                    <th className="border p-1.5 text-right">Money Received</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {report.products.map((p) => (
-                    <tr key={p.productId}>
-                      <td className="border p-1.5">{p.productName}</td>
-                      <td className="border p-1.5 text-center">{p.packSize}</td>
-                      <td className="border p-1.5 text-center">{p.quantity}</td>
-                      <td className="border p-1.5 text-right">{fc(p.salesWorkOut)}</td>
-                      <td className="border p-1.5 text-center">{p.returns}</td>
-                      <td className="border p-1.5 text-center">{p.soldOut}</td>
-                      <td className="border p-1.5 text-right font-semibold">
-                        {fc(p.moneyReceived)}
-                      </td>
-                    </tr>
-                  ))}
-                  <tr className="font-bold bg-gray-50">
-                    <td className="border p-1.5" colSpan={2}>
-                      Total
-                    </td>
-                    <td className="border p-1.5 text-center">{report.totals.quantity}</td>
-                    <td className="border p-1.5 text-right">{fc(report.totals.salesWorkOut)}</td>
-                    <td className="border p-1.5 text-center">{report.totals.returns}</td>
-                    <td className="border p-1.5 text-center">{report.totals.soldOut}</td>
-                    <td className="border p-1.5 text-right">{fc(report.totals.moneyReceived)}</td>
-                  </tr>
-                </tbody>
-              </table>
-
-              {report.mostSoldProduct && report.mostSoldProduct.qty > 0 && (
-                <p className="text-xs font-semibold text-center">
-                  Most sold: {report.mostSoldProduct.name} ({report.mostSoldProduct.qty} pcs)
-                </p>
-              )}
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <p className="font-bold border-b pb-1">Daily Sales Report Summary</p>
-                  <p className="flex justify-between">
-                    <span>Grand Sales + Credit</span>
-                    <span className="font-semibold">{fc(report.grandSalesPlusCredit)}</span>
-                  </p>
-
-                  <p className="font-bold border-b pb-1 pt-2">Expenses</p>
-                  {report.expenses.length === 0 ? (
-                    <p className="text-gray-500 text-xs">No route expenses recorded</p>
-                  ) : (
-                    report.expenses.map((e, i) => (
-                      <p key={e.id} className="flex justify-between text-xs">
-                        <span>
-                          {i + 1}. {e.description}
-                        </span>
-                        <span>{fc(e.amount)}</span>
-                      </p>
-                    ))
-                  )}
-                  <p className="flex justify-between font-semibold border-t pt-1">
-                    <span>Total Expenses</span>
-                    <span>{fc(report.totalExpenses)}</span>
-                  </p>
-
-                  {report.discountOut > 0 && (
-                    <p className="flex justify-between">
-                      <span>Discount Out</span>
-                      <span>{fc(report.discountOut)}</span>
-                    </p>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <p className="font-bold border-b pb-1">Sales Breakdown</p>
-                  <p className="flex justify-between text-xs">
-                    <span>1. Cash Sales</span>
-                    <span>{fc(report.salesBreakdown.cash)}</span>
-                  </p>
-                  <p className="flex justify-between text-xs">
-                    <span>2. Total Sales (Cash + M-Pesa + Bank)</span>
-                    <span>{fc(report.salesBreakdown.totalSales)}</span>
-                  </p>
-                  <p className="flex justify-between text-xs">
-                    <span>3. M-Pesa / Paybill</span>
-                    <span>{fc(report.salesBreakdown.mpesa)}</span>
-                  </p>
-                  <p className="flex justify-between text-xs">
-                    <span>4. Direct Bank</span>
-                    <span>{fc(report.salesBreakdown.directBank)}</span>
-                  </p>
-                  <p className="flex justify-between text-xs">
-                    <span>5. Credit</span>
-                    <span>{fc(report.salesBreakdown.credit)}</span>
-                  </p>
-
-                  <p className="font-bold border-b pb-1 pt-2">Final Balance</p>
-                  <p className="text-xs">
-                    Collected (excl. credit): {fc(report.totalCollectedExCredit)}
-                  </p>
-                  <p className="text-xs">
-                    Less expenses ({fc(report.totalExpenses)}) &amp; discount (
-                    {fc(report.discountOut)}):
-                  </p>
-                  <p className="text-sm font-bold border-t pt-1">
-                    Expected remittance: {fc(report.netAfterExpensesAndDiscount)}
-                  </p>
-                  {report.outstandingCredit.length > 0 && (
-                    <div className="text-xs space-y-0.5">
-                      <p className="font-semibold">
-                        Outstanding Credit: -{fc(report.totalOutstandingCredit)}
-                      </p>
-                      {report.outstandingCredit.map((c, i) => (
-                        <p key={i} className="pl-2 text-gray-600">
-                          -{c.customerName}: {fc(c.amount)}
-                        </p>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Settlement in printable report */}
-              <div className="border-t pt-4 space-y-2">
-                <p className="font-bold text-center uppercase tracking-wide">
-                  Final Settlement
-                </p>
-                <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs max-w-md mx-auto">
-                  <span>Expected remittance</span>
-                  <span className="text-right font-semibold">
-                    {fc(displaySettlement.expected_remittance)}
-                  </span>
-                  <span>Cash submitted</span>
-                  <span className="text-right font-semibold">
-                    {fc(displaySettlement.cash_submitted)}
-                  </span>
-                  <span>M-Pesa confirmed</span>
-                  <span className="text-right">{fc(displaySettlement.mpesa_submitted)}</span>
-                  <span>Bank confirmed</span>
-                  <span className="text-right">{fc(displaySettlement.bank_submitted)}</span>
-                  <span className="font-bold">Variance</span>
-                  <span
-                    className={cn(
-                      'text-right font-bold',
-                      displaySettlement.variance < 0 && 'text-red-600',
-                      displaySettlement.variance > 0 && 'text-green-700',
-                    )}
-                  >
-                    {displaySettlement.variance >= 0 ? '+' : ''}
-                    {fc(displaySettlement.variance)}
-                  </span>
-                </div>
-                {displaySettlement.notes && (
-                  <p className="text-xs text-center text-gray-600 italic">
-                    Note: {displaySettlement.notes}
-                  </p>
-                )}
-              </div>
+            <div className="rounded-lg border border-[#D4AF37]/40 overflow-hidden shadow-sm">
+              <AssignmentDailyReportPrint
+                report={report}
+                displaySettlement={displaySettlement}
+              />
             </div>
           </>
         )}
