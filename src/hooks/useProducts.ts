@@ -212,12 +212,17 @@ export function useProducts() {
         variantData = vData || [];
 
         if (user?.role === 'cashier' || user?.role === 'manager') {
-          const { data: aData, error: aErr } = await supabase
+          const { data: storeIdData } = await supabase.rpc('current_store_id');
+          let allocationQuery = supabase
             .from('cashier_stock_allocations')
             .select('product_id, assigned_qty, sold_qty')
             .eq('cashier_id', user.id)
             .eq('is_active', true)
             .in('product_id', productIds);
+          if (storeIdData) {
+            allocationQuery = allocationQuery.eq('store_id', storeIdData);
+          }
+          const { data: aData, error: aErr } = await allocationQuery;
           if (aErr) throw aErr;
           allocationData = aData || [];
         }
@@ -325,10 +330,10 @@ export function useProducts() {
         variantsByProduct.get(p.id),
       );
 
-      // Cashiers and managers can only sell quantities assigned to them by admin/manager.
+      // Cashiers and managers sell from their route allocation, not main warehouse stock.
+      // Main stock is reduced when stock is assigned out, so we must not cap by mainStock here.
       if (mode === 'retail' && (user?.role === 'cashier' || user?.role === 'manager')) {
-        const remaining = allocationMap.get(p.id) ?? 0;
-        product.stock = Math.min(product.stock, remaining);
+        product.stock = allocationMap.get(p.id) ?? 0;
       }
 
       return product;
