@@ -308,7 +308,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
         if (!line?.productId) continue;
         const p = sellableRetailProducts.find((x) => x.id === line.productId);
         if (!p || !p.isActive) continue;
-        const stock = getMainStock(p);
+        const stock = p.stock;
         const q = Math.floor(Number(line.quantity));
         if (!Number.isFinite(q) || q < 1) continue;
         const qty = Math.min(q, Math.max(stock, 0));
