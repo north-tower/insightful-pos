@@ -329,63 +329,48 @@ export function useOrders() {
           ? 'partial'
           : 'unpaid';
 
-      const { data: currentStoreId, error: currentStoreErr } = await supabase.rpc('current_store_id');
-      if (currentStoreErr) throw currentStoreErr;
-
-      // 1. Get next order number via RPC
-      const { data: orderNumData, error: orderNumErr } = await supabase.rpc(
-        'generate_order_number',
-        { p_business_mode: mode, p_store_id: currentStoreId },
+      // 1. Atomically generate numbers + insert order in a single DB transaction.
+      //    This eliminates the race condition where concurrent useOrders() instances
+      //    (RetailPOS, OrderHistory, etc.) each call generate_invoice_number()
+      //    simultaneously and receive the same counter value before either commits.
+      const { data: atomicResult, error: atomicErr } = await supabase.rpc(
+        'create_order_atomic',
+        {
+          p_business_mode:    mode,
+          p_order_type:       params.order_type,
+          p_source:           'pos',
+          p_sale_type:        saleType,
+          p_customer_id:      params.customer_id || null,
+          p_customer_name:    params.customer_name || null,
+          p_customer_email:   params.customer_email || null,
+          p_customer_phone:   params.customer_phone || null,
+          p_customer_address: params.customer_address || null,
+          p_table_number:     params.table_number || null,
+          p_due_date:         params.due_date || null,
+          p_consignment_info: params.consignment_info || null,
+          p_subtotal:         subtotal,
+          p_tax_rate:         taxRate,
+          p_tax_amount:       taxAmount,
+          p_discount_amount:  discountAmount,
+          p_total:            total,
+          p_status:           'completed',
+          p_payment_status:   paymentStatus,
+          p_notes:            params.notes || null,
+          p_staff_id:         user?.id || null,
+          p_staff_name:       user?.full_name || null,
+          p_assignment_id:    params.assignment_id || null,
+          p_created_at:       orderCreatedAt,
+          p_completed_at:     saleType === 'cash' ? orderCreatedAt : null,
+        },
       );
-      if (orderNumErr) throw orderNumErr;
-      const orderNumber = orderNumData as string;
+      if (atomicErr) throw atomicErr;
 
-      // Generate invoice number
-      const { data: invNumData, error: invNumErr } = await supabase.rpc(
-        'generate_invoice_number',
-        { p_store_id: currentStoreId },
-      );
-      if (invNumErr) throw invNumErr;
-      const invoiceNumber = (invNumData as string) || orderNumber;
+      const atomicRow = Array.isArray(atomicResult) ? atomicResult[0] : atomicResult;
+      if (!atomicRow) throw new Error('create_order_atomic returned no result');
 
-      // 2. Insert order
-      const { data: orderData, error: orderErr } = await supabase
-        .from('orders')
-        .insert({
-          order_number: orderNumber,
-          business_mode: mode,
-          order_type: params.order_type,
-          source: 'pos',
-          sale_type: saleType,
-          customer_id: params.customer_id || null,
-          customer_name: params.customer_name || null,
-          customer_email: params.customer_email || null,
-          customer_phone: params.customer_phone || null,
-          customer_address: params.customer_address || null,
-          table_number: params.table_number || null,
-          invoice_number: invoiceNumber,
-          due_date: params.due_date || null,
-          consignment_info: params.consignment_info || null,
-          subtotal,
-          tax_rate: taxRate,
-          tax_amount: taxAmount,
-          discount_amount: discountAmount,
-          total,
-          status: 'completed',
-          payment_status: paymentStatus,
-          notes: params.notes || null,
-          staff_id: user?.id || null,
-          staff_name: user?.full_name || null,
-          assignment_id: params.assignment_id || null,
-          created_at: orderCreatedAt,
-          completed_at: saleType === 'cash' ? orderCreatedAt : null,
-        })
-        .select()
-        .single();
-
-      if (orderErr) throw orderErr;
-
-      const orderId = orderData.id;
+      const orderId: string     = atomicRow.order_id;
+      const orderNumber: string = atomicRow.order_number;
+      const invoiceNumber: string = atomicRow.invoice_number;
 
       const costByProduct = await resolveProductCosts(params.items, true);
 
@@ -470,8 +455,8 @@ export function useOrders() {
         notes: params.notes,
         staff_id: user?.id,
         staff_name: user?.full_name,
-        created_at: orderData.created_at,
-        completed_at: orderData.completed_at,
+        created_at: orderCreatedAt,
+        completed_at: saleType === 'cash' ? orderCreatedAt : undefined,
         items: (insertedItems || []).map((i: any) => ({
           id: i.id,
           order_id: i.order_id,
