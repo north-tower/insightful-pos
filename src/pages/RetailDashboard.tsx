@@ -4,6 +4,7 @@ import { SalesChart } from '@/components/dashboard/SalesChart';
 import { TopSellingChart } from '@/components/dashboard/TopSellingChart';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useProducts } from '@/hooks/useProducts';
 import { useDashboardStats } from '@/hooks/useDashboardStats';
@@ -12,13 +13,11 @@ import {
   ShoppingCart,
   Package,
   AlertTriangle,
-  TrendingUp,
   CreditCard,
   Banknote,
   QrCode,
   Smartphone,
   XCircle,
-  Loader2,
   RefreshCw,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/currency';
@@ -36,6 +35,80 @@ const paymentIcons = {
   qr: QrCode,
   mpesa: Smartphone,
 };
+
+/** Valid SKU for display — omit null/empty/literal "SKU" placeholders. */
+function getDisplaySku(sku: string | null | undefined): string | null {
+  if (!sku) return null;
+  const trimmed = sku.trim();
+  if (!trimmed || trimmed.toUpperCase() === 'SKU') return null;
+  return trimmed;
+}
+
+function StatsCardSkeleton({ large = false }: { large?: boolean }) {
+  return (
+    <Card className={cn('border-l-4 bg-card dark:bg-gray-800 dark:border-gray-700', large ? 'border-warning' : 'border-border/60')}>
+      <CardContent className={cn(large ? 'p-6 sm:p-8' : 'p-4 sm:p-5')}>
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex-1 space-y-3">
+            <Skeleton className="h-4 w-28" />
+            <Skeleton className={cn(large ? 'h-10 w-40' : 'h-8 w-16')} />
+            <Skeleton className="h-3 w-32" />
+            {large && <Skeleton className="mt-2 h-12 w-full max-w-[200px]" />}
+          </div>
+          <Skeleton className={cn('shrink-0 rounded-lg', large ? 'h-14 w-14' : 'h-11 w-11')} />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function PanelSkeleton({ rows = 4 }: { rows?: number }) {
+  return (
+    <Card className="bg-card dark:bg-gray-800 dark:border-gray-700">
+      <CardHeader className="pb-4">
+        <Skeleton className="h-5 w-32" />
+        <Skeleton className="mt-2 h-4 w-48" />
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {Array.from({ length: rows }).map((_, i) => (
+          <div key={i} className="flex items-center justify-between gap-3 rounded border border-border/60 p-3 dark:border-gray-700">
+            <div className="flex flex-1 items-center gap-3">
+              <Skeleton className="h-4 w-4 rounded-full" />
+              <div className="space-y-2 flex-1">
+                <Skeleton className="h-4 w-36" />
+                <Skeleton className="h-3 w-24" />
+              </div>
+            </div>
+            <Skeleton className="h-6 w-20 rounded-full" />
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ChartSkeleton() {
+  return (
+    <Card className="bg-card dark:bg-gray-800 dark:border-gray-700">
+      <CardHeader className="pb-4">
+        <div className="flex items-center justify-between gap-4">
+          <div className="space-y-2">
+            <Skeleton className="h-5 w-32" />
+            <Skeleton className="h-4 w-40" />
+          </div>
+          <div className="flex gap-2">
+            <Skeleton className="h-8 w-14" />
+            <Skeleton className="h-8 w-14" />
+            <Skeleton className="h-8 w-14" />
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <Skeleton className="h-[300px] w-full rounded-md" />
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
   const { companyName, shopLogoUrl } = useCompanySettings();
@@ -60,40 +133,39 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
   );
   const outOfStockProducts = retailProducts.filter((p) => p.stock === 0);
 
-  if (loading) {
-    return (
-      <PageLayout activeTab="dashboard" onNavigate={onNavigate}>
-        <div className="flex items-center justify-center py-32">
-          <div className="text-center">
-            <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-3" />
-            <p className="text-sm text-muted-foreground">Loading dashboard...</p>
-          </div>
-        </div>
-      </PageLayout>
-    );
-  }
+  const sparklineValues = weeklySalesData.map((d) => d.revenue);
 
   return (
     <PageLayout activeTab="dashboard" onNavigate={onNavigate}>
       {/* Header */}
       <div className="mb-6 flex items-start justify-between gap-4">
-        <div className="flex items-start gap-4 min-w-0">
+        <div className="flex min-w-0 items-start gap-4">
           {shopLogoUrl && <ShopLogo size="lg" showFallback={false} className="hidden sm:block" />}
-          <div className="min-w-0">
-          <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2 truncate">
-            {shopLogoUrl ? companyName : 'Store Overview'}
-          </h1>
-          <p className="text-muted-foreground">
-            {retailStats.todaySales} sales today
-            {(lowStockProducts.length > 0 || outOfStockProducts.length > 0) && (
-              <span className="text-warning ml-2">
-                • {lowStockProducts.length + outOfStockProducts.length} stock alerts
-              </span>
+          <div className="min-w-0 space-y-1">
+            <h1 className="truncate text-2xl font-bold text-foreground">
+              {shopLogoUrl ? companyName : 'Store Overview'}
+            </h1>
+            {loading ? (
+              <>
+                <Skeleton className="h-4 w-48" />
+                <Skeleton className="h-3 w-40" />
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  {retailStats.todaySales} sales today
+                  {(lowStockProducts.length > 0 || outOfStockProducts.length > 0) && (
+                    <span className="ml-2 text-warning">
+                      • {lowStockProducts.length + outOfStockProducts.length} stock alerts
+                    </span>
+                  )}
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Last synced at{' '}
+                  {lastSyncedAt ? new Date(lastSyncedAt).toLocaleString() : 'Not synced yet'}
+                </p>
+              </>
             )}
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            Last synced at {lastSyncedAt ? new Date(lastSyncedAt).toLocaleString() : 'Not synced yet'}
-          </p>
           </div>
         </div>
         <Button
@@ -101,183 +173,256 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
           size="icon"
           onClick={refetch}
           disabled={statsLoading}
-          className="shrink-0"
+          className="shrink-0 dark:border-gray-700 dark:bg-gray-800"
           title="Refresh dashboard"
         >
-          <RefreshCw className={`w-4 h-4 ${statsLoading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`h-4 w-4 ${statsLoading ? 'animate-spin' : ''}`} />
         </Button>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        {/* Revenue - BIGGEST */}
-        <div className="lg:col-span-2">
-          <StatsCard
-            title="Today's Revenue"
-            value={formatCurrency(retailStats.todayRevenue)}
-            change={retailStats.revenueChange}
-            icon={<DollarSign className="w-6 h-6" />}
-            description={
-              retailStats.revenueChange
-                ? `${retailStats.revenueChange >= 0 ? '↑' : '↓'} ${Math.abs(Math.round(retailStats.revenueChange))}% from yesterday`
-                : undefined
-            }
-            isLarge={true}
-          />
-        </div>
+      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {loading ? (
+          <>
+            <div className="lg:col-span-2">
+              <StatsCardSkeleton large />
+            </div>
+            <StatsCardSkeleton />
+            <StatsCardSkeleton />
+          </>
+        ) : (
+          <>
+            <div className="lg:col-span-2">
+              <StatsCard
+                title="Today's Revenue"
+                value={formatCurrency(retailStats.todayRevenue)}
+                change={retailStats.revenueChange}
+                icon={<DollarSign className="h-6 w-6" />}
+                description={
+                  retailStats.revenueChange
+                    ? `${retailStats.revenueChange >= 0 ? '↑' : '↓'} ${Math.abs(Math.round(retailStats.revenueChange))}% from yesterday`
+                    : undefined
+                }
+                isLarge={true}
+                sparklineData={sparklineValues}
+              />
+            </div>
 
-        {/* Sales count */}
-        <StatsCard
-          title="Sales Today"
-          value={retailStats.todaySales}
-          change={retailStats.salesChange}
-          icon={<ShoppingCart className="w-5 h-5" />}
-          description={`${retailStats.itemsSold} items sold`}
-        />
+            <StatsCard
+              title="Sales Today"
+              value={retailStats.todaySales}
+              change={retailStats.salesChange}
+              icon={<ShoppingCart className="h-5 w-5" />}
+              description={`${retailStats.itemsSold} items sold`}
+            />
 
-        {/* Stock alerts */}
-        <StatsCard
-          title="Stock Alerts"
-          value={lowStockProducts.length + outOfStockProducts.length}
-          icon={<AlertTriangle className="w-5 h-5" />}
-          description={`${outOfStockProducts.length} out of stock`}
-        />
+            <StatsCard
+              title="Stock Alerts"
+              value={lowStockProducts.length + outOfStockProducts.length}
+              icon={<AlertTriangle className="h-5 w-5" />}
+              description={`${outOfStockProducts.length} out of stock`}
+            />
+          </>
+        )}
       </div>
 
       {/* Stock Alerts + Recent Sales */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* Stock Alerts Panel */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Stock Alerts</CardTitle>
-                <CardDescription>Products needing attention</CardDescription>
-              </div>
-              <Badge
-                variant="outline"
-                className={cn(
-                  outOfStockProducts.length > 0
-                    ? 'bg-destructive/10 text-destructive'
-                    : 'bg-warning/10 text-warning'
-                )}
-              >
-                {lowStockProducts.length + outOfStockProducts.length} alerts
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {outOfStockProducts.map((product) => (
-                <div
-                  key={product.id}
-                  className="flex items-center justify-between p-3 rounded border-l-4 border-destructive bg-destructive/5"
-                >
-                  <div className="flex items-center gap-3">
-                    <XCircle className="w-4 h-4 text-destructive" />
-                    <div>
-                      <p className="text-sm font-semibold">{product.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        SKU: {product.sku}
-                      </p>
-                    </div>
+      <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {loading ? (
+          <>
+            <PanelSkeleton rows={4} />
+            <PanelSkeleton rows={4} />
+          </>
+        ) : (
+          <>
+            {/* Stock Alerts Panel */}
+            <Card className="bg-card dark:bg-gray-800 dark:border-gray-700">
+              <CardHeader className="pb-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <CardTitle className="text-lg font-semibold">Stock Alerts</CardTitle>
+                    <CardDescription>Products needing attention</CardDescription>
                   </div>
-                  <Badge className="bg-destructive/10 text-destructive text-xs">
-                    Out of Stock
-                  </Badge>
-                </div>
-              ))}
-              {lowStockProducts.map((product) => (
-                <div
-                  key={product.id}
-                  className="flex items-center justify-between p-3 rounded border-l-4 border-warning bg-warning/5"
-                >
-                  <div className="flex items-center gap-3">
-                    <AlertTriangle className="w-4 h-4 text-warning" />
-                    <div>
-                      <p className="text-sm font-semibold">{product.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        SKU: {product.sku} • {product.stock} left
-                      </p>
-                    </div>
-                  </div>
-                  <Badge className="bg-warning/10 text-warning text-xs">
-                    Low Stock
-                  </Badge>
-                </div>
-              ))}
-              {lowStockProducts.length === 0 && outOfStockProducts.length === 0 && (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Package className="w-10 h-10 mx-auto mb-3 opacity-50" />
-                  <p className="text-sm">All stock levels healthy</p>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Recent Sales */}
-        <Card>
-          <CardHeader>
-            <div>
-              <CardTitle>Recent Sales</CardTitle>
-              <CardDescription>Latest transactions today</CardDescription>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {recentSales.length === 0 && (
-                <div className="text-center py-8 text-muted-foreground">
-                  <ShoppingCart className="w-10 h-10 mx-auto mb-3 opacity-50" />
-                  <p className="text-sm">No sales yet today</p>
-                </div>
-              )}
-              {recentSales.map((sale) => {
-                const PayIcon =
-                  paymentIcons[sale.paymentMethod as keyof typeof paymentIcons] ?? Banknote;
-                return (
-                  <div
-                    key={sale.id}
-                    className="flex items-center justify-between p-3 rounded border border-border hover:bg-muted/50 transition-colors"
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      outOfStockProducts.length > 0
+                        ? 'border-destructive/30 bg-destructive/10 text-destructive'
+                        : lowStockProducts.length > 0
+                          ? 'border-warning/30 bg-warning/10 text-warning'
+                          : 'border-border bg-muted text-muted-foreground dark:border-gray-600'
+                    )}
                   >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-sm font-semibold">
-                          #{sale.saleNumber}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {sale.items} items
-                        </span>
+                    {lowStockProducts.length + outOfStockProducts.length} alerts
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {outOfStockProducts.map((product) => {
+                    const displaySku = getDisplaySku(product.sku);
+                    return (
+                      <div
+                        key={product.id}
+                        className="flex items-center justify-between gap-3 rounded border-l-4 border-destructive bg-destructive/5 p-3 dark:bg-destructive/10"
+                      >
+                        <div className="flex min-w-0 items-center gap-3">
+                          <XCircle className="h-4 w-4 shrink-0 text-destructive" />
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-foreground">
+                              {product.name}
+                            </p>
+                            {displaySku ? (
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                SKU: {displaySku}
+                              </p>
+                            ) : (
+                              <p className="text-xs text-gray-400 dark:text-gray-500">
+                                No SKU assigned
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <Badge className="shrink-0 bg-destructive text-destructive-foreground text-xs hover:bg-destructive">
+                          Out of Stock
+                        </Badge>
                       </div>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        {sale.customerName && <span>{sale.customerName}</span>}
-                        <span>•</span>
-                        <span>{sale.time}</span>
+                    );
+                  })}
+                  {lowStockProducts.map((product) => {
+                    const displaySku = getDisplaySku(product.sku);
+                    return (
+                      <div
+                        key={product.id}
+                        className="flex items-center justify-between gap-3 rounded border-l-4 border-warning bg-warning/5 p-3 dark:bg-warning/10"
+                      >
+                        <div className="flex min-w-0 items-center gap-3">
+                          <AlertTriangle className="h-4 w-4 shrink-0 text-warning" />
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-foreground">
+                              {product.name}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              {displaySku ? (
+                                <>
+                                  SKU: {displaySku} • {product.stock} left
+                                </>
+                              ) : (
+                                <>
+                                  <span className="text-gray-400 dark:text-gray-500">
+                                    No SKU assigned
+                                  </span>
+                                  {' • '}
+                                  {product.stock} left
+                                </>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                        <Badge className="shrink-0 border border-warning/30 bg-warning/15 text-warning text-xs hover:bg-warning/20">
+                          Low Stock
+                        </Badge>
                       </div>
+                    );
+                  })}
+                  {lowStockProducts.length === 0 && outOfStockProducts.length === 0 && (
+                    <div className="flex flex-col items-center justify-center px-4 py-12 text-center">
+                      <Package
+                        className="mb-3 h-10 w-10 text-gray-400 dark:text-gray-500"
+                        strokeWidth={1.5}
+                      />
+                      <p className="text-sm font-medium text-foreground">All stock levels healthy</p>
+                      <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                        Low and out-of-stock products will appear here
+                      </p>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <PayIcon className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-sm font-bold">
-                        {formatCurrency(sale.total)}
-                      </span>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Recent Sales */}
+            <Card className="bg-card dark:bg-gray-800 dark:border-gray-700">
+              <CardHeader className="pb-4">
+                <div>
+                  <CardTitle className="text-lg font-semibold">Recent Sales</CardTitle>
+                  <CardDescription>Latest transactions today</CardDescription>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {recentSales.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center px-4 py-12 text-center">
+                      <ShoppingCart
+                        className="mb-3 h-10 w-10 text-gray-400 dark:text-gray-500"
+                        strokeWidth={1.5}
+                      />
+                      <p className="text-sm font-medium text-foreground">
+                        No sales recorded yet today
+                      </p>
+                      <p className="mt-1 max-w-xs text-sm text-gray-500 dark:text-gray-400">
+                        Sales will appear here once you make your first transaction
+                      </p>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
+                  ) : (
+                    recentSales.map((sale) => {
+                      const PayIcon =
+                        paymentIcons[sale.paymentMethod as keyof typeof paymentIcons] ?? Banknote;
+                      return (
+                        <div
+                          key={sale.id}
+                          className="flex items-center justify-between gap-3 rounded border border-border p-3 transition-colors hover:bg-muted/50 dark:border-gray-700 dark:hover:bg-gray-700/50"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="mb-1 flex items-center gap-2">
+                              <span className="text-sm font-semibold text-foreground">
+                                #{sale.saleNumber}
+                              </span>
+                              <span className="text-xs text-gray-500 dark:text-gray-400">
+                                {sale.items} items
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                              {sale.customerName && <span>{sale.customerName}</span>}
+                              <span>•</span>
+                              <span>{sale.time}</span>
+                            </div>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-3">
+                            <PayIcon className="h-4 w-4 text-gray-400 dark:text-gray-500" />
+                            <span className="text-sm font-bold text-foreground">
+                              {formatCurrency(sale.total)}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </>
+        )}
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <SalesChart
-          data={weeklySalesData}
-          dailyData={dailySalesData}
-          weeklyData={weeklySalesData}
-          monthlyData={monthlySalesData}
-        />
-        <TopSellingChart data={topSellingItems} />
+      <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {loading ? (
+          <>
+            <ChartSkeleton />
+            <ChartSkeleton />
+          </>
+        ) : (
+          <>
+            <SalesChart
+              data={weeklySalesData}
+              dailyData={dailySalesData}
+              weeklyData={weeklySalesData}
+              monthlyData={monthlySalesData}
+            />
+            <TopSellingChart data={topSellingItems} />
+          </>
+        )}
       </div>
     </PageLayout>
   );
