@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import {
   LogIn,
   UserPlus,
@@ -23,10 +24,10 @@ const demoPassword = import.meta.env.VITE_DEMO_PASSWORD as string | undefined;
 const hasDemoLogin = Boolean(demoEmail && demoPassword);
 
 const INPUT_CLASS =
-  'h-11 rounded-lg border-[0.5px] border-border bg-white text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-[0_0_0_3px_rgba(55,138,221,0.2)]';
+  'h-11 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-0 dark:bg-card';
 
 const SIGN_IN_BUTTON_CLASS =
-  'w-full h-11 rounded-lg bg-[#185FA5] hover:bg-[#145494] text-white text-sm font-medium active:scale-[0.98] transition-all';
+  'w-full h-11 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium active:scale-[0.98] transition-all';
 
 function LoginIllustration() {
   return (
@@ -167,7 +168,7 @@ function LoginLeftPanel() {
       className="relative hidden md:flex w-[44%] shrink-0 flex-col justify-between overflow-hidden px-10 py-10"
       style={{ backgroundColor: '#0f1923' }}
     >
-      {/* Brand block */}
+      {/* Brand block — intentionally dark branded panel in both themes */}
       <div className="relative z-10">
         <div className="mb-3 inline-flex items-center justify-center rounded-lg border border-[#378ADD]/25 bg-white/5 p-2.5">
           <Store className="h-5 w-5 text-[#378ADD]" />
@@ -199,7 +200,7 @@ function LoginFooter() {
   );
 }
 
-function LoginFormPanel({
+function LoginFormColumn({
   formVisible,
   children,
 }: {
@@ -207,7 +208,10 @@ function LoginFormPanel({
   children: ReactNode;
 }) {
   return (
-    <main className="flex flex-1 flex-col overflow-y-auto bg-white">
+    <main className="relative flex flex-1 flex-col overflow-y-auto bg-background">
+      <div className="absolute right-4 top-4 z-10 sm:right-6 sm:top-6">
+        <ThemeToggle />
+      </div>
       <div
         className={cn(
           'mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-6 py-10 transition-opacity duration-300 ease-out',
@@ -296,21 +300,21 @@ export default function Login() {
 
   if (signupSuccess) {
     return (
-      <div className="flex h-screen overflow-hidden bg-white">
+      <div className="flex h-screen overflow-hidden bg-background">
         <LoginLeftPanel />
-        <LoginFormPanel formVisible={formVisible}>
+        <LoginFormColumn formVisible={formVisible}>
           <div className="text-center">
             <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-success/10">
               <UserPlus className="h-8 w-8 text-success" />
             </div>
             <h1 className="mb-3 text-[20px] font-medium text-foreground">Check your email</h1>
             <p className="mb-6 text-[13px] text-muted-foreground">
-              We sent a confirmation link to <strong>{email}</strong>.
+              We sent a confirmation link to <strong className="text-foreground">{email}</strong>.
               Click the link to activate your account.
             </p>
             <Button
               variant="outline"
-              className="rounded-lg"
+              className="rounded-lg border-border bg-card text-foreground hover:bg-muted"
               onClick={() => {
                 setSignupSuccess(false);
                 setTab('login');
@@ -320,16 +324,16 @@ export default function Login() {
             </Button>
           </div>
           <LoginFooter />
-        </LoginFormPanel>
+        </LoginFormColumn>
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-white">
+    <div className="flex h-screen overflow-hidden bg-background">
       <LoginLeftPanel />
 
-      <LoginFormPanel formVisible={formVisible}>
+      <LoginFormColumn formVisible={formVisible}>
         {/* Header */}
         <div className="mb-8">
           {hasDemoLogin ? (
@@ -337,7 +341,7 @@ export default function Login() {
               <img
                 src={DEMO_BRANDING.logoUrl}
                 alt={DEMO_BRANDING.name}
-                className="mb-4 h-16 w-16 rounded-xl border border-border object-cover shadow-sm"
+                className="mb-4 h-16 w-16 rounded-xl border border-border bg-card object-cover shadow-sm"
               />
               <h1 className="text-[20px] font-medium text-foreground">{DEMO_BRANDING.name}</h1>
               <p className="mt-1 text-[13px] text-muted-foreground">
@@ -355,7 +359,7 @@ export default function Login() {
         </div>
 
         {/* Tab Switcher */}
-        <div className="mb-6 flex gap-1 rounded-lg bg-[#f0f0f0] p-1">
+        <div className="mb-6 flex gap-1 rounded-lg border border-border bg-muted p-1">
           <button
             type="button"
             onClick={() => {
@@ -366,7 +370,7 @@ export default function Login() {
             className={cn(
               'flex flex-1 items-center justify-center gap-2 rounded-md py-2.5 text-sm transition-all',
               tab === 'login'
-                ? 'border-[0.5px] border-border bg-white font-medium text-foreground shadow-sm'
+                ? 'border border-border bg-card font-medium text-foreground shadow-sm'
                 : 'font-normal text-muted-foreground hover:text-foreground',
             )}
           >
@@ -383,7 +387,7 @@ export default function Login() {
             className={cn(
               'flex flex-1 items-center justify-center gap-2 rounded-md py-2.5 text-sm transition-all',
               tab === 'signup'
-                ? 'border-[0.5px] border-border bg-white font-medium text-foreground shadow-sm'
+                ? 'border border-border bg-card font-medium text-foreground shadow-sm'
                 : 'font-normal text-muted-foreground hover:text-foreground',
             )}
           >
@@ -396,7 +400,7 @@ export default function Login() {
         <form onSubmit={handleSubmit} className="space-y-4">
           {tab === 'signup' && (
             <div>
-              <Label htmlFor="fullName" className="text-sm font-medium">
+              <Label htmlFor="fullName" className="text-sm font-medium text-foreground">
                 Full Name
               </Label>
               <Input
@@ -412,7 +416,7 @@ export default function Login() {
           )}
 
           <div>
-            <Label htmlFor="email" className="text-sm font-medium">
+            <Label htmlFor="email" className="text-sm font-medium text-foreground">
               Email
             </Label>
             <Input
@@ -427,7 +431,7 @@ export default function Login() {
           </div>
 
           <div>
-            <Label htmlFor="password" className="text-sm font-medium">
+            <Label htmlFor="password" className="text-sm font-medium text-foreground">
               Password
             </Label>
             <div className="relative mt-1.5">
@@ -455,7 +459,7 @@ export default function Login() {
                   type="button"
                   onClick={handlePasswordReset}
                   disabled={isResettingPassword}
-                  className="text-xs text-[#185FA5] hover:underline disabled:opacity-60"
+                  className="text-xs text-primary hover:underline disabled:opacity-60"
                 >
                   {isResettingPassword ? 'Sending reset link...' : 'Forgot password?'}
                 </button>
@@ -484,18 +488,18 @@ export default function Login() {
             <Button
               type="button"
               variant="outline"
-              className="h-11 w-full rounded-lg border-amber-500/50 text-amber-900 hover:bg-amber-500/10 dark:text-amber-100"
+              className="h-11 w-full rounded-lg border-warning/40 bg-card text-foreground hover:bg-warning/10 dark:border-warning/30 dark:hover:bg-warning/15"
               disabled={loading}
               onClick={() => void handleDemoLogin()}
             >
-              <Presentation className="mr-2 h-4 w-4" />
+              <Presentation className="mr-2 h-4 w-4 text-warning" />
               Demo {DEMO_BRANDING.name} (view only)
             </Button>
           )}
         </form>
 
         <LoginFooter />
-      </LoginFormPanel>
+      </LoginFormColumn>
     </div>
   );
 }
