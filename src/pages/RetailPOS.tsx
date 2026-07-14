@@ -12,6 +12,13 @@ import type { Product } from '@/hooks/useProducts';
 import { InvoiceDialog } from '@/components/receipt/InvoiceDialog';
 import { PaymentDialog, paymentMethodLabel } from '@/components/payment/PaymentDialog';
 import { ReceiptData } from '@/data/receiptData';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import {
   Search,
   Trash2,
@@ -37,6 +44,7 @@ import {
   ScanBarcode,
   CloudOff,
   Wifi,
+  Info,
 } from 'lucide-react';
 import { useSyncStatus } from '@/hooks/useSyncStatus';
 import { generatePlaceholderUrl } from '@/lib/product-images';
@@ -145,7 +153,7 @@ function CartPaymentMethodSection({
   );
 }
 
-/** +/- quantity control sized for thumb taps (min 44px). */
+/** +/- quantity control — min 36×36 touch target (min-h-9 / min-w-9). */
 function CartQtyControl({
   productId,
   quantity,
@@ -167,7 +175,7 @@ function CartQtyControl({
         type="button"
         aria-label="Decrease quantity"
         onClick={() => onStep(productId, quantity - 1)}
-        className="flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-border bg-muted/50 text-foreground active:scale-95 active:bg-muted"
+        className="flex min-h-9 min-w-9 items-center justify-center rounded-lg border border-border bg-muted/50 text-foreground active:scale-95 active:bg-muted sm:min-h-9 sm:min-w-9"
       >
         <Minus className="h-4 w-4" />
       </button>
@@ -182,16 +190,207 @@ function CartQtyControl({
         onKeyDown={(e) => {
           if (e.key === 'Enter') onCommit(productId);
         }}
-        className="min-h-11 w-14 rounded-lg border border-border bg-muted/50 text-center text-sm font-semibold text-foreground tabular-nums focus:outline-none focus:ring-1 focus:ring-primary"
+        className="h-9 min-h-9 w-12 rounded-lg border border-border bg-muted/50 text-center text-sm font-semibold text-foreground tabular-nums focus:outline-none focus:ring-1 focus:ring-primary"
       />
       <button
         type="button"
         aria-label="Increase quantity"
         onClick={() => onStep(productId, quantity + 1)}
-        className="flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-border bg-muted/50 text-foreground active:scale-95 active:bg-muted"
+        className="flex min-h-9 min-w-9 items-center justify-center rounded-lg border border-border bg-muted/50 text-foreground active:scale-95 active:bg-muted"
       >
         <Plus className="h-4 w-4" />
       </button>
+    </div>
+  );
+}
+
+/** Cash / Credit segmented control — muted tab style so it doesn't compete with the CTA. */
+function SaleTypeTabs({
+  saleType,
+  onCash,
+  onCredit,
+}: {
+  saleType: SaleType;
+  onCash: () => void;
+  onCredit: () => void;
+}) {
+  return (
+    <div className="flex rounded-lg border border-border bg-muted/60 p-1">
+      <button
+        type="button"
+        onClick={onCash}
+        aria-pressed={saleType === 'cash'}
+        className={cn(
+          'flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-md px-3 text-xs font-medium transition-all active:scale-[0.98]',
+          saleType === 'cash'
+            ? 'bg-primary font-semibold text-primary-foreground shadow-sm'
+            : 'text-muted-foreground hover:bg-background/70 hover:text-foreground',
+        )}
+      >
+        <Banknote className="h-3.5 w-3.5" />
+        Cash Sale
+      </button>
+      <button
+        type="button"
+        onClick={onCredit}
+        aria-pressed={saleType === 'credit'}
+        className={cn(
+          'flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-md px-3 text-xs font-medium transition-all active:scale-[0.98]',
+          saleType === 'credit'
+            ? 'bg-primary font-semibold text-primary-foreground shadow-sm'
+            : 'text-muted-foreground hover:bg-background/70 hover:text-foreground',
+        )}
+      >
+        <FileText className="h-3.5 w-3.5" />
+        Credit Sale
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Credit-sale extras (UI only). Deposit fields collapse behind a toggle —
+ * does not clear values or change submit/validation when collapsed.
+ */
+function CreditSaleExtras({
+  total,
+  recordDepositNow,
+  onRecordDepositNowChange,
+  creditDeposit,
+  onCreditDepositChange,
+  creditPaymentDescription,
+  onCreditPaymentDescriptionChange,
+  creditPaymentMethod,
+  onCreditPaymentMethodChange,
+  consignmentInfo,
+  onConsignmentInfoChange,
+  invoiceDate,
+  onInvoiceDateChange,
+}: {
+  total: number;
+  recordDepositNow: boolean;
+  onRecordDepositNowChange: (value: boolean) => void;
+  creditDeposit: string;
+  onCreditDepositChange: (value: string) => void;
+  creditPaymentDescription: string;
+  onCreditPaymentDescriptionChange: (value: string) => void;
+  creditPaymentMethod: CreditDepositMethod;
+  onCreditPaymentMethodChange: (value: CreditDepositMethod) => void;
+  consignmentInfo: string;
+  onConsignmentInfoChange: (value: string) => void;
+  invoiceDate: string;
+  onInvoiceDateChange: (value: string) => void;
+}) {
+  return (
+    <div className="space-y-3 rounded-lg border border-border/80 bg-muted/30 p-3 text-xs text-muted-foreground">
+      <div>
+        <p className="mb-0.5 text-sm font-medium text-foreground">Credit sale</p>
+        <p className="leading-relaxed">
+          An invoice will be added to the customer&apos;s balance. Optionally record a deposit
+          now; the remainder stays on account.
+        </p>
+      </div>
+
+      <label className="flex cursor-pointer items-center gap-2.5 rounded-md border border-border/60 bg-background/60 px-2.5 py-2">
+        <Checkbox
+          checked={recordDepositNow}
+          onCheckedChange={(checked) => onRecordDepositNowChange(checked === true)}
+        />
+        <span className="text-sm font-medium text-foreground">Record a deposit now?</span>
+      </label>
+
+      {/* Smooth expand/collapse — UI visibility only; field state is preserved when collapsed */}
+      <div
+        className={cn(
+          'grid transition-[grid-template-rows,opacity] duration-200 ease-in-out',
+          recordDepositNow ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',
+        )}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <div className="space-y-2 pb-1 pt-0.5">
+            <Input
+              type="text"
+              inputMode="decimal"
+              pattern="[0-9]*"
+              placeholder={`Deposit amount (max ${fc(total)})`}
+              value={creditDeposit}
+              onChange={(e) => onCreditDepositChange(e.target.value)}
+              className="h-9 min-h-9 border-border/70 bg-background text-xs"
+            />
+            <Input
+              placeholder="Deposit note (optional)"
+              value={creditPaymentDescription}
+              onChange={(e) => onCreditPaymentDescriptionChange(e.target.value)}
+              className="h-9 min-h-9 border-border/70 bg-background text-xs"
+            />
+            <p className="text-[11px] text-muted-foreground">Deposit paid as</p>
+            <div className="grid grid-cols-3 gap-2">
+              {(
+                [
+                  { id: 'cash' as const, icon: Banknote, label: 'Cash' },
+                  { id: 'card' as const, icon: CreditCard, label: 'Card' },
+                  { id: 'qr' as const, icon: QrCode, label: 'QR' },
+                ]
+              ).map(({ id, icon: Icon, label }) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => onCreditPaymentMethodChange(id)}
+                  className={cn(
+                    'flex min-h-9 items-center justify-center gap-1 rounded-md border text-[11px] font-medium transition-all active:scale-95',
+                    creditPaymentMethod === id
+                      ? 'border-primary/40 bg-primary/10 text-primary'
+                      : 'border-border/60 bg-background text-muted-foreground hover:bg-muted/60',
+                  )}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <div className="space-y-1.5 pt-1">
+              <div className="flex items-center gap-1.5">
+                <p className="text-[11px] text-muted-foreground">Consignment / plate no.</p>
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        className="inline-flex text-muted-foreground hover:text-foreground"
+                        aria-label="About consignment / plate number"
+                      >
+                        <Info className="h-3.5 w-3.5" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-[240px] text-xs">
+                      Optional vehicle plate or consignment reference for delivery paperwork.
+                      Leave blank if not applicable.
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                <span className="text-[10px] text-muted-foreground/80">(optional)</span>
+              </div>
+              <Input
+                placeholder="e.g. KDA 123X"
+                value={consignmentInfo}
+                onChange={(e) => onConsignmentInfoChange(e.target.value)}
+                className="h-9 min-h-9 border-border/70 bg-background text-xs"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-1 border-t border-border/50 pt-2">
+        <p className="text-[11px] text-muted-foreground">Invoice Date</p>
+        <Input
+          type="date"
+          value={invoiceDate}
+          onChange={(e) => onInvoiceDateChange(e.target.value)}
+          className="h-9 min-h-9 border-border/70 bg-background text-xs"
+        />
+      </div>
     </div>
   );
 }
@@ -269,9 +468,11 @@ function CartTotalsSection({
         </div>
       </div>
 
-      <div className="flex justify-between border-t border-border pt-2 text-lg font-bold text-foreground">
-        <span>Total</span>
-        <span className="tabular-nums">{fc(total)}</span>
+      <div className="flex items-baseline justify-between border-t border-border pt-3">
+        <span className="text-base font-semibold text-foreground">Total</span>
+        <span className="text-2xl font-bold tabular-nums tracking-tight text-foreground">
+          {fc(total)}
+        </span>
       </div>
     </div>
   );
@@ -307,6 +508,8 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
   const [creditDeposit, setCreditDeposit] = useState('');
   const [creditPaymentDescription, setCreditPaymentDescription] = useState('');
   const [creditPaymentMethod, setCreditPaymentMethod] = useState<CreditDepositMethod>('cash');
+  /** UI-only: hides deposit fields; does not clear values or change submit logic. */
+  const [recordDepositNow, setRecordDepositNow] = useState(false);
   const [invoiceDate, setInvoiceDate] = useState(
     () => new Date().toISOString().slice(0, 10),
   );
@@ -852,8 +1055,9 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                 totalItems > 0 && 'pb-28 lg:pb-4',
               )}
             >
+              {/* Dev-only offline cache banner — stripped from production builds via Vite */}
               {import.meta.env.DEV && (
-                <div className="mb-2 rounded border border-dashed border-warning/40 bg-warning/5 px-2 py-1 text-[10px] text-muted-foreground">
+                <div className="mb-2 rounded border border-dashed border-border bg-muted/40 px-2 py-1 text-[10px] text-muted-foreground">
                   Cache: {debugOfflineCacheKey} | Source: {debugLastDataSource}
                 </div>
               )}
@@ -867,7 +1071,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
               ) : (
               <>
               {productViewMode === 'card' ? (
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+                <div className="grid auto-rows-min content-start gap-2 sm:gap-3 [grid-template-columns:repeat(auto-fill,minmax(9.5rem,1fr))] sm:[grid-template-columns:repeat(auto-fill,minmax(11rem,1fr))] lg:[grid-template-columns:repeat(auto-fill,minmax(10.5rem,1fr))] xl:[grid-template-columns:repeat(auto-fill,minmax(12rem,1fr))]">
                   {filteredProducts.map((product) => {
                     const cartItem = cart.find(
                       (c) => c.product.id === product.id
@@ -1132,54 +1336,32 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
 
                 {/* Sale Type Toggle */}
                 <div className="space-y-2 border-b border-border px-3 py-2">
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSaleType('cash');
-                        setConsignmentInfo('');
-                        setCreditDeposit('');
-                        setCreditPaymentDescription('');
-                        setCreditPaymentMethod('cash');
-                        setInvoiceDate(new Date().toISOString().slice(0, 10));
-                        if (saleType === 'credit') setSelectedCustomer(null);
-                      }}
-                      className={cn(
-                        'flex min-h-11 flex-1 items-center justify-center gap-1 rounded-lg px-3 text-xs font-semibold transition-all active:scale-95',
-                        saleType === 'cash'
-                          ? 'border border-success/30 bg-success/15 text-success'
-                          : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                      )}
-                    >
-                      <Banknote className="h-3.5 w-3.5" />
-                      Cash Sale
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSaleType('credit');
-                        if (!selectedCustomer) setShowCustomerPicker(true);
-                      }}
-                      className={cn(
-                        'flex min-h-11 flex-1 items-center justify-center gap-1 rounded-lg px-3 text-xs font-semibold transition-all active:scale-95',
-                        saleType === 'credit'
-                          ? 'border border-warning/30 bg-warning/15 text-warning'
-                          : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                      )}
-                    >
-                      <FileText className="h-3.5 w-3.5" />
-                      Credit Sale
-                    </button>
-                  </div>
+                  <SaleTypeTabs
+                    saleType={saleType}
+                    onCash={() => {
+                      setSaleType('cash');
+                      setConsignmentInfo('');
+                      setCreditDeposit('');
+                      setCreditPaymentDescription('');
+                      setCreditPaymentMethod('cash');
+                      setRecordDepositNow(false);
+                      setInvoiceDate(new Date().toISOString().slice(0, 10));
+                      if (saleType === 'credit') setSelectedCustomer(null);
+                    }}
+                    onCredit={() => {
+                      setSaleType('credit');
+                      if (!selectedCustomer) setShowCustomerPicker(true);
+                    }}
+                  />
                   {/* Customer picker for credit sales */}
                   {saleType === 'credit' && !showCustomerPicker && (
                     <>
                       {selectedCustomer ? (
-                        <div className="flex items-center justify-between p-2 bg-warning/5 border border-warning/20 rounded text-sm">
+                        <div className="flex items-center justify-between rounded border border-border bg-muted/40 p-2 text-sm">
                           <div className="flex items-center gap-2">
-                            <User className="w-4 h-4 text-warning" />
+                            <User className="h-4 w-4 text-muted-foreground" />
                             <div>
-                              <p className="font-semibold text-foreground text-xs">
+                              <p className="text-xs font-semibold text-foreground">
                                 {getCustomerDisplayName(selectedCustomer)}
                               </p>
                               <p className="text-[10px] text-muted-foreground">
@@ -1190,29 +1372,31 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                             </div>
                           </div>
                           <button
+                            type="button"
                             onClick={() => {
                               setSelectedCustomer(null);
                               setShowCustomerPicker(true);
                             }}
-                            className="text-muted-foreground hover:text-foreground"
+                            className="flex min-h-9 min-w-9 items-center justify-center text-muted-foreground hover:text-foreground"
                           >
-                            <X className="w-3.5 h-3.5" />
+                            <X className="h-3.5 w-3.5" />
                           </button>
                         </div>
                       ) : (
                         <button
+                          type="button"
                           onClick={() => setShowCustomerPicker(true)}
-                          className="w-full p-2 border border-dashed border-warning/40 rounded text-warning text-xs font-medium flex items-center justify-center gap-1.5 hover:bg-warning/5 transition-colors"
+                          className="flex w-full min-h-9 items-center justify-center gap-1.5 rounded border border-dashed border-border p-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/50"
                         >
-                          <UserPlus className="w-3.5 h-3.5" />
+                          <UserPlus className="h-3.5 w-3.5" />
                           Select Customer
                         </button>
                       )}
                     </>
                   )}
                   {showCustomerPicker && (
-                    <div className="border border-border rounded bg-card shadow-lg max-h-48 overflow-hidden">
-                      <div className="p-2 border-b border-border">
+                    <div className="max-h-48 overflow-hidden rounded border border-border bg-card shadow-lg">
+                      <div className="border-b border-border p-2">
                         <Input
                           placeholder="Search customers..."
                           value={customerSearchQuery}
@@ -1223,19 +1407,20 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                       </div>
                       <div className="max-h-32 overflow-y-auto">
                         {filteredCustomers.length === 0 ? (
-                          <p className="text-xs text-muted-foreground text-center py-3">
+                          <p className="py-3 text-center text-xs text-muted-foreground">
                             No customers found
                           </p>
                         ) : (
                           filteredCustomers.map((customer) => (
                             <button
                               key={customer.id}
+                              type="button"
                               onClick={() => {
                                 setSelectedCustomer(customer);
                                 setShowCustomerPicker(false);
                                 setCustomerSearchQuery('');
                               }}
-                              className="w-full text-left px-3 py-2 hover:bg-muted transition-colors flex items-center justify-between text-xs"
+                              className="flex w-full items-center justify-between px-3 py-2 text-left text-xs transition-colors hover:bg-muted"
                             >
                               <div>
                                 <p className="font-medium text-foreground">
@@ -1247,7 +1432,10 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                               </div>
                               <div className="text-right">
                                 {customer.credit_balance > 0 && (
-                                  <Badge variant="outline" className="text-[10px] text-warning border-warning/30">
+                                  <Badge
+                                    variant="outline"
+                                    className="border-border text-[10px] text-muted-foreground"
+                                  >
                                     {fc(customer.credit_balance)}
                                   </Badge>
                                 )}
@@ -1256,11 +1444,11 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                           ))
                         )}
                       </div>
-                      <div className="p-2 border-t border-border">
+                      <div className="border-t border-border p-2">
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="w-full text-xs h-6"
+                          className="h-6 w-full text-xs"
                           onClick={() => {
                             setShowCustomerPicker(false);
                             setCustomerSearchQuery('');
@@ -1298,42 +1486,42 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                         value={walkInCustomerAddress}
                         onChange={(e) => setWalkInCustomerAddress(e.target.value)}
                         rows={2}
-                        className="text-xs min-h-[52px] resize-y"
+                        className="min-h-[52px] resize-y text-xs"
                       />
                     </div>
                   )}
                 </div>
 
-                {/* Cart Items */}
-                <div className="flex-1 space-y-2 overflow-y-auto p-3">
+                {/* Scrollable body: items + totals + credit form (whole cart, not items-only) */}
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+                  <div className="space-y-3 p-3">
                   {cart.map((item) => {
                     const unitPrice = getUnitPrice(item);
                     return (
                       <div
                         key={item.product.id}
-                        className="flex gap-2.5 rounded-lg border border-border p-2.5"
+                        className="flex gap-3 rounded-lg border border-border p-4"
                       >
                         <img
                           src={item.product.image || generatePlaceholderUrl(item.product.name)}
                           alt={item.product.name}
-                          className="h-11 w-11 rounded object-cover"
+                          className="h-12 w-12 shrink-0 rounded object-cover"
                         />
                         <div className="min-w-0 flex-1">
                           <div className="flex items-start justify-between gap-2">
-                            <p className="truncate text-sm font-semibold text-foreground">
+                            <p className="text-sm font-semibold leading-snug text-foreground">
                               {item.product.name}
                             </p>
                             <Button
                               size="icon"
                               variant="ghost"
-                              className="min-h-11 min-w-11 shrink-0 text-destructive hover:text-destructive"
+                              className="min-h-9 min-w-9 shrink-0 text-destructive hover:text-destructive"
                               onClick={() => removeFromCart(item.product.id)}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
-                          <div className="mt-2 flex flex-wrap items-center gap-2">
-                            {/* Editable unit price */}
+                          <div className="mt-3 flex flex-wrap items-center gap-2">
                             <div className="relative w-24">
                               <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">
                                 {CURRENCY_SYMBOL}
@@ -1352,7 +1540,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                                 onKeyDown={(e) => {
                                   if (e.key === 'Enter') commitPrice(item.product.id);
                                 }}
-                                className="min-h-11 w-full rounded-lg border border-border bg-muted/50 pl-8 pr-1 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                                className="h-9 min-h-9 w-full rounded-lg border border-border bg-muted/50 pl-8 pr-1 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                               />
                             </div>
                             <span className="text-xs text-muted-foreground">×</span>
@@ -1373,7 +1561,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                                 updateCartQuantity(id, next);
                               }}
                             />
-                            <span className="ml-auto whitespace-nowrap text-sm font-bold tabular-nums text-foreground">
+                            <span className="ml-auto text-right text-base font-bold tabular-nums text-foreground">
                               {fc(unitPrice * item.quantity)}
                             </span>
                           </div>
@@ -1381,10 +1569,9 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                       </div>
                     );
                   })}
-                </div>
+                  </div>
 
-                {/* Totals + Payment + CTA */}
-                <div className="p-3 border-t border-border space-y-3">
+                  <div className="space-y-3 border-t border-border p-3">
                   <CartTotalsSection
                     subtotal={subtotal}
                     discountMode={discountMode}
@@ -1405,76 +1592,29 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                   )}
 
                   {saleType === 'credit' && (
-                    <div className="p-2 bg-warning/5 border border-warning/20 rounded text-xs text-muted-foreground space-y-2">
-                      <p className="font-semibold text-warning mb-0.5">Credit Sale</p>
-                      <p>
-                        An invoice will be added to the customer&apos;s balance. Optionally record a
-                        deposit now; the remainder stays on account.
-                      </p>
-                      <Input
-                        type="text"
-                        inputMode="decimal"
-                        pattern="[0-9]*"
-                        min="0"
-                        placeholder={`Deposit amount (max ${fc(total)})`}
-                        value={creditDeposit}
-                        onChange={(e) => setCreditDeposit(e.target.value)}
-                        className="min-h-11 text-sm"
-                      />
-                      <Input
-                        placeholder="Deposit note (optional)"
-                        value={creditPaymentDescription}
-                        onChange={(e) => setCreditPaymentDescription(e.target.value)}
-                        className="min-h-11 text-sm"
-                      />
-                      <p className="text-[11px] text-muted-foreground">Deposit paid as</p>
-                      <div className="grid grid-cols-3 gap-2">
-                        {(
-                          [
-                            { id: 'cash' as const, icon: Banknote, label: 'Cash' },
-                            { id: 'card' as const, icon: CreditCard, label: 'Card' },
-                            { id: 'qr' as const, icon: QrCode, label: 'QR' },
-                          ]
-                        ).map(({ id, icon: Icon, label }) => (
-                          <button
-                            key={id}
-                            type="button"
-                            onClick={() => setCreditPaymentMethod(id)}
-                            className={cn(
-                              'flex min-h-11 items-center justify-center gap-1 rounded-lg text-[11px] font-medium transition-all active:scale-95',
-                              creditPaymentMethod === id
-                                ? 'bg-primary text-primary-foreground'
-                                : 'bg-muted text-muted-foreground hover:bg-muted/80',
-                            )}
-                          >
-                            <Icon className="h-3.5 w-3.5" />
-                            {label}
-                          </button>
-                        ))}
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <Input
-                          placeholder="Consignment / plate no."
-                          value={consignmentInfo}
-                          onChange={(e) => setConsignmentInfo(e.target.value)}
-                          className="col-span-2 min-h-11 text-sm"
-                        />
-                        <div className="col-span-2 space-y-1">
-                          <p className="text-[11px] text-muted-foreground">Invoice Date</p>
-                          <Input
-                            type="date"
-                            value={invoiceDate}
-                            onChange={(e) => setInvoiceDate(e.target.value)}
-                            className="min-h-11 text-sm"
-                          />
-                        </div>
-                      </div>
-                    </div>
+                    <CreditSaleExtras
+                      total={total}
+                      recordDepositNow={recordDepositNow}
+                      onRecordDepositNowChange={setRecordDepositNow}
+                      creditDeposit={creditDeposit}
+                      onCreditDepositChange={setCreditDeposit}
+                      creditPaymentDescription={creditPaymentDescription}
+                      onCreditPaymentDescriptionChange={setCreditPaymentDescription}
+                      creditPaymentMethod={creditPaymentMethod}
+                      onCreditPaymentMethodChange={setCreditPaymentMethod}
+                      consignmentInfo={consignmentInfo}
+                      onConsignmentInfoChange={setConsignmentInfo}
+                      invoiceDate={invoiceDate}
+                      onInvoiceDateChange={setInvoiceDate}
+                    />
                   )}
+                  </div>
 
+                  {/* Sticky CTA inside scroll area — always reachable after expanding deposit */}
+                  <div className="sticky bottom-0 z-10 border-t border-border bg-card p-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] shadow-[0_-4px_12px_-4px_rgba(0,0,0,0.08)]">
                   <Button
                     className={cn(
-                      'min-h-12 w-full text-base font-semibold active:scale-95',
+                      'min-h-12 w-full text-base font-bold shadow-sm active:scale-95',
                       saleType === 'credit'
                         ? 'bg-warning text-warning-foreground hover:bg-warning/90 active:bg-warning/80'
                         : 'active:bg-primary/90',
@@ -1499,18 +1639,19 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                       `Complete Sale — ${fc(total)}`
                     )}
                   </Button>
+                  </div>
                 </div>
               </div>
             </div>
           )}
 
           {/* ── Desktop Cart Sidebar (hidden on mobile) ── */}
-          <div className="hidden lg:flex w-96 bg-card border-l border-border flex-col h-full shrink-0">
+          <div className="hidden h-full w-96 shrink-0 flex-col border-l border-border bg-card lg:flex">
             {/* Cart Header */}
-            <div className="p-4 border-b border-border">
-              <div className="flex items-center justify-between mb-1">
-                <h2 className="font-bold text-lg text-foreground flex items-center gap-2">
-                  <ShoppingCart className="w-5 h-5" />
+            <div className="shrink-0 border-b border-border p-4">
+              <div className="mb-1 flex items-center justify-between">
+                <h2 className="flex items-center gap-2 text-lg font-bold text-foreground">
+                  <ShoppingCart className="h-5 w-5" />
                   Cart
                 </h2>
                 {cart.length > 0 && (
@@ -1518,66 +1659,45 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                     variant="ghost"
                     size="sm"
                     onClick={clearCart}
-                    className="text-destructive hover:text-destructive text-xs"
+                    className="text-xs text-destructive hover:text-destructive"
                   >
                     Clear
                   </Button>
                 )}
               </div>
               {totalItems > 0 && (
-                <p className="text-sm text-muted-foreground">
-                  {totalItems} items
-                </p>
+                <p className="text-sm text-muted-foreground">{totalItems} items</p>
               )}
 
-              {/* Sale Type Toggle */}
-              <div className="flex gap-2 mt-3">
-                <button
-                  onClick={() => {
+              <div className="mt-3">
+                <SaleTypeTabs
+                  saleType={saleType}
+                  onCash={() => {
                     setSaleType('cash');
                     setConsignmentInfo('');
                     setCreditDeposit('');
                     setCreditPaymentDescription('');
                     setCreditPaymentMethod('cash');
+                    setRecordDepositNow(false);
                     setInvoiceDate(new Date().toISOString().slice(0, 10));
                     if (saleType === 'credit') setSelectedCustomer(null);
                   }}
-                  className={cn(
-                    'flex-1 py-1.5 px-3 rounded text-xs font-semibold transition-all flex items-center justify-center gap-1',
-                    saleType === 'cash'
-                      ? 'bg-success/15 text-success border border-success/30'
-                      : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                  )}
-                >
-                  <Banknote className="w-3 h-3" />
-                  Cash Sale
-                </button>
-                <button
-                  onClick={() => {
+                  onCredit={() => {
                     setSaleType('credit');
                     if (!selectedCustomer) setShowCustomerPicker(true);
                   }}
-                  className={cn(
-                    'flex-1 py-1.5 px-3 rounded text-xs font-semibold transition-all flex items-center justify-center gap-1',
-                    saleType === 'credit'
-                      ? 'bg-warning/15 text-warning border border-warning/30'
-                      : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                  )}
-                >
-                  <FileText className="w-3 h-3" />
-                  Credit Sale
-                </button>
+                />
               </div>
 
               {/* Customer picker for credit sales */}
               {saleType === 'credit' && (
                 <div className="mt-2">
                   {selectedCustomer ? (
-                    <div className="flex items-center justify-between p-2 bg-warning/5 border border-warning/20 rounded text-sm">
+                    <div className="flex items-center justify-between rounded border border-border bg-muted/40 p-2 text-sm">
                       <div className="flex items-center gap-2">
-                        <User className="w-4 h-4 text-warning" />
+                        <User className="h-4 w-4 text-muted-foreground" />
                         <div>
-                          <p className="font-semibold text-foreground text-xs">
+                          <p className="text-xs font-semibold text-foreground">
                             {getCustomerDisplayName(selectedCustomer)}
                           </p>
                           <p className="text-[10px] text-muted-foreground">
@@ -1588,21 +1708,23 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                         </div>
                       </div>
                       <button
+                        type="button"
                         onClick={() => {
                           setSelectedCustomer(null);
                           setShowCustomerPicker(true);
                         }}
-                        className="text-muted-foreground hover:text-foreground"
+                        className="flex min-h-9 min-w-9 items-center justify-center text-muted-foreground hover:text-foreground"
                       >
-                        <X className="w-3.5 h-3.5" />
+                        <X className="h-3.5 w-3.5" />
                       </button>
                     </div>
                   ) : (
                     <button
+                      type="button"
                       onClick={() => setShowCustomerPicker(true)}
-                      className="w-full p-2 border border-dashed border-warning/40 rounded text-warning text-xs font-medium flex items-center justify-center gap-1.5 hover:bg-warning/5 transition-colors"
+                      className="flex w-full min-h-9 items-center justify-center gap-1.5 rounded border border-dashed border-border p-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/50"
                     >
-                      <UserPlus className="w-3.5 h-3.5" />
+                      <UserPlus className="h-3.5 w-3.5" />
                       Select Customer
                     </button>
                   )}
@@ -1611,8 +1733,8 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
 
               {/* Customer picker dropdown */}
               {showCustomerPicker && (
-                <div className="mt-2 border border-border rounded bg-card shadow-lg max-h-48 overflow-hidden">
-                  <div className="p-2 border-b border-border">
+                <div className="mt-2 max-h-48 overflow-hidden rounded border border-border bg-card shadow-lg">
+                  <div className="border-b border-border p-2">
                     <Input
                       placeholder="Search customers..."
                       value={customerSearchQuery}
@@ -1623,19 +1745,20 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                   </div>
                   <div className="max-h-32 overflow-y-auto">
                     {filteredCustomers.length === 0 ? (
-                      <p className="text-xs text-muted-foreground text-center py-3">
+                      <p className="py-3 text-center text-xs text-muted-foreground">
                         No customers found
                       </p>
                     ) : (
                       filteredCustomers.map((customer) => (
                         <button
                           key={customer.id}
+                          type="button"
                           onClick={() => {
                             setSelectedCustomer(customer);
                             setShowCustomerPicker(false);
                             setCustomerSearchQuery('');
                           }}
-                          className="w-full text-left px-3 py-2 hover:bg-muted transition-colors flex items-center justify-between text-xs"
+                          className="flex w-full items-center justify-between px-3 py-2 text-left text-xs transition-colors hover:bg-muted"
                         >
                           <div>
                             <p className="font-medium text-foreground">
@@ -1647,7 +1770,10 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                           </div>
                           <div className="text-right">
                             {customer.credit_balance > 0 && (
-                              <Badge variant="outline" className="text-[10px] text-warning border-warning/30">
+                              <Badge
+                                variant="outline"
+                                className="border-border text-[10px] text-muted-foreground"
+                              >
                                 {fc(customer.credit_balance)}
                               </Badge>
                             )}
@@ -1656,11 +1782,11 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                       ))
                     )}
                   </div>
-                  <div className="p-2 border-t border-border">
+                  <div className="border-t border-border p-2">
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="w-full text-xs h-6"
+                      className="h-6 w-full text-xs"
                       onClick={() => {
                         setShowCustomerPicker(false);
                         setCustomerSearchQuery('');
@@ -1696,21 +1822,20 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                     value={walkInCustomerAddress}
                     onChange={(e) => setWalkInCustomerAddress(e.target.value)}
                     rows={2}
-                    className="text-xs min-h-[52px] resize-y"
+                    className="min-h-[52px] resize-y text-xs"
                   />
                 </div>
               )}
             </div>
 
-            {/* Cart Items */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {/* Scrollable body: items + totals + credit form (whole cart, not items-only) */}
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+              <div className="space-y-3 p-4">
               {cart.length === 0 && (
-                <div className="text-center py-12 text-muted-foreground">
-                  <ShoppingCart className="w-10 h-10 mx-auto mb-3 opacity-50" />
+                <div className="py-12 text-center text-muted-foreground">
+                  <ShoppingCart className="mx-auto mb-3 h-10 w-10 opacity-50" />
                   <p className="text-sm">Cart is empty</p>
-                  <p className="text-xs mt-1">
-                    Tap a product or scan barcode
-                  </p>
+                  <p className="mt-1 text-xs">Tap a product or scan barcode</p>
                 </div>
               )}
 
@@ -1719,29 +1844,29 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                 return (
                   <div
                     key={item.product.id}
-                    className="flex gap-3 rounded border border-border p-3"
+                    className="flex gap-3 rounded-lg border border-border p-4"
                   >
                     <img
                       src={item.product.image || generatePlaceholderUrl(item.product.name)}
                       alt={item.product.name}
-                      className="h-12 w-12 rounded object-cover"
+                      className="h-12 w-12 shrink-0 rounded object-cover"
                     />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-start justify-between gap-2">
-                        <p className="truncate text-sm font-semibold text-foreground">
+                        <p className="text-sm font-semibold leading-snug text-foreground">
                           {item.product.name}
                         </p>
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="min-h-11 min-w-11 shrink-0 text-destructive hover:text-destructive"
+                          className="min-h-9 min-w-9 shrink-0 text-destructive hover:text-destructive"
                           onClick={() => removeFromCart(item.product.id)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
-                      <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <div className="relative min-w-0 flex-1">
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <div className="relative min-w-0 flex-1 basis-20">
                           <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">
                             {CURRENCY_SYMBOL}
                           </span>
@@ -1759,7 +1884,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                             onKeyDown={(e) => {
                               if (e.key === 'Enter') commitPrice(item.product.id);
                             }}
-                            className="min-h-11 w-full rounded-lg border border-border bg-muted/50 pl-7 pr-1 text-xs font-medium tabular-nums text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                            className="h-9 min-h-9 w-full rounded-lg border border-border bg-muted/50 pl-7 pr-1 text-xs font-medium tabular-nums text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                           />
                         </div>
                         <span className="shrink-0 text-xs text-muted-foreground">×</span>
@@ -1780,7 +1905,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                             updateCartQuantity(id, next);
                           }}
                         />
-                        <span className="shrink-0 whitespace-nowrap text-sm font-bold tabular-nums text-foreground">
+                        <span className="ml-auto min-w-[4.5rem] text-right text-base font-bold tabular-nums text-foreground">
                           {fc(unitPrice * item.quantity)}
                         </span>
                       </div>
@@ -1788,136 +1913,91 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                   </div>
                 );
               })}
-            </div>
-
-            {/* Payment & Totals */}
-            {cart.length > 0 && (
-              <div className="p-4 border-t border-border space-y-4">
-                <CartTotalsSection
-                  subtotal={subtotal}
-                  discountMode={discountMode}
-                  onDiscountModeChange={setDiscountMode}
-                  discountInput={discountInput}
-                  onDiscountInputChange={setDiscountInput}
-                  discountAmount={discountAmount}
-                  total={total}
-                />
-
-                {saleType === 'cash' && (
-                  <CartPaymentMethodSection
-                    method={cashPaymentMethod}
-                    onMethodChange={setCashPaymentMethod}
-                    reference={cashPaymentReference}
-                    onReferenceChange={setCashPaymentReference}
-                  />
-                )}
-
-                {/* Credit sale info */}
-                {saleType === 'credit' && (
-                  <div className="p-2 bg-warning/5 border border-warning/20 rounded text-xs text-muted-foreground space-y-2">
-                    <p className="font-semibold text-warning mb-0.5">Credit Sale</p>
-                    <p>
-                      An invoice will be added to the customer&apos;s balance. Optionally record a
-                      deposit now; the remainder stays on account.
-                    </p>
-                    <Input
-                      type="text"
-                      inputMode="decimal"
-                      pattern="[0-9]*"
-                      placeholder={`Deposit amount (max ${fc(total)})`}
-                      value={creditDeposit}
-                      onChange={(e) => setCreditDeposit(e.target.value)}
-                      className="min-h-11 text-sm"
-                    />
-                    <Input
-                      placeholder="Deposit note (optional)"
-                      value={creditPaymentDescription}
-                      onChange={(e) => setCreditPaymentDescription(e.target.value)}
-                      className="min-h-11 text-sm"
-                    />
-                    <p className="text-[11px] text-muted-foreground">Deposit paid as</p>
-                    <div className="grid grid-cols-3 gap-2">
-                      {(
-                        [
-                          { id: 'cash' as const, icon: Banknote, label: 'Cash' },
-                          { id: 'card' as const, icon: CreditCard, label: 'Card' },
-                          { id: 'qr' as const, icon: QrCode, label: 'QR' },
-                        ]
-                      ).map(({ id, icon: Icon, label }) => (
-                        <button
-                          key={id}
-                          type="button"
-                          onClick={() => setCreditPaymentMethod(id)}
-                          className={cn(
-                            'flex min-h-11 items-center justify-center gap-1 rounded-lg text-[11px] font-medium transition-all active:scale-95',
-                            creditPaymentMethod === id
-                              ? 'bg-primary text-primary-foreground'
-                              : 'bg-muted text-muted-foreground hover:bg-muted/80',
-                          )}
-                        >
-                          <Icon className="h-3.5 w-3.5" />
-                          {label}
-                        </button>
-                      ))}
-                    </div>
-                    <Input
-                      placeholder="Consignment / plate no."
-                      value={consignmentInfo}
-                      onChange={(e) => setConsignmentInfo(e.target.value)}
-                      className="min-h-11 text-sm"
-                    />
-                    <div className="space-y-1">
-                      <p className="text-[11px] text-muted-foreground">Invoice Date</p>
-                      <Input
-                        type="date"
-                        value={invoiceDate}
-                        onChange={(e) => setInvoiceDate(e.target.value)}
-                        className="min-h-11 text-sm"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Complete Sale */}
-                <Button
-                  className={cn(
-                    'min-h-12 w-full text-base font-semibold active:scale-95',
-                    saleType === 'credit'
-                      ? 'bg-warning text-warning-foreground hover:bg-warning/90 active:bg-warning/80'
-                      : 'active:bg-primary/90',
-                  )}
-                  onClick={handleCompleteSale}
-                  disabled={isProcessing || (saleType === 'credit' && !selectedCustomer)}
-                >
-                  {isProcessing ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                      Processing…
-                    </>
-                  ) : saleType === 'credit' ? (
-                    <>
-                      <FileText className="w-4 h-4 mr-2" />
-                      Create Invoice — {fc(total)}
-                    </>
-                  ) : (
-                    `Complete Sale — ${fc(total)}`
-                  )}
-                </Button>
-
-                {/* Last receipt quick print */}
-                {lastOrder && (
-                  <Button
-                    variant="outline"
-                    className="w-full gap-2 mt-2"
-                    size="sm"
-                    onClick={() => setIsInvoiceOpen(true)}
-                  >
-                    <Printer className="w-4 h-4" />
-                    Reprint #{lastOrder.invoice_number || lastOrder.order_number}
-                  </Button>
-                )}
               </div>
-            )}
+
+              {cart.length > 0 && (
+                <>
+                  <div className="space-y-4 border-t border-border p-4">
+                    <CartTotalsSection
+                      subtotal={subtotal}
+                      discountMode={discountMode}
+                      onDiscountModeChange={setDiscountMode}
+                      discountInput={discountInput}
+                      onDiscountInputChange={setDiscountInput}
+                      discountAmount={discountAmount}
+                      total={total}
+                    />
+
+                    {saleType === 'cash' && (
+                      <CartPaymentMethodSection
+                        method={cashPaymentMethod}
+                        onMethodChange={setCashPaymentMethod}
+                        reference={cashPaymentReference}
+                        onReferenceChange={setCashPaymentReference}
+                      />
+                    )}
+
+                    {saleType === 'credit' && (
+                      <CreditSaleExtras
+                        total={total}
+                        recordDepositNow={recordDepositNow}
+                        onRecordDepositNowChange={setRecordDepositNow}
+                        creditDeposit={creditDeposit}
+                        onCreditDepositChange={setCreditDeposit}
+                        creditPaymentDescription={creditPaymentDescription}
+                        onCreditPaymentDescriptionChange={setCreditPaymentDescription}
+                        creditPaymentMethod={creditPaymentMethod}
+                        onCreditPaymentMethodChange={setCreditPaymentMethod}
+                        consignmentInfo={consignmentInfo}
+                        onConsignmentInfoChange={setConsignmentInfo}
+                        invoiceDate={invoiceDate}
+                        onInvoiceDateChange={setInvoiceDate}
+                      />
+                    )}
+                  </div>
+
+                  {/* Sticky CTA — stays visible while scrolling deposit fields */}
+                  <div className="sticky bottom-0 z-10 space-y-2 border-t border-border bg-card p-4 shadow-[0_-4px_12px_-4px_rgba(0,0,0,0.08)]">
+                    <Button
+                      className={cn(
+                        'min-h-12 w-full text-base font-bold shadow-sm active:scale-95',
+                        saleType === 'credit'
+                          ? 'bg-warning text-warning-foreground hover:bg-warning/90 active:bg-warning/80'
+                          : 'active:bg-primary/90',
+                      )}
+                      onClick={handleCompleteSale}
+                      disabled={isProcessing || (saleType === 'credit' && !selectedCustomer)}
+                    >
+                      {isProcessing ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Processing…
+                        </>
+                      ) : saleType === 'credit' ? (
+                        <>
+                          <FileText className="mr-2 h-4 w-4" />
+                          Create Invoice — {fc(total)}
+                        </>
+                      ) : (
+                        `Complete Sale — ${fc(total)}`
+                      )}
+                    </Button>
+
+                    {lastOrder && (
+                      <Button
+                        variant="outline"
+                        className="w-full gap-2"
+                        size="sm"
+                        onClick={() => setIsInvoiceOpen(true)}
+                      >
+                        <Printer className="h-4 w-4" />
+                        Reprint #{lastOrder.invoice_number || lastOrder.order_number}
+                      </Button>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
 
       {/* Invoice/Receipt Dialog */}
