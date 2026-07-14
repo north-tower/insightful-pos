@@ -42,7 +42,7 @@ export function Header({ onMenuToggle }: HeaderProps) {
         {/* Hamburger — mobile only */}
         <button
           onClick={onMenuToggle}
-          className="lg:hidden p-2 -ml-1 rounded-lg hover:bg-muted transition-colors shrink-0"
+          className="lg:hidden -ml-1 flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg hover:bg-muted transition-colors active:scale-95"
           aria-label="Open menu"
         >
           <Menu className="w-5 h-5 text-foreground" />

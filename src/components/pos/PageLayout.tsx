@@ -19,6 +19,11 @@ interface PageLayoutProps {
   children: React.ReactNode;
   /** If true, the content area uses flex row layout (e.g. POS with cart panel) */
   flexContent?: boolean;
+  /**
+   * Hide the mobile bottom tab bar (e.g. while the POS cart/checkout sheet is open
+   * so the sticky Complete Sale bar isn't competing for thumb space).
+   */
+  hideBottomNav?: boolean;
 }
 
 interface BottomNavItem {
@@ -46,11 +51,18 @@ const retailBottomNav: BottomNavItem[] = [
  * Desktop: sidebar always visible on the left.
  * Mobile: sidebar hidden behind a hamburger menu overlay + bottom nav bar.
  */
-export function PageLayout({ activeTab, onNavigate, children, flexContent }: PageLayoutProps) {
+export function PageLayout({
+  activeTab,
+  onNavigate,
+  children,
+  flexContent,
+  hideBottomNav = false,
+}: PageLayoutProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { isRestaurant } = useBusinessMode();
 
   const bottomNav = isRestaurant ? restaurantBottomNav : retailBottomNav;
+  const showBottomNav = !hideBottomNav;
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
@@ -66,39 +78,59 @@ export function PageLayout({ activeTab, onNavigate, children, flexContent }: Pag
         <Header onMenuToggle={() => setMobileMenuOpen(true)} />
 
         {flexContent ? (
-          <div className="flex-1 flex flex-col lg:flex-row overflow-hidden pb-14 lg:pb-0">
+          <div
+            className={cn(
+              'flex-1 flex flex-col lg:flex-row overflow-hidden lg:pb-0',
+              showBottomNav
+                ? 'pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))]'
+                : 'pb-[env(safe-area-inset-bottom,0px)]',
+            )}
+          >
             {children}
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6 pb-16 lg:pb-6">
+          <div
+            className={cn(
+              'flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6 lg:pb-6',
+              showBottomNav
+                ? 'pb-[calc(4rem+env(safe-area-inset-bottom,0px))]'
+                : 'pb-4',
+            )}
+          >
             {children}
           </div>
         )}
 
-        {/* Mobile Bottom Navigation */}
-        <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-card border-t border-border z-40">
-          <div className="flex items-center justify-around h-14">
-            {bottomNav.map((item) => {
-              const Icon = item.icon;
-              const isActive = activeTab === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => onNavigate(item.id)}
-                  className={cn(
-                    'flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors',
-                    isActive
-                      ? 'text-primary'
-                      : 'text-muted-foreground active:text-foreground'
-                  )}
-                >
-                  <Icon className={cn('w-5 h-5', isActive && 'scale-110')} />
-                  <span className="text-[10px] font-medium">{item.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </nav>
+        {/* Mobile Bottom Navigation — Home / POS / History / Customers */}
+        {showBottomNav && (
+          <nav
+            className="lg:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-card"
+            style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+          >
+            <div className="flex h-14 items-center justify-around">
+              {bottomNav.map((item) => {
+                const Icon = item.icon;
+                const isActive = activeTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => onNavigate(item.id)}
+                    className={cn(
+                      'flex min-h-11 min-w-11 flex-1 flex-col items-center justify-center gap-0.5 transition-colors',
+                      isActive
+                        ? 'text-primary'
+                        : 'text-muted-foreground active:text-foreground',
+                    )}
+                  >
+                    <Icon className={cn('h-5 w-5', isActive && 'scale-110')} />
+                    <span className="text-[10px] font-medium">{item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </nav>
+        )}
       </div>
     </div>
   );

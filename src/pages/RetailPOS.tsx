@@ -32,7 +32,13 @@ import {
   QrCode,
   Smartphone,
   Landmark,
+  Minus,
+  Plus,
+  ScanBarcode,
+  CloudOff,
+  Wifi,
 } from 'lucide-react';
+import { useSyncStatus } from '@/hooks/useSyncStatus';
 import { generatePlaceholderUrl } from '@/lib/product-images';
 import { fc, CURRENCY_SYMBOL } from '@/lib/currency';
 import { toast } from 'sonner';
@@ -112,13 +118,13 @@ function CartPaymentMethodSection({
             type="button"
             onClick={() => onMethodChange(id)}
             className={cn(
-              'flex flex-col items-center gap-1 py-2 px-1 rounded-lg border-2 transition-all text-center',
+              'flex min-h-11 flex-col items-center justify-center gap-1 rounded-lg border-2 px-1 py-2 text-center transition-all active:scale-95',
               method === id
                 ? 'border-primary bg-primary/5 text-primary'
                 : 'border-border bg-card text-muted-foreground hover:border-primary/30',
             )}
           >
-            <Icon className="w-4 h-4" />
+            <Icon className="h-4 w-4" />
             <span className="text-[10px] font-medium leading-tight">{label}</span>
           </button>
         ))}
@@ -132,9 +138,60 @@ function CartPaymentMethodSection({
           }
           value={reference}
           onChange={(e) => onReferenceChange(e.target.value)}
-          className="h-8 text-xs"
+          className="min-h-11 text-sm"
         />
       )}
+    </div>
+  );
+}
+
+/** +/- quantity control sized for thumb taps (min 44px). */
+function CartQtyControl({
+  productId,
+  quantity,
+  editingValue,
+  onEditingChange,
+  onCommit,
+  onStep,
+}: {
+  productId: string;
+  quantity: number;
+  editingValue: string | undefined;
+  onEditingChange: (productId: string, value: string) => void;
+  onCommit: (productId: string) => void;
+  onStep: (productId: string, nextQty: number) => void;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <button
+        type="button"
+        aria-label="Decrease quantity"
+        onClick={() => onStep(productId, quantity - 1)}
+        className="flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-border bg-muted/50 text-foreground active:scale-95 active:bg-muted"
+      >
+        <Minus className="h-4 w-4" />
+      </button>
+      <input
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        aria-label="Quantity"
+        value={editingValue ?? quantity}
+        onChange={(e) => onEditingChange(productId, e.target.value)}
+        onBlur={() => onCommit(productId)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') onCommit(productId);
+        }}
+        className="min-h-11 w-14 rounded-lg border border-border bg-muted/50 text-center text-sm font-semibold text-foreground tabular-nums focus:outline-none focus:ring-1 focus:ring-primary"
+      />
+      <button
+        type="button"
+        aria-label="Increase quantity"
+        onClick={() => onStep(productId, quantity + 1)}
+        className="flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-border bg-muted/50 text-foreground active:scale-95 active:bg-muted"
+      >
+        <Plus className="h-4 w-4" />
+      </button>
     </div>
   );
 }
@@ -165,13 +222,13 @@ function CartTotalsSection({
 
       <div className="space-y-1.5">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-muted-foreground text-xs">Discount</span>
-          <div className="flex gap-1">
+          <span className="text-xs text-muted-foreground">Discount</span>
+          <div className="flex gap-2">
             <button
               type="button"
               onClick={() => onDiscountModeChange('amount')}
               className={cn(
-                'px-2 py-0.5 rounded text-[10px] font-medium transition-colors',
+                'min-h-11 min-w-11 rounded-lg px-3 text-xs font-medium transition-colors active:scale-95',
                 discountMode === 'amount'
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-muted text-muted-foreground',
@@ -183,7 +240,7 @@ function CartTotalsSection({
               type="button"
               onClick={() => onDiscountModeChange('percent')}
               className={cn(
-                'px-2 py-0.5 rounded text-[10px] font-medium transition-colors',
+                'min-h-11 min-w-11 rounded-lg px-3 text-xs font-medium transition-colors active:scale-95',
                 discountMode === 'percent'
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-muted text-muted-foreground',
@@ -195,24 +252,24 @@ function CartTotalsSection({
         </div>
         <div className="flex items-center gap-2">
           <Input
-            type="number"
+            type="text"
+            inputMode="decimal"
+            pattern="[0-9]*"
             min="0"
-            step={discountMode === 'percent' ? '1' : '0.01'}
-            max={discountMode === 'percent' ? 100 : undefined}
             placeholder={discountMode === 'percent' ? '0' : '0.00'}
             value={discountInput}
             onChange={(e) => onDiscountInputChange(e.target.value)}
-            className="h-8 text-xs"
+            className="min-h-11 text-sm"
           />
           {discountAmount > 0 && (
-            <span className="text-destructive text-xs font-medium whitespace-nowrap tabular-nums">
+            <span className="whitespace-nowrap text-xs font-medium tabular-nums text-destructive">
               −{fc(discountAmount)}
             </span>
           )}
         </div>
       </div>
 
-      <div className="flex justify-between font-bold text-foreground text-lg border-t border-border pt-2">
+      <div className="flex justify-between border-t border-border pt-2 text-lg font-bold text-foreground">
         <span>Total</span>
         <span className="tabular-nums">{fc(total)}</span>
       </div>
@@ -236,6 +293,8 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
   const { createOrder, recordPayment } = useOrders();
   const { customers, getCustomerDisplayName, refetch: refetchCustomers } = useCustomers();
   const { companyName } = useCompanySettings();
+  // REVIEW: Connectivity for POS banner — wired to existing useSyncStatus (navigator.onLine + outbox).
+  const { isOnline } = useSyncStatus();
   const [searchQuery, setSearchQuery] = useState('');
   // All retail products are under one category – no category filter needed
   const activeCategory = 'all';
@@ -679,22 +738,73 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
   };
 
   return (
-    <PageLayout activeTab="pos" onNavigate={onNavigate} flexContent>
+    <PageLayout
+      activeTab="pos"
+      onNavigate={onNavigate}
+      flexContent
+      // Hide bottom tabs while cart sheet is open so Complete Sale owns thumb space
+      hideBottomNav={mobileCartOpen}
+    >
           {/* Product Grid Area */}
-          <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-            {/* Search + view mode */}
-            <div className="p-2 sm:p-3 lg:p-4 pb-1 sm:pb-2 flex gap-2 sm:gap-3">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+            {/*
+              POS connectivity strip — always visible on mobile cashiers.
+              REVIEW: Uses useSyncStatus (navigator.onLine). Replace/extend if a richer sync context lands.
+            */}
+            <div
+              className={cn(
+                'flex items-center gap-2 border-b px-3 py-2 text-xs lg:hidden',
+                isOnline
+                  ? 'border-border bg-muted/40 text-muted-foreground'
+                  : 'border-destructive/20 bg-destructive/10 text-destructive',
+              )}
+              role="status"
+            >
+              {isOnline ? (
+                <>
+                  <Wifi className="h-3.5 w-3.5 shrink-0 text-success" />
+                  <span>Online</span>
+                </>
+              ) : (
+                <>
+                  <CloudOff className="h-3.5 w-3.5 shrink-0" />
+                  <span>Offline — sale will sync when reconnected</span>
+                </>
+              )}
+            </div>
+
+            {/* Search + scan + view mode */}
+            <div className="flex gap-2 p-2 pb-2 sm:gap-3 sm:p-3 lg:p-4 lg:pb-2">
+              <div className="relative min-w-0 flex-1">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
-                  placeholder="Search products..."
+                  placeholder="Search name, SKU, or barcode…"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 h-9"
+                  // Keep text keyboard so cashiers can search by product name;
+                  // barcode wedges still type into this field. Quantity fields use inputMode=numeric.
+                  className="min-h-11 pl-10 text-base"
                 />
               </div>
-              <div className="flex items-center gap-1 rounded-md border border-border bg-card p-1 shrink-0">
+              {/*
+                STUB: Camera barcode scan affordance only — no scanner SDK wired yet.
+                TODO: Wire to a camera barcode scanner (e.g. BarcodeDetector / html5-qrcode) and set searchQuery / add-to-cart on hit.
+              */}
+              <button
+                type="button"
+                aria-label="Scan barcode"
+                title="Scan barcode"
+                onClick={() => {
+                  // TODO: Implement camera-based barcode scanning
+                  console.log('[RetailPOS] Barcode scan button tapped — scanner not implemented yet');
+                }}
+                className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-foreground active:scale-95 active:bg-muted"
+              >
+                <ScanBarcode className="h-5 w-5" />
+              </button>
+              <div className="flex shrink-0 items-center gap-1 rounded-lg border border-border bg-card p-1">
                 <button
+                  type="button"
                   onClick={() => {
                     setProductViewMode('card');
                     if (typeof window !== 'undefined') {
@@ -702,17 +812,18 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                     }
                   }}
                   className={cn(
-                    'h-7 px-2 rounded text-xs font-medium flex items-center gap-1',
+                    'flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-md px-2 text-xs font-medium active:scale-95',
                     productViewMode === 'card'
                       ? 'bg-primary text-primary-foreground'
                       : 'text-muted-foreground hover:text-foreground'
                   )}
                   title="Card view"
                 >
-                  <LayoutGrid className="w-3.5 h-3.5" />
+                  <LayoutGrid className="h-4 w-4" />
                   <span className="hidden sm:inline">Card</span>
                 </button>
                 <button
+                  type="button"
                   onClick={() => {
                     setProductViewMode('list');
                     if (typeof window !== 'undefined') {
@@ -720,21 +831,27 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                     }
                   }}
                   className={cn(
-                    'h-7 px-2 rounded text-xs font-medium flex items-center gap-1',
+                    'flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-md px-2 text-xs font-medium active:scale-95',
                     productViewMode === 'list'
                       ? 'bg-primary text-primary-foreground'
                       : 'text-muted-foreground hover:text-foreground'
                   )}
                   title="List view"
                 >
-                  <List className="w-3.5 h-3.5" />
+                  <List className="h-4 w-4" />
                   <span className="hidden sm:inline">List</span>
                 </button>
               </div>
             </div>
 
             {/* Product Grid */}
-            <div className="flex-1 overflow-y-auto p-2 sm:p-3 lg:p-4">
+            <div
+              className={cn(
+                'flex-1 overflow-y-auto p-2 sm:p-3 lg:p-4',
+                // Clear sticky mini-cart + action bar on mobile while shopping
+                totalItems > 0 && 'pb-28 lg:pb-4',
+              )}
+            >
               {import.meta.env.DEV && (
                 <div className="mb-2 rounded border border-dashed border-warning/40 bg-warning/5 px-2 py-1 text-[10px] text-muted-foreground">
                   Cache: {debugOfflineCacheKey} | Source: {debugLastDataSource}
@@ -750,7 +867,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
               ) : (
               <>
               {productViewMode === 'card' ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2 sm:gap-3">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
                   {filteredProducts.map((product) => {
                     const cartItem = cart.find(
                       (c) => c.product.id === product.id
@@ -766,14 +883,15 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                     return (
                       <button
                         key={product.id}
+                        type="button"
                         onClick={() => addToCart(product)}
                         disabled={isOutOfStock}
                         className={cn(
-                          'relative bg-card border rounded-lg p-2 sm:p-3 text-left transition-all group',
+                          'group relative min-h-[7.5rem] rounded-lg border bg-card p-2 text-left transition-all active:scale-[0.98] sm:min-h-0 sm:p-3',
                           inCart > 0
                             ? 'border-primary shadow-md'
                             : 'border-border hover:border-primary/40',
-                          isOutOfStock && 'opacity-50 cursor-not-allowed'
+                          isOutOfStock && 'cursor-not-allowed opacity-50'
                         )}
                       >
                         <div className="relative aspect-square rounded overflow-hidden bg-muted mb-2">
@@ -851,7 +969,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                       <div
                         key={product.id}
                         className={cn(
-                          'bg-card border rounded-lg p-2 flex items-center gap-3',
+                          'flex items-center gap-3 rounded-lg border bg-card p-2',
                           inCart > 0 ? 'border-primary' : 'border-border',
                           isOutOfStock && 'opacity-60'
                         )}
@@ -859,21 +977,21 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                         <img
                           src={product.image || generatePlaceholderUrl(product.name)}
                           alt={product.name}
-                          className="w-12 h-12 rounded object-cover shrink-0"
+                          className="h-12 w-12 shrink-0 rounded object-cover"
                         />
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
-                            <p className="text-sm font-semibold text-foreground truncate">{product.name}</p>
+                            <p className="truncate text-sm font-semibold text-foreground">{product.name}</p>
                             {isLowStock && !isOutOfStock && (
-                              <AlertTriangle className="w-3.5 h-3.5 text-warning shrink-0" />
+                              <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-warning" />
                             )}
                             {product.discount && (
-                              <Badge className="bg-destructive text-destructive-foreground text-[10px] px-1.5 py-0">
+                              <Badge className="bg-destructive px-1.5 py-0 text-[10px] text-destructive-foreground">
                                 {product.discount}% OFF
                               </Badge>
                             )}
                           </div>
-                          <div className="flex items-center gap-2 text-xs mt-0.5">
+                          <div className="mt-0.5 flex items-center gap-2 text-xs">
                             <span className="font-bold text-foreground">{fc(product.price)}</span>
                             <span
                               className={cn(
@@ -892,7 +1010,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                               </span>
                             )}
                             {inCart > 0 && (
-                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                              <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">
                                 In cart: {inCart}
                               </Badge>
                             )}
@@ -902,9 +1020,9 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                           size="sm"
                           onClick={() => addToCart(product)}
                           disabled={isOutOfStock}
-                          className="h-8 px-3 shrink-0"
+                          className="min-h-11 shrink-0 px-4 font-semibold active:scale-95 active:bg-primary/90"
                         >
-                          {isOutOfStock ? 'Out' : 'Add'}
+                          {isOutOfStock ? 'Out' : 'Add to Cart'}
                         </Button>
                       </div>
                     );
@@ -923,21 +1041,40 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
             </div>
           </div>
 
-          {/* ── Mobile Floating Cart Button ── */}
+          {/* ── Mobile sticky mini-cart + checkout bar (always visible while cart has items) ── */}
           {totalItems > 0 && !mobileCartOpen && (
-            <button
-              onClick={() => setMobileCartOpen(true)}
-              className="lg:hidden fixed bottom-16 left-1/2 -translate-x-1/2 z-50 bg-primary text-primary-foreground px-5 py-3 rounded-full shadow-xl flex items-center gap-3 active:scale-95 transition-transform"
+            <div
+              className="lg:hidden fixed inset-x-0 z-50 border-t border-border bg-card shadow-[0_-4px_24px_-4px_rgba(0,0,0,0.12)]"
+              style={{
+                bottom: 'calc(3.5rem + env(safe-area-inset-bottom, 0px))',
+              }}
             >
-              <ShoppingCart className="w-5 h-5" />
-              <span className="font-semibold text-sm">
-                View Cart ({totalItems})
-              </span>
-              <span className="font-bold text-sm">
-                {fc(total)}
-              </span>
-            </button>
+              {/* Persistent summary: item count, discount, total */}
+              <div className="flex items-center justify-between gap-3 border-b border-border/60 px-4 py-2 text-sm">
+                <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-muted-foreground">
+                  <span className="font-medium text-foreground">{totalItems} item{totalItems === 1 ? '' : 's'}</span>
+                  {discountAmount > 0 && (
+                    <span className="text-xs text-destructive">−{fc(discountAmount)}</span>
+                  )}
+                </div>
+                <span className="shrink-0 text-base font-bold tabular-nums text-foreground">
+                  {fc(total)}
+                </span>
+              </div>
+              <div className="p-3">
+                <button
+                  type="button"
+                  onClick={() => setMobileCartOpen(true)}
+                  className="flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 text-base font-semibold text-primary-foreground active:scale-95 active:bg-primary/90"
+                >
+                  <ShoppingCart className="h-5 w-5" />
+                  Review Cart &amp; Checkout
+                </button>
+              </div>
+            </div>
           )}
+
+          {/* Extra scroll padding removed — product list uses pb-28 when cart has items */}
 
           {/* ── Mobile Cart Overlay (slide-up panel) ── */}
           {mobileCartOpen && (
@@ -947,22 +1084,27 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                 className="absolute inset-0 bg-black/40"
                 onClick={() => { if (!isProcessing) setMobileCartOpen(false); }}
               />
-              {/* Panel */}
-              <div className="relative mt-auto bg-card rounded-t-2xl border-t border-border flex flex-col max-h-[85vh] animate-in slide-in-from-bottom duration-200">
+              {/* Panel — fills above home indicator; Complete Sale sticks to bottom */}
+              <div
+                className="relative mt-auto flex max-h-[90vh] flex-col rounded-t-2xl border-t border-border bg-card animate-in slide-in-from-bottom duration-200"
+                style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+              >
                 {/* Drag handle + header */}
-                <div className="flex items-center justify-between p-3 border-b border-border">
+                <div className="flex items-center justify-between border-b border-border p-3">
                   <div className="flex items-center gap-2">
                     <button
+                      type="button"
                       onClick={() => { if (!isProcessing) setMobileCartOpen(false); }}
-                      className="p-1 rounded-lg hover:bg-muted text-muted-foreground"
+                      className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted active:scale-95"
                       disabled={isProcessing}
+                      aria-label="Close cart"
                     >
-                      <ChevronDown className="w-5 h-5" />
+                      <ChevronDown className="h-5 w-5" />
                     </button>
-                    <h2 className="font-bold text-base text-foreground flex items-center gap-2">
-                      <ShoppingCart className="w-4 h-4" />
+                    <h2 className="flex items-center gap-2 text-base font-bold text-foreground">
+                      <ShoppingCart className="h-4 w-4" />
                       Cart
-                      <Badge variant="secondary" className="text-xs ml-1">{totalItems}</Badge>
+                      <Badge variant="secondary" className="ml-1 text-xs">{totalItems}</Badge>
                     </h2>
                   </div>
                   {cart.length > 0 && (
@@ -970,17 +1112,29 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                       variant="ghost"
                       size="sm"
                       onClick={clearCart}
-                      className="text-destructive hover:text-destructive text-xs h-7"
+                      className="min-h-11 text-xs text-destructive hover:text-destructive"
                     >
                       Clear
                     </Button>
                   )}
                 </div>
 
+                {/* Mini summary pinned under header while scrolling items */}
+                <div className="flex items-center justify-between gap-3 border-b border-border bg-muted/30 px-4 py-2 text-sm">
+                  <span className="text-muted-foreground">
+                    {totalItems} item{totalItems === 1 ? '' : 's'}
+                    {discountAmount > 0 && (
+                      <span className="ml-2 text-destructive">−{fc(discountAmount)}</span>
+                    )}
+                  </span>
+                  <span className="font-bold tabular-nums text-foreground">{fc(total)}</span>
+                </div>
+
                 {/* Sale Type Toggle */}
-                <div className="px-3 py-2 border-b border-border space-y-2">
+                <div className="space-y-2 border-b border-border px-3 py-2">
                   <div className="flex gap-2">
                     <button
+                      type="button"
                       onClick={() => {
                         setSaleType('cash');
                         setConsignmentInfo('');
@@ -991,28 +1145,29 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                         if (saleType === 'credit') setSelectedCustomer(null);
                       }}
                       className={cn(
-                        'flex-1 py-1.5 px-3 rounded text-xs font-semibold transition-all flex items-center justify-center gap-1',
+                        'flex min-h-11 flex-1 items-center justify-center gap-1 rounded-lg px-3 text-xs font-semibold transition-all active:scale-95',
                         saleType === 'cash'
-                          ? 'bg-success/15 text-success border border-success/30'
+                          ? 'border border-success/30 bg-success/15 text-success'
                           : 'bg-muted text-muted-foreground hover:bg-muted/80'
                       )}
                     >
-                      <Banknote className="w-3 h-3" />
+                      <Banknote className="h-3.5 w-3.5" />
                       Cash Sale
                     </button>
                     <button
+                      type="button"
                       onClick={() => {
                         setSaleType('credit');
                         if (!selectedCustomer) setShowCustomerPicker(true);
                       }}
                       className={cn(
-                        'flex-1 py-1.5 px-3 rounded text-xs font-semibold transition-all flex items-center justify-center gap-1',
+                        'flex min-h-11 flex-1 items-center justify-center gap-1 rounded-lg px-3 text-xs font-semibold transition-all active:scale-95',
                         saleType === 'credit'
-                          ? 'bg-warning/15 text-warning border border-warning/30'
+                          ? 'border border-warning/30 bg-warning/15 text-warning'
                           : 'bg-muted text-muted-foreground hover:bg-muted/80'
                       )}
                     >
-                      <FileText className="w-3 h-3" />
+                      <FileText className="h-3.5 w-3.5" />
                       Credit Sale
                     </button>
                   </div>
@@ -1125,15 +1280,17 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                         placeholder="Name"
                         value={walkInCustomerName}
                         onChange={(e) => setWalkInCustomerName(e.target.value)}
-                        className="h-8 text-xs"
+                        className="min-h-11 text-sm"
                         autoComplete="name"
                       />
                       <Input
                         placeholder="Phone"
                         type="tel"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                         value={walkInCustomerPhone}
                         onChange={(e) => setWalkInCustomerPhone(e.target.value)}
-                        className="h-8 text-xs"
+                        className="min-h-11 text-sm"
                         autoComplete="tel"
                       />
                       <Textarea
@@ -1148,61 +1305,75 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                 </div>
 
                 {/* Cart Items */}
-                <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                <div className="flex-1 space-y-2 overflow-y-auto p-3">
                   {cart.map((item) => {
                     const unitPrice = getUnitPrice(item);
                     return (
                       <div
                         key={item.product.id}
-                        className="flex gap-2.5 p-2.5 rounded-lg border border-border"
+                        className="flex gap-2.5 rounded-lg border border-border p-2.5"
                       >
                         <img
                           src={item.product.image || generatePlaceholderUrl(item.product.name)}
                           alt={item.product.name}
-                          className="w-11 h-11 rounded object-cover"
+                          className="h-11 w-11 rounded object-cover"
                         />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between">
-                            <p className="text-sm font-semibold text-foreground truncate">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="truncate text-sm font-semibold text-foreground">
                               {item.product.name}
                             </p>
                             <Button
                               size="icon"
                               variant="ghost"
-                              className="h-6 w-6 -mt-0.5 -mr-1 text-destructive hover:text-destructive shrink-0"
+                              className="min-h-11 min-w-11 shrink-0 text-destructive hover:text-destructive"
                               onClick={() => removeFromCart(item.product.id)}
                             >
-                              <Trash2 className="w-3 h-3" />
+                              <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
-                          <div className="flex items-center gap-2 mt-1.5">
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
                             {/* Editable unit price */}
                             <div className="relative w-24">
-                              <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">{CURRENCY_SYMBOL}</span>
+                              <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">
+                                {CURRENCY_SYMBOL}
+                              </span>
                               <input
-                                type="number"
-                                step="0.01"
-                                min="0"
+                                type="text"
+                                inputMode="decimal"
                                 value={editingPrice[item.product.id] ?? unitPrice}
-                                onChange={(e) => setEditingPrice((prev) => ({ ...prev, [item.product.id]: e.target.value }))}
+                                onChange={(e) =>
+                                  setEditingPrice((prev) => ({
+                                    ...prev,
+                                    [item.product.id]: e.target.value,
+                                  }))
+                                }
                                 onBlur={() => commitPrice(item.product.id)}
-                                onKeyDown={(e) => { if (e.key === 'Enter') commitPrice(item.product.id); }}
-                                className="w-full h-7 pl-8 pr-1 text-xs font-medium rounded border border-border bg-muted/50 text-foreground focus:outline-none focus:ring-1 focus:ring-primary [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') commitPrice(item.product.id);
+                                }}
+                                className="min-h-11 w-full rounded-lg border border-border bg-muted/50 pl-8 pr-1 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                               />
                             </div>
-                            <span className="text-muted-foreground text-xs">×</span>
-                            {/* Editable quantity */}
-                            <input
-                              type="number"
-                              min="0"
-                              value={editingQty[item.product.id] ?? item.quantity}
-                              onChange={(e) => setEditingQty((prev) => ({ ...prev, [item.product.id]: e.target.value }))}
-                              onBlur={() => commitQty(item.product.id)}
-                              onKeyDown={(e) => { if (e.key === 'Enter') commitQty(item.product.id); }}
-                              className="w-14 h-7 text-center text-xs font-semibold rounded border border-border bg-muted/50 text-foreground focus:outline-none focus:ring-1 focus:ring-primary [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                            <span className="text-xs text-muted-foreground">×</span>
+                            <CartQtyControl
+                              productId={item.product.id}
+                              quantity={item.quantity}
+                              editingValue={editingQty[item.product.id]}
+                              onEditingChange={(id, value) =>
+                                setEditingQty((prev) => ({ ...prev, [id]: value }))
+                              }
+                              onCommit={commitQty}
+                              onStep={(id, next) => {
+                                setEditingQty((prev) => {
+                                  const n = { ...prev };
+                                  delete n[id];
+                                  return n;
+                                });
+                                updateCartQuantity(id, next);
+                              }}
                             />
-                            {/* Line total */}
-                            <span className="ml-auto text-sm font-bold text-foreground whitespace-nowrap tabular-nums">
+                            <span className="ml-auto whitespace-nowrap text-sm font-bold tabular-nums text-foreground">
                               {fc(unitPrice * item.quantity)}
                             </span>
                           </div>
@@ -1241,20 +1412,20 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                         deposit now; the remainder stays on account.
                       </p>
                       <Input
-                        type="number"
+                        type="text"
+                        inputMode="decimal"
+                        pattern="[0-9]*"
                         min="0"
-                        max={total}
-                        step="0.01"
                         placeholder={`Deposit amount (max ${fc(total)})`}
                         value={creditDeposit}
                         onChange={(e) => setCreditDeposit(e.target.value)}
-                        className="h-8 text-xs"
+                        className="min-h-11 text-sm"
                       />
                       <Input
                         placeholder="Deposit note (optional)"
                         value={creditPaymentDescription}
                         onChange={(e) => setCreditPaymentDescription(e.target.value)}
-                        className="h-8 text-xs"
+                        className="min-h-11 text-sm"
                       />
                       <p className="text-[11px] text-muted-foreground">Deposit paid as</p>
                       <div className="grid grid-cols-3 gap-2">
@@ -1270,13 +1441,13 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                             type="button"
                             onClick={() => setCreditPaymentMethod(id)}
                             className={cn(
-                              'flex items-center justify-center gap-1 py-1.5 rounded text-[11px] font-medium transition-all',
+                              'flex min-h-11 items-center justify-center gap-1 rounded-lg text-[11px] font-medium transition-all active:scale-95',
                               creditPaymentMethod === id
                                 ? 'bg-primary text-primary-foreground'
                                 : 'bg-muted text-muted-foreground hover:bg-muted/80',
                             )}
                           >
-                            <Icon className="w-3 h-3" />
+                            <Icon className="h-3.5 w-3.5" />
                             {label}
                           </button>
                         ))}
@@ -1286,7 +1457,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                           placeholder="Consignment / plate no."
                           value={consignmentInfo}
                           onChange={(e) => setConsignmentInfo(e.target.value)}
-                          className="h-8 text-xs col-span-2"
+                          className="col-span-2 min-h-11 text-sm"
                         />
                         <div className="col-span-2 space-y-1">
                           <p className="text-[11px] text-muted-foreground">Invoice Date</p>
@@ -1294,7 +1465,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                             type="date"
                             value={invoiceDate}
                             onChange={(e) => setInvoiceDate(e.target.value)}
-                            className="h-8 text-xs"
+                            className="min-h-11 text-sm"
                           />
                         </div>
                       </div>
@@ -1303,10 +1474,10 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
 
                   <Button
                     className={cn(
-                      'w-full h-12 text-base font-semibold',
+                      'min-h-12 w-full text-base font-semibold active:scale-95',
                       saleType === 'credit'
-                        ? 'bg-warning hover:bg-warning/90 text-warning-foreground'
-                        : ''
+                        ? 'bg-warning text-warning-foreground hover:bg-warning/90 active:bg-warning/80'
+                        : 'active:bg-primary/90',
                     )}
                     onClick={async () => {
                       await handleCompleteSale();
@@ -1316,12 +1487,12 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                   >
                     {isProcessing ? (
                       <>
-                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         Processing…
                       </>
                     ) : saleType === 'credit' ? (
                       <>
-                        <FileText className="w-4 h-4 mr-2" />
+                        <FileText className="mr-2 h-4 w-4" />
                         Create Invoice — {fc(total)}
                       </>
                     ) : (
@@ -1548,55 +1719,68 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                 return (
                   <div
                     key={item.product.id}
-                    className="flex gap-3 p-3 rounded border border-border"
+                    className="flex gap-3 rounded border border-border p-3"
                   >
                     <img
                       src={item.product.image || generatePlaceholderUrl(item.product.name)}
                       alt={item.product.name}
-                      className="w-12 h-12 rounded object-cover"
+                      className="h-12 w-12 rounded object-cover"
                     />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between">
-                        <p className="text-sm font-semibold text-foreground truncate">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="truncate text-sm font-semibold text-foreground">
                           {item.product.name}
                         </p>
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="h-6 w-6 -mt-0.5 -mr-1 text-destructive hover:text-destructive shrink-0"
+                          className="min-h-11 min-w-11 shrink-0 text-destructive hover:text-destructive"
                           onClick={() => removeFromCart(item.product.id)}
                         >
-                          <Trash2 className="w-3 h-3" />
+                          <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
-                      <div className="flex items-center gap-2 mt-1.5">
-                        {/* Editable unit price */}
-                        <div className="relative flex-1 min-w-0">
-                          <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">{CURRENCY_SYMBOL}</span>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <div className="relative min-w-0 flex-1">
+                          <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">
+                            {CURRENCY_SYMBOL}
+                          </span>
                           <input
-                            type="number"
-                            step="0.01"
-                            min="0"
+                            type="text"
+                            inputMode="decimal"
                             value={editingPrice[item.product.id] ?? unitPrice}
-                            onChange={(e) => setEditingPrice((prev) => ({ ...prev, [item.product.id]: e.target.value }))}
+                            onChange={(e) =>
+                              setEditingPrice((prev) => ({
+                                ...prev,
+                                [item.product.id]: e.target.value,
+                              }))
+                            }
                             onBlur={() => commitPrice(item.product.id)}
-                            onKeyDown={(e) => { if (e.key === 'Enter') commitPrice(item.product.id); }}
-                            className="w-full h-7 pl-7 pr-1 text-xs font-medium rounded border border-border bg-muted/50 text-foreground focus:outline-none focus:ring-1 focus:ring-primary tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') commitPrice(item.product.id);
+                            }}
+                            className="min-h-11 w-full rounded-lg border border-border bg-muted/50 pl-7 pr-1 text-xs font-medium tabular-nums text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                           />
                         </div>
-                        <span className="text-muted-foreground text-xs shrink-0">×</span>
-                        {/* Editable quantity */}
-                        <input
-                          type="number"
-                          min="0"
-                          value={editingQty[item.product.id] ?? item.quantity}
-                          onChange={(e) => setEditingQty((prev) => ({ ...prev, [item.product.id]: e.target.value }))}
-                          onBlur={() => commitQty(item.product.id)}
-                          onKeyDown={(e) => { if (e.key === 'Enter') commitQty(item.product.id); }}
-                          className="w-14 h-7 text-center text-xs font-semibold rounded border border-border bg-muted/50 text-foreground shrink-0 focus:outline-none focus:ring-1 focus:ring-primary tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        <span className="shrink-0 text-xs text-muted-foreground">×</span>
+                        <CartQtyControl
+                          productId={item.product.id}
+                          quantity={item.quantity}
+                          editingValue={editingQty[item.product.id]}
+                          onEditingChange={(id, value) =>
+                            setEditingQty((prev) => ({ ...prev, [id]: value }))
+                          }
+                          onCommit={commitQty}
+                          onStep={(id, next) => {
+                            setEditingQty((prev) => {
+                              const n = { ...prev };
+                              delete n[id];
+                              return n;
+                            });
+                            updateCartQuantity(id, next);
+                          }}
                         />
-                        {/* Line total */}
-                        <span className="text-sm font-bold text-foreground whitespace-nowrap tabular-nums shrink-0">
+                        <span className="shrink-0 whitespace-nowrap text-sm font-bold tabular-nums text-foreground">
                           {fc(unitPrice * item.quantity)}
                         </span>
                       </div>
@@ -1637,20 +1821,19 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                       deposit now; the remainder stays on account.
                     </p>
                     <Input
-                      type="number"
-                      min="0"
-                      max={total}
-                      step="0.01"
+                      type="text"
+                      inputMode="decimal"
+                      pattern="[0-9]*"
                       placeholder={`Deposit amount (max ${fc(total)})`}
                       value={creditDeposit}
                       onChange={(e) => setCreditDeposit(e.target.value)}
-                      className="h-8 text-xs"
+                      className="min-h-11 text-sm"
                     />
                     <Input
                       placeholder="Deposit note (optional)"
                       value={creditPaymentDescription}
                       onChange={(e) => setCreditPaymentDescription(e.target.value)}
-                      className="h-8 text-xs"
+                      className="min-h-11 text-sm"
                     />
                     <p className="text-[11px] text-muted-foreground">Deposit paid as</p>
                     <div className="grid grid-cols-3 gap-2">
@@ -1666,13 +1849,13 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                           type="button"
                           onClick={() => setCreditPaymentMethod(id)}
                           className={cn(
-                            'flex items-center justify-center gap-1 py-1.5 rounded text-[11px] font-medium transition-all',
+                            'flex min-h-11 items-center justify-center gap-1 rounded-lg text-[11px] font-medium transition-all active:scale-95',
                             creditPaymentMethod === id
                               ? 'bg-primary text-primary-foreground'
                               : 'bg-muted text-muted-foreground hover:bg-muted/80',
                           )}
                         >
-                          <Icon className="w-3 h-3" />
+                          <Icon className="h-3.5 w-3.5" />
                           {label}
                         </button>
                       ))}
@@ -1681,7 +1864,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                       placeholder="Consignment / plate no."
                       value={consignmentInfo}
                       onChange={(e) => setConsignmentInfo(e.target.value)}
-                      className="h-8 text-xs"
+                      className="min-h-11 text-sm"
                     />
                     <div className="space-y-1">
                       <p className="text-[11px] text-muted-foreground">Invoice Date</p>
@@ -1689,7 +1872,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                         type="date"
                         value={invoiceDate}
                         onChange={(e) => setInvoiceDate(e.target.value)}
-                        className="h-8 text-xs"
+                        className="min-h-11 text-sm"
                       />
                     </div>
                   </div>
@@ -1698,10 +1881,10 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                 {/* Complete Sale */}
                 <Button
                   className={cn(
-                    "w-full h-12 text-base font-semibold",
+                    'min-h-12 w-full text-base font-semibold active:scale-95',
                     saleType === 'credit'
-                      ? 'bg-warning hover:bg-warning/90 text-warning-foreground'
-                      : ''
+                      ? 'bg-warning text-warning-foreground hover:bg-warning/90 active:bg-warning/80'
+                      : 'active:bg-primary/90',
                   )}
                   onClick={handleCompleteSale}
                   disabled={isProcessing || (saleType === 'credit' && !selectedCustomer)}
