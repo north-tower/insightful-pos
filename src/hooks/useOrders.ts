@@ -116,6 +116,9 @@ export interface CreateOrderParams {
   consignment_info?: string;
   created_at?: string; // Optional invoice/order datetime (supports backdating)
   assignment_id?: string; // Route assignment batch (daily sales report)
+  /** Override order staff (e.g. manager recording a route sale for a cashier). Defaults to current user. */
+  staff_id?: string;
+  staff_name?: string;
   items: Array<{
     product_id: string | null;
     product_name: string;
@@ -356,8 +359,8 @@ export function useOrders() {
           p_status:           'completed',
           p_payment_status:   paymentStatus,
           p_notes:            params.notes || null,
-          p_staff_id:         user?.id || null,
-          p_staff_name:       user?.full_name || null,
+          p_staff_id:         params.staff_id || user?.id || null,
+          p_staff_name:       params.staff_name || user?.full_name || null,
           p_assignment_id:    params.assignment_id || null,
           p_created_at:       orderCreatedAt,
           p_completed_at:     saleType === 'cash' ? orderCreatedAt : null,
@@ -453,8 +456,8 @@ export function useOrders() {
         status: 'completed',
         payment_status: paymentStatus,
         notes: params.notes,
-        staff_id: user?.id,
-        staff_name: user?.full_name,
+        staff_id: params.staff_id || user?.id,
+        staff_name: params.staff_name || user?.full_name,
         created_at: orderCreatedAt,
         completed_at: saleType === 'cash' ? orderCreatedAt : undefined,
         items: (insertedItems || []).map((i: any) => ({
@@ -747,8 +750,8 @@ export function useOrders() {
           status: 'completed',
           payment_status: paymentStatus,
           notes: params.notes,
-          staff_id: user?.id,
-          staff_name: user?.full_name,
+          staff_id: params.staff_id || user?.id,
+          staff_name: params.staff_name || user?.full_name,
           created_at: localCreatedAt,
           completed_at: saleType === 'cash' ? localCreatedAt : undefined,
           items: params.items.map((item, index) => {

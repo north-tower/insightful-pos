@@ -1,12 +1,17 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
+import AssignmentDailyReportDialog from '@/components/reports/AssignmentDailyReportDialog';
+import {
+  BulkRouteSaleDialog,
+  type BulkRouteSaleAssignment,
+} from '@/components/inventory/BulkRouteSaleDialog';
 import {
   Plus,
   Loader2,
   ChevronDown,
   Trash2,
   FileText,
+  ShoppingCart,
 } from 'lucide-react';
-import AssignmentDailyReportDialog from '@/components/reports/AssignmentDailyReportDialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -114,6 +119,10 @@ export default function RetailStaffInventory({ onNavigate }: RetailStaffInventor
   const [isAssigning, setIsAssigning] = useState(false);
   const [reportAssignmentId, setReportAssignmentId] = useState<string | null>(null);
   const [showReportDialog, setShowReportDialog] = useState(false);
+  const [bulkSaleAssignment, setBulkSaleAssignment] = useState<BulkRouteSaleAssignment | null>(
+    null,
+  );
+  const [showBulkSaleDialog, setShowBulkSaleDialog] = useState(false);
   const [settlementByAssignment, setSettlementByAssignment] = useState<
     Map<string, { is_finalized: boolean; variance: number }>
   >(new Map());
@@ -941,6 +950,52 @@ export default function RetailStaffInventory({ onNavigate }: RetailStaffInventor
                       </p>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap justify-end">
+                      {!batch.id.startsWith('local-assignment-') &&
+                        !batch.id.startsWith('legacy-') &&
+                        batch.lines.some(
+                          (line) => line.is_active && line.assigned_qty - line.sold_qty > 0,
+                        ) && (
+                          <Button
+                            size="sm"
+                            variant="default"
+                            className="h-7 text-xs gap-1"
+                            onClick={() => {
+                              const cashier =
+                                staffAllocations.find((c) => c.id === batch.cashierId);
+                              setBulkSaleAssignment({
+                                id: batch.id,
+                                cashierId: batch.cashierId,
+                                cashierName:
+                                  cashier?.full_name || cashier?.email || batch.cashierId,
+                                assignmentDate: batch.assignmentDate,
+                                routeName: batch.routeName,
+                                lines: batch.lines.map((line) => {
+                                  const product = retailProducts.find(
+                                    (p) => p.id === line.product_id,
+                                  );
+                                  return {
+                                    allocationId: line.id,
+                                    productId: line.product_id,
+                                    productName: product?.name || line.product_id,
+                                    unit: product?.unit || 'unit',
+                                    unitPrice: Number(product?.price ?? 0),
+                                    unitCost: Number(product?.cost ?? 0),
+                                    sku: product?.sku || undefined,
+                                    barcode: product?.barcode || undefined,
+                                    assignedQty: line.assigned_qty,
+                                    soldQty: line.sold_qty,
+                                    remaining: Math.max(line.assigned_qty - line.sold_qty, 0),
+                                    isActive: line.is_active,
+                                  };
+                                }),
+                              });
+                              setShowBulkSaleDialog(true);
+                            }}
+                          >
+                            <ShoppingCart className="w-3.5 h-3.5" />
+                            Record sales
+                          </Button>
+                        )}
                       {!batch.id.startsWith('local-assignment-') && (
                         <Button
                           size="sm"
@@ -1129,6 +1184,17 @@ export default function RetailStaffInventory({ onNavigate }: RetailStaffInventor
         onOpenChange={(open) => {
           setShowReportDialog(open);
           if (!open) setReportAssignmentId(null);
+        }}
+      />
+      <BulkRouteSaleDialog
+        open={showBulkSaleDialog}
+        assignment={bulkSaleAssignment}
+        onOpenChange={(open) => {
+          setShowBulkSaleDialog(open);
+          if (!open) setBulkSaleAssignment(null);
+        }}
+        onCompleted={async () => {
+          await Promise.all([loadCashierData(), refetchProducts()]);
         }}
       />
     </PageLayout>

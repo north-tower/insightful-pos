@@ -362,17 +362,22 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
     setShowAdjustDialog(true);
   };
 
+  const parseStockQty = (raw: string) => {
+    const qty = parseFloat(raw);
+    return Number.isFinite(qty) ? qty : NaN;
+  };
+
   const getIndividualAdjustments = () =>
     bulkAdjustProducts
       .map((product) => ({
         product,
-        qty: parseInt(individualQtys[product.id] || '', 10),
+        qty: parseStockQty(individualQtys[product.id] || ''),
       }))
       .filter(({ qty }) => !isNaN(qty) && qty > 0);
 
   const switchToIndividualMode = () => {
     setBulkAdjustMode('individual');
-    if (adjustQty && parseInt(adjustQty, 10) > 0) {
+    if (adjustQty && parseStockQty(adjustQty) > 0) {
       const seeded: Record<string, string> = {};
       bulkAdjustProducts.forEach((p) => {
         seeded[p.id] = adjustQty;
@@ -427,7 +432,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
           : [];
     if (targets.length === 0 || !adjustQty) return;
 
-    const qty = parseInt(adjustQty, 10);
+    const qty = parseStockQty(adjustQty);
     if (isNaN(qty) || qty <= 0) {
       toast.error('Enter a valid quantity');
       return;
@@ -464,7 +469,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
   const canSubmitAdjustment =
     bulkAdjustProducts.length > 1 && bulkAdjustMode === 'individual'
       ? getIndividualAdjustments().length > 0
-      : Boolean(adjustQty && parseInt(adjustQty, 10) > 0);
+      : Boolean(adjustQty && parseStockQty(adjustQty) > 0);
 
   const handleReverseAdjustment = async (adj: StockAdjustmentRow) => {
     setReversingId(adj.id);
@@ -1258,7 +1263,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                     <ul className="max-h-56 overflow-y-auto divide-y divide-border">
                       {bulkAdjustProducts.map((product) => {
                         const current = getMainStock(product);
-                        const rowQty = parseInt(individualQtys[product.id] || '', 10);
+                        const rowQty = parseStockQty(individualQtys[product.id] || '');
                         const hasQty = !isNaN(rowQty) && rowQty > 0;
                         const next = hasQty
                           ? adjustType === 'add'
@@ -1284,6 +1289,8 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                             </span>
                             <Input
                               type="number"
+                              inputMode="decimal"
+                              step="any"
                               placeholder="0"
                               value={individualQtys[product.id] || ''}
                               onChange={(e) =>
@@ -1306,11 +1313,13 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                     <Label>Quantity</Label>
                     <Input
                       type="number"
+                      inputMode="decimal"
+                      step="any"
                       placeholder="Enter quantity"
                       value={adjustQty}
                       onChange={(e) => setAdjustQty(e.target.value)}
                       className="mt-1 text-lg"
-                      min="1"
+                      min="0"
                       disabled={isAdjusting}
                     />
                   </div>
@@ -1343,7 +1352,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                     </div>
                   )}
 
-                {adjustQty && parseInt(adjustQty) > 0 && bulkAdjustMode === 'uniform' && (
+                {adjustQty && parseStockQty(adjustQty) > 0 && bulkAdjustMode === 'uniform' && (
                   <div className="rounded bg-muted p-3 text-sm">
                     {bulkAdjustProducts.length > 1 ? (
                       <>
@@ -1355,7 +1364,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                         <ul className="mt-2 max-h-36 space-y-1 overflow-y-auto">
                           {bulkAdjustProducts.map((product) => {
                             const current = getMainStock(product);
-                            const qty = parseInt(adjustQty, 10);
+                            const qty = parseStockQty(adjustQty);
                             const next =
                               adjustType === 'add'
                                 ? current + qty
@@ -1402,11 +1411,11 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                           <span className="font-medium">New Stock</span>
                           <span className="font-bold">
                             {adjustType === 'add'
-                              ? getMainStock(adjustProduct) + parseInt(adjustQty)
+                              ? getMainStock(adjustProduct) + parseStockQty(adjustQty)
                               : Math.max(
                                   0,
                                   getMainStock(adjustProduct) -
-                                    parseInt(adjustQty),
+                                    parseStockQty(adjustQty),
                                 )}{' '}
                             {adjustProduct.unit}
                           </span>

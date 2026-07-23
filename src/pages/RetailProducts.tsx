@@ -325,8 +325,8 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
         barcode: addForm.barcode.trim() || null,
         price: parseFloat(addForm.price),
         cost: addForm.cost ? parseFloat(addForm.cost) : 0,
-        stock: addForm.stock ? parseInt(addForm.stock, 10) : 0,
-        low_stock_threshold: addForm.lowStockThreshold ? parseInt(addForm.lowStockThreshold, 10) : 10,
+        stock: addForm.stock ? parseFloat(addForm.stock) : 0,
+        low_stock_threshold: addForm.lowStockThreshold ? parseFloat(addForm.lowStockThreshold) : 10,
         unit: addForm.unit.trim() || 'pcs',
         brand: addForm.brand.trim() || null,
         category_id: addForm.categoryId || null,
@@ -1051,6 +1051,8 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
                 <Label>Stock Quantity</Label>
                 <Input
                   type="number"
+                  inputMode="decimal"
+                  step="any"
                   min="0"
                   placeholder="0"
                   className="mt-1"

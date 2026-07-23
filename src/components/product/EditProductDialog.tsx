@@ -114,8 +114,8 @@ export default function EditProductDialog({
         barcode: barcode.trim() || null,
         price: parseFloat(price),
         cost: cost ? parseFloat(cost) : 0,
-        stock: stock ? parseInt(stock, 10) : 0,
-        low_stock_threshold: lowStockThreshold ? parseInt(lowStockThreshold, 10) : 10,
+        stock: stock ? parseFloat(stock) : 0,
+        low_stock_threshold: lowStockThreshold ? parseFloat(lowStockThreshold) : 10,
         unit: unit.trim() || 'pcs',
         brand: brand.trim() || null,
         category_id: categoryId || null,
@@ -251,6 +251,8 @@ export default function EditProductDialog({
               <Input
                 id="edit-stock"
                 type="number"
+                inputMode="decimal"
+                step="any"
                 min="0"
                 value={stock}
                 onChange={(e) => setStock(e.target.value)}
