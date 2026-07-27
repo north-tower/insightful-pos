@@ -669,9 +669,9 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
   return (
     <PageLayout activeTab="inventory" onNavigate={onNavigate}>
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">
+          <h1 className="text-2xl font-bold text-foreground mb-1">
             Inventory
           </h1>
           <p className="text-muted-foreground">
@@ -683,7 +683,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
 
       {/* Out-of-stock alert banner */}
       {stockSummary.outOfStock.length > 0 && !bannerDismissed && (
-        <div className="mb-6 flex items-start gap-3 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-warning-foreground">
+        <div className="mb-4 flex items-start gap-3 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2.5 text-warning-foreground">
           <AlertTriangle className="w-5 h-5 text-warning shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-foreground">
@@ -712,7 +712,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
       )}
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-6">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-4">
         <Card
           className={cn(
             'cursor-pointer transition-all hover:shadow-sm',
@@ -720,7 +720,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
           )}
           onClick={() => setStockFilter('all')}
         >
-          <CardContent className="p-4">
+          <CardContent className="p-3">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-muted-foreground mb-1">Total Products</p>
@@ -741,7 +741,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
           )}
           onClick={() => setStockFilter('in-stock')}
         >
-          <CardContent className="p-4">
+          <CardContent className="p-3">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-muted-foreground mb-1">In Stock</p>
@@ -762,7 +762,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
           )}
           onClick={() => setStockFilter('out')}
         >
-          <CardContent className="p-4">
+          <CardContent className="p-3">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-muted-foreground mb-1">Out of Stock</p>
@@ -783,11 +783,11 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Stock Levels Table */}
         <div className="lg:col-span-2 relative">
           <Card>
-            <CardHeader>
+            <CardHeader className="pb-3 py-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <CardTitle>Stock Levels</CardTitle>
@@ -1049,7 +1049,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
         {/* Recent Adjustments */}
         <div>
           <Card>
-            <CardHeader>
+            <CardHeader className="pb-3 py-4">
               <CardTitle>Recent Adjustments</CardTitle>
             </CardHeader>
             <CardContent>

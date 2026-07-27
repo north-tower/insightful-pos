@@ -269,7 +269,7 @@ export default function RetailProduction({ onNavigate }: RetailProductionProps) 
 
   return (
     <PageLayout activeTab="production" onNavigate={onNavigate}>
-      <div className="space-y-6 max-w-5xl mx-auto">
+      <div className="space-y-4 max-w-5xl mx-auto">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
@@ -295,7 +295,7 @@ export default function RetailProduction({ onNavigate }: RetailProductionProps) 
 
           <TabsContent value="recipe" className="space-y-4">
             <Card>
-              <CardHeader>
+              <CardHeader className="pb-3 py-4">
                 <CardTitle className="text-base flex items-center gap-2">
                   <FlaskConical className="w-4 h-4" />
                   Bill of materials
@@ -428,7 +428,7 @@ export default function RetailProduction({ onNavigate }: RetailProductionProps) 
 
           <TabsContent value="run" className="space-y-4">
             <Card>
-              <CardHeader>
+              <CardHeader className="pb-3 py-4">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Play className="w-4 h-4" />
                   Complete production batch
@@ -559,7 +559,7 @@ export default function RetailProduction({ onNavigate }: RetailProductionProps) 
 
           <TabsContent value="history" className="space-y-4">
             <Card>
-              <CardHeader>
+              <CardHeader className="pb-3 py-4">
                 <CardTitle className="text-base">Recent batches</CardTitle>
               </CardHeader>
               <CardContent>

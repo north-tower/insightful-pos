@@ -761,9 +761,9 @@ export default function RetailStaffInventory({ onNavigate }: RetailStaffInventor
 
   return (
     <PageLayout activeTab="inventory-assign-staff" onNavigate={onNavigate}>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">
+          <h1 className="text-2xl font-bold text-foreground mb-1">
             Assign Staff Inventory
           </h1>
           <p className="text-muted-foreground">
@@ -772,8 +772,8 @@ export default function RetailStaffInventory({ onNavigate }: RetailStaffInventor
         </div>
       </div>
 
-      <Card className="mb-6">
-        <CardHeader>
+      <Card className="mb-4">
+        <CardHeader className="pb-3 py-4">
           <CardTitle>New Route Assignment</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -922,8 +922,8 @@ export default function RetailStaffInventory({ onNavigate }: RetailStaffInventor
         </CardContent>
       </Card>
 
-      <Card className="mb-6">
-        <CardHeader>
+      <Card className="mb-4">
+        <CardHeader className="pb-3 py-4">
           <CardTitle>Recent Route Assignments</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -1072,8 +1072,8 @@ export default function RetailStaffInventory({ onNavigate }: RetailStaffInventor
         </CardContent>
       </Card>
 
-      <Card className="mb-6">
-        <CardHeader>
+      <Card className="mb-4">
+        <CardHeader className="pb-3 py-4">
           <CardTitle>Per-Staff Inventory Report</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
