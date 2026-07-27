@@ -189,7 +189,14 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
     return count;
   }, [statusFilter, saleTypeFilter, paymentMethodFilter]);
 
+  const clearFilters = () => {
+    setStatusFilter('all');
+    setSaleTypeFilter('all');
+    setPaymentMethodFilter('all');
+  };
+
   const sourceOrders = useMemo(
+    () => (isReportMode && reportOrders ? reportOrders : orders),
     [isReportMode, reportOrders, orders],
   );
 
@@ -701,126 +708,208 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
             </Card>
           </div>
 
-          {/* Search & Filters */}
-          <div className="mb-6 space-y-3">
-            <Card>
-              <CardContent className="p-4 space-y-3">
-                <div className="flex items-center justify-between gap-2">
-                  <h3 className="text-sm font-semibold">Sales Report Timeframe</h3>
-                  {isReportMode && (
-                    <Badge variant="outline" className="text-info border-info/30">
-                      Report mode
+          {/* Search, report & filters */}
+          <div className="mb-4 space-y-3">
+            <Collapsible open={reportOpen} onOpenChange={setReportOpen}>
+              <Card>
+                <CollapsibleTrigger asChild>
+                  <button
+                    type="button"
+                    className="flex w-full items-center justify-between gap-2 p-4 text-left"
+                  >
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-semibold">Sales report timeframe</h3>
+                      {isReportMode && (
+                        <Badge variant="outline" className="text-info border-info/30">
+                          Report mode
+                        </Badge>
+                      )}
+                    </div>
+                    <ChevronDown
+                      className={cn(
+                        'h-4 w-4 text-muted-foreground transition-transform',
+                        reportOpen && 'rotate-180',
+                      )}
+                    />
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <CardContent className="space-y-3 border-t pt-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="report-from">From</Label>
+                        <Input
+                          id="report-from"
+                          type="date"
+                          value={reportFromDate}
+                          onChange={(e) => setReportFromDate(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="report-to">To</Label>
+                        <Input
+                          id="report-to"
+                          type="date"
+                          value={reportToDate}
+                          onChange={(e) => setReportToDate(e.target.value)}
+                        />
+                      </div>
+                      <div className="flex items-end">
+                        <Button
+                          className="w-full"
+                          onClick={fetchSalesReport}
+                          disabled={isReportLoading}
+                        >
+                          {isReportLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                          Fetch Report
+                        </Button>
+                      </div>
+                      <div className="flex items-end">
+                        <Button
+                          variant="outline"
+                          className="w-full"
+                          onClick={clearSalesReport}
+                          disabled={!isReportMode}
+                        >
+                          Clear Report
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </CollapsibleContent>
+              </Card>
+            </Collapsible>
+
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <div className="relative flex-1 sm:max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search orders..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 h-9"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  onClick={() => setFiltersOpen(true)}
+                >
+                  <SlidersHorizontal className="w-4 h-4" />
+                  Filters
+                  {activeFilterCount > 0 && (
+                    <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                      {activeFilterCount}
                     </Badge>
                   )}
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="report-from">From</Label>
-                    <Input
-                      id="report-from"
-                      type="date"
-                      value={reportFromDate}
-                      onChange={(e) => setReportFromDate(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="report-to">To</Label>
-                    <Input
-                      id="report-to"
-                      type="date"
-                      value={reportToDate}
-                      onChange={(e) => setReportToDate(e.target.value)}
-                    />
-                  </div>
-                  <div className="flex items-end">
-                    <Button
-                      className="w-full"
-                      onClick={fetchSalesReport}
-                      disabled={isReportLoading}
-                    >
-                      {isReportLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                      Fetch Report
-                    </Button>
-                  </div>
-                  <div className="flex items-end">
-                    <Button
-                      variant="outline"
-                      className="w-full"
-                      onClick={clearSalesReport}
-                      disabled={!isReportMode}
-                    >
-                      Clear Report
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
-              <div className="relative flex-1 sm:max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                  placeholder="Search orders..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-              />
-              </div>
-              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                {statusFilterOptions.map((s) => (
-                  <Button
-                    key={s}
-                    variant={statusFilter === s ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setStatusFilter(s)}
-                    className="capitalize shrink-0"
-                  >
-                    {s}
+                </Button>
+                {activeFilterCount > 0 && (
+                  <Button variant="ghost" size="sm" onClick={clearFilters}>
+                    Clear
                   </Button>
-                ))}
+                )}
               </div>
             </div>
-            {/* Sale Type Filter */}
-            <div className="flex gap-2 items-center overflow-x-auto pb-1 scrollbar-hide">
-              <span className="text-sm text-muted-foreground font-medium shrink-0">Sale Type:</span>
-              {[
-                { key: 'all', label: 'All Sales' },
-                { key: 'cash', label: 'Cash Sales', icon: Banknote },
-                { key: 'credit', label: 'Credit Sales', icon: CreditCard },
-              ].map(({ key, label, icon: Icon }) => (
-                <Button
-                  key={key}
-                  variant={saleTypeFilter === key ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setSaleTypeFilter(key)}
-                  className="gap-1.5"
-                >
-                  {Icon && <Icon className="w-3.5 h-3.5" />}
-                  {label}
-                </Button>
-              ))}
-            </div>
-            {/* Payment Method Filter */}
-            <div className="flex gap-2 items-center overflow-x-auto pb-1 scrollbar-hide">
-              <span className="text-sm text-muted-foreground font-medium shrink-0">Payment:</span>
-              {[
-                { key: 'all', label: 'All' },
-                { key: 'cash', label: 'Cash', icon: Banknote },
-                { key: 'bank', label: 'Bank', icon: CreditCard },
-              ].map(({ key, label, icon: Icon }) => (
-                <Button
-                  key={key}
-                  variant={paymentMethodFilter === key ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setPaymentMethodFilter(key as 'all' | 'cash' | 'bank')}
-                  className="gap-1.5"
-                >
-                  {Icon && <Icon className="w-3.5 h-3.5" />}
-                  {label}
-                </Button>
-              ))}
-            </div>
+
+            {activeFilterCount > 0 && (
+              <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                {statusFilter !== 'all' && (
+                  <Badge variant="outline" className="capitalize">
+                    Status: {statusFilter}
+                  </Badge>
+                )}
+                {saleTypeFilter !== 'all' && (
+                  <Badge variant="outline">
+                    {saleTypeFilter === 'cash' ? 'Cash sales' : 'Credit sales'}
+                  </Badge>
+                )}
+                {paymentMethodFilter !== 'all' && (
+                  <Badge variant="outline" className="capitalize">
+                    Payment: {paymentMethodFilter}
+                  </Badge>
+                )}
+              </div>
+            )}
           </div>
+
+          <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
+            <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
+              <SheetHeader>
+                <SheetTitle>Filter transactions</SheetTitle>
+                <SheetDescription>Narrow the list by status, sale type, or payment method.</SheetDescription>
+              </SheetHeader>
+              <div className="mt-6 space-y-6">
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {statusFilterOptions.map((s) => (
+                      <Button
+                        key={s}
+                        variant={statusFilter === s ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setStatusFilter(s)}
+                        className="capitalize"
+                      >
+                        {s}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Sale type</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { key: 'all', label: 'All Sales' },
+                      { key: 'cash', label: 'Cash Sales', icon: Banknote },
+                      { key: 'credit', label: 'Credit Sales', icon: CreditCard },
+                    ].map(({ key, label, icon: Icon }) => (
+                      <Button
+                        key={key}
+                        variant={saleTypeFilter === key ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setSaleTypeFilter(key)}
+                        className="gap-1.5"
+                      >
+                        {Icon && <Icon className="w-3.5 h-3.5" />}
+                        {label}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Payment method</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { key: 'all', label: 'All' },
+                      { key: 'cash', label: 'Cash', icon: Banknote },
+                      { key: 'bank', label: 'Bank', icon: CreditCard },
+                    ].map(({ key, label, icon: Icon }) => (
+                      <Button
+                        key={key}
+                        variant={paymentMethodFilter === key ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setPaymentMethodFilter(key as 'all' | 'cash' | 'bank')}
+                        className="gap-1.5"
+                      >
+                        {Icon && <Icon className="w-3.5 h-3.5" />}
+                        {label}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <Button variant="outline" className="flex-1" onClick={clearFilters}>
+                    Reset
+                  </Button>
+                  <Button className="flex-1" onClick={() => setFiltersOpen(false)}>
+                    Apply
+                  </Button>
+                </div>
+              </div>
+            </SheetContent>
+          </Sheet>
 
           {/* Loading */}
           {(loading || isReportLoading) && (
@@ -831,19 +920,123 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
 
           {/* Orders List */}
           {!loading && !isReportLoading && (
-          <div className="space-y-4">
-              {filteredOrders.length === 0 && !loading && (
-                <div className="text-center py-16 text-muted-foreground">
-                  <ShoppingBag className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p className="text-lg">No orders found</p>
+          <div className="space-y-3">
+              {filteredOrders.length === 0 && (
+                <div className="text-center py-12 text-muted-foreground">
+                  <ShoppingBag className="w-10 h-10 mx-auto mb-3 opacity-50" />
+                  <p className="text-base font-medium">No orders found</p>
                   <p className="text-sm mt-1">
-                    {searchQuery || statusFilter !== 'all'
+                    {searchQuery || activeFilterCount > 0
                       ? 'Try adjusting your search or filters'
                       : 'Orders will appear here once sales are made'}
                   </p>
                 </div>
               )}
 
+              {paginatedOrders.length > 0 && (
+                <Card className="hidden lg:block overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Order</TableHead>
+                        <TableHead>Customer</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead className="text-right">Items</TableHead>
+                        <TableHead className="text-right">Total</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {paginatedOrders.map((order) => {
+                        const saleConfig = saleTypeConfig[order.sale_type || 'cash'];
+                        const balanceDue =
+                          order.sale_type === 'credit' &&
+                          (order.payment_status === 'unpaid' || order.payment_status === 'partial') &&
+                          order.status !== 'voided' &&
+                          order.status !== 'cancelled'
+                            ? getOrderBalanceDue(order)
+                            : null;
+
+                        return (
+                          <TableRow
+                            key={order.id}
+                            className={cn(
+                              balanceDue !== null && balanceDue > 0 && 'bg-warning/5',
+                            )}
+                          >
+                            <TableCell className="font-medium">
+                              <div className="flex flex-col">
+                                <span>#{order.order_number}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  {saleConfig?.label || 'Cash Sale'}
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="max-w-[160px] truncate">
+                              {order.customer_name || '—'}
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                              {format(new Date(order.created_at), 'MMM dd, HH:mm')}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums">
+                              {order.items.length}
+                            </TableCell>
+                            <TableCell className="text-right font-semibold tabular-nums">
+                              <div>{fc(order.total)}</div>
+                              {balanceDue !== null && balanceDue > 0 && (
+                                <div className="text-xs text-warning">
+                                  Due {fc(balanceDue)}
+                                </div>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={cn('text-xs capitalize', statusColors[order.status] || '')}>
+                                {order.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex justify-end gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => handleViewOrder(order)}
+                                  title="View"
+                                >
+                                  <Eye className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => handlePrintReceipt(order)}
+                                  title={order.sale_type === 'credit' ? 'Invoice' : 'Receipt'}
+                                >
+                                  <FileText className="w-4 h-4" />
+                                </Button>
+                                {canRecordPaymentForOrder(order) && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-success"
+                                    onClick={() => handleRecordPayment(order)}
+                                    title="Record payment"
+                                  >
+                                    <CircleDollarSign className="w-4 h-4" />
+                                  </Button>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </Card>
+              )}
+
+              <div className="space-y-2 lg:hidden">
               {paginatedOrders.map((order) => {
                 const primaryPayment =
                   order.payments.length > 1
@@ -851,172 +1044,65 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                     : order.payments[0]?.method || '—';
                 const saleConfig = saleTypeConfig[order.sale_type || 'cash'];
                 const SaleIcon = saleConfig?.icon || Banknote;
-                const orderCustomer = order.customer_id ? getCustomerById(order.customer_id) : null;
 
                 return (
                   <Card
                     key={order.id}
                     className={cn(
-                      'hover:shadow-md transition-shadow',
                       order.sale_type === 'credit' && order.payment_status === 'unpaid' && 'border-l-4 border-l-warning',
                     )}
                   >
-                <CardContent className="p-3 sm:p-4 lg:p-6">
-                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 sm:gap-3 mb-3 flex-wrap">
-                            <h3 className="font-bold text-base sm:text-lg text-foreground">
-                              Order #{order.order_number}
+                <CardContent className="p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                          <div className="mb-1 flex flex-wrap items-center gap-1.5">
+                            <h3 className="font-semibold text-sm text-foreground">
+                              #{order.order_number}
                             </h3>
-                            {order.invoice_number && (
-                              <span className="text-sm text-muted-foreground font-mono">
-                                {order.invoice_number}
-                              </span>
-                            )}
-                            <Badge className={cn('text-xs', statusColors[order.status] || '')}>
+                            <Badge className={cn('text-[10px]', statusColors[order.status] || '')}>
                           {order.status}
                         </Badge>
-                            <Badge className={cn('text-xs gap-1', saleConfig?.className || '')}>
+                            <Badge className={cn('text-[10px] gap-1', saleConfig?.className || '')}>
                               <SaleIcon className="w-3 h-3" />
-                              {saleConfig?.label || 'Cash Sale'}
+                              {saleConfig?.label || 'Cash'}
                         </Badge>
-                            {primaryPayment === 'split' && (
-                          <Badge className="text-xs bg-info/10 text-info">Split Payment</Badge>
-                        )}
                       </div>
 
-                          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm mb-4">
-                            {order.table_number && (
-                          <div>
-                            <p className="text-muted-foreground">Table</p>
-                                <p className="font-medium">#{order.table_number}</p>
-                          </div>
-                        )}
-                            {order.customer_name && (
-                          <div>
-                            <p className="text-muted-foreground">Customer</p>
-                                <p className="font-medium">{order.customer_name}</p>
-                          </div>
-                        )}
-                        <div>
-                          <p className="text-muted-foreground">Date</p>
-                              <p className="font-medium">
-                                {format(new Date(order.created_at), 'MMM dd, yyyy HH:mm')}
-                              </p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">Total</p>
-                          <p className="font-medium">{fc(order.total)}</p>
-                        </div>
-                            {order.sale_type === 'credit' &&
-                              (order.payment_status === 'unpaid' || order.payment_status === 'partial') &&
-                              order.status !== 'voided' &&
-                              order.status !== 'cancelled' && (
-                              <div>
-                                <p className="text-muted-foreground">Balance Due</p>
-                                <p className="font-bold text-warning">{fc(getOrderBalanceDue(order))}</p>
-                              </div>
-                            )}
-                            {orderCustomer && orderCustomer.credit_balance > 0 && (
-                              <div>
-                                <p className="text-muted-foreground">Acct. Balance</p>
-                                <p className="font-bold text-warning">{fc(orderCustomer.credit_balance)}</p>
-                              </div>
-                            )}
-                      </div>
-
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
-                        <span>{order.items.length} items</span>
-                            {order.order_type && (
-                              <>
-                                <span>•</span>
-                                <span className="capitalize">
-                                  {order.order_type.replace('-', ' ')}
-                                </span>
-                              </>
-                            )}
+                          <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                            {order.customer_name && <span>{order.customer_name}</span>}
+                            <span>{format(new Date(order.created_at), 'MMM dd, HH:mm')}</span>
+                            <span>{order.items.length} items</span>
                             {primaryPayment !== 'split' && primaryPayment !== '—' && (
-                              <>
-                                <span>•</span>
-                                <span className="capitalize">{primaryPayment}</span>
-                              </>
+                              <span className="capitalize">{primaryPayment}</span>
                             )}
-                            {order.staff_name && (
-                          <>
-                            <span>•</span>
-                                <span>by {order.staff_name}</span>
-                          </>
-                        )}
-                            {order.due_date && (
-                          <>
-                            <span>•</span>
-                                <span>Due: {format(new Date(order.due_date), 'MMM dd, yyyy')}</span>
-                          </>
-                        )}
                       </div>
+                      <p className="mt-1 text-sm font-bold tabular-nums">{fc(order.total)}</p>
                     </div>
 
-                    <div className="flex sm:flex-col gap-2 sm:ml-4 overflow-x-auto scrollbar-hide shrink-0">
+                    <div className="flex shrink-0 gap-1">
                       <Button
                         variant="outline"
-                        size="sm"
+                        size="icon"
+                        className="h-8 w-8"
                         onClick={() => handleViewOrder(order)}
-                        className="gap-2"
                       >
                         <Eye className="w-4 h-4" />
-                        View
                       </Button>
                         <Button
                           variant="outline"
-                          size="sm"
+                          size="icon"
+                          className="h-8 w-8"
                             onClick={() => handlePrintReceipt(order)}
-                          className="gap-2"
                         >
                             <FileText className="w-4 h-4" />
-                            {order.sale_type === 'credit' ? 'Invoice' : 'Receipt'}
                           </Button>
                           {canRecordPaymentForOrder(order) && (
                               <Button
-                                size="sm"
+                                size="icon"
+                                className="h-8 w-8 bg-success hover:bg-success/90 text-white"
                                 onClick={() => handleRecordPayment(order)}
-                                className="gap-2 bg-success hover:bg-success/90 text-white"
                               >
                                 <CircleDollarSign className="w-4 h-4" />
-                                {order.sale_type === 'credit' ? 'Pay' : 'Set Payment'}
-                        </Button>
-                      )}
-                          {canShowRefundForOrder(order) && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleRefund(order)}
-                          className="gap-2 text-destructive hover:text-destructive"
-                          disabled={refundingOrderId === order.id}
-                        >
-                          {refundingOrderId === order.id ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <RotateCcw className="w-4 h-4" />
-                          )}
-                          Refund
-                        </Button>
-                      )}
-                          {order.status !== 'completed' &&
-                            order.status !== 'cancelled' &&
-                            order.status !== 'voided' && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleVoid(order)}
-                          className="gap-2 text-destructive hover:text-destructive"
-                          disabled={voidingOrderId === order.id}
-                        >
-                          {voidingOrderId === order.id ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <X className="w-4 h-4" />
-                          )}
-                          Void
                         </Button>
                       )}
                     </div>
@@ -1025,6 +1111,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
               </Card>
                 );
               })}
+              </div>
             {/* Pagination */}
             {filteredOrders.length > 0 && (
               <PaginationControls
