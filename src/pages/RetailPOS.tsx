@@ -1189,6 +1189,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
       activeTab="pos"
       onNavigate={onNavigate}
       flexContent
+      hideHeaderSearch
       // Hide bottom tabs while cart sheet is open so Complete Sale owns thumb space
       hideBottomNav={mobileCartOpen}
     >

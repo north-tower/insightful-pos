@@ -11,9 +11,10 @@ import { useCompanySettings } from '@/context/BusinessSettingsContext';
 
 interface HeaderProps {
   onMenuToggle?: () => void;
+  hideSearch?: boolean;
 }
 
-export function Header({ onMenuToggle }: HeaderProps) {
+export function Header({ onMenuToggle, hideSearch = false }: HeaderProps) {
   const { config, isRestaurant } = useBusinessMode();
   const { user } = useAuth();
   const { shopLogoUrl, companyName } = useCompanySettings();
@@ -48,14 +49,16 @@ export function Header({ onMenuToggle }: HeaderProps) {
           <Menu className="w-5 h-5 text-foreground" />
         </button>
 
-        {/* Search — hide on very small screens, show on sm+ */}
-        <div className="relative hidden sm:block sm:w-48 md:w-64 lg:w-96">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input
-            placeholder={searchPlaceholder}
-          className="pl-10 bg-muted/50 border-0 focus-visible:ring-1 focus-visible:ring-primary"
-        />
-        </div>
+        {/* Search — hidden on POS (page has its own search) */}
+        {!hideSearch && (
+          <div className="relative hidden sm:block sm:w-48 md:w-64 lg:w-96">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder={searchPlaceholder}
+              className="pl-10 bg-muted/50 border-0 focus-visible:ring-1 focus-visible:ring-primary"
+            />
+          </div>
+        )}
 
         {shopLogoUrl ? (
           <div className="hidden md:flex items-center gap-2 shrink-0 max-w-[140px]">
@@ -73,10 +76,11 @@ export function Header({ onMenuToggle }: HeaderProps) {
       <div className="flex items-center gap-2 sm:gap-4 shrink-0">
         <SyncStatusIndicator />
 
-        {/* Mobile search button */}
-        <button className="sm:hidden p-2 rounded-full hover:bg-muted transition-colors">
-          <Search className="w-5 h-5 text-muted-foreground" />
-        </button>
+        {!hideSearch && (
+          <button className="sm:hidden p-2 rounded-full hover:bg-muted transition-colors">
+            <Search className="w-5 h-5 text-muted-foreground" />
+          </button>
+        )}
 
         <ThemeToggle />
 

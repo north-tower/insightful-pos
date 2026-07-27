@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { PageLayout } from '@/components/pos/PageLayout';
 import { StatsCard } from '@/components/dashboard/StatsCard';
 import { SalesChart } from '@/components/dashboard/SalesChart';
@@ -19,12 +20,21 @@ import {
   Smartphone,
   XCircle,
   RefreshCw,
+  ShoppingBag,
+  Truck,
+  ArrowRight,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/currency';
 import { Button } from '@/components/ui/button';
 import { useCompanySettings } from '@/context/BusinessSettingsContext';
 import { ShopLogo } from '@/components/branding/ShopLogo';
 import { getDisplaySku } from '@/lib/productSku';
+import {
+  addToPurchaseDraft,
+  getPurchaseDraftCount,
+  suggestReorderQty,
+} from '@/lib/purchaseDraft';
+import { toast } from 'sonner';
 
 interface RetailDashboardProps {
   onNavigate: (tab: string) => void;
@@ -106,6 +116,8 @@ function ChartSkeleton() {
 export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
   const { companyName, shopLogoUrl } = useCompanySettings();
   const { retailProducts, loading: productsLoading } = useProducts();
+  const [purchaseDraftCount, setPurchaseDraftCount] = useState(() => getPurchaseDraftCount());
+  const [markedProductIds, setMarkedProductIds] = useState<Set<string>>(() => new Set());
   const {
     loading: statsLoading,
     retailStats,
@@ -127,6 +139,26 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
   const outOfStockProducts = retailProducts.filter((p) => p.stock === 0);
 
   const sparklineValues = weeklySalesData.map((d) => d.revenue);
+
+  const handleMarkForPurchase = (product: (typeof retailProducts)[0]) => {
+    const quantity = suggestReorderQty(product.stock, product.lowStockThreshold);
+    addToPurchaseDraft({
+      product_id: product.id,
+      product_name: product.name,
+      product_sku: product.sku || null,
+      quantity,
+      unit_cost: product.cost || 0,
+    });
+    setPurchaseDraftCount(getPurchaseDraftCount());
+    setMarkedProductIds((prev) => new Set(prev).add(product.id));
+    toast.success(`${product.name} added to purchase order`);
+  };
+
+  const handleOpenPurchases = () => {
+    onNavigate('purchases');
+  };
+
+  const stockAlertCount = lowStockProducts.length + outOfStockProducts.length;
 
   return (
     <PageLayout activeTab="dashboard" onNavigate={onNavigate}>
@@ -236,18 +268,36 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
                     <CardTitle className="text-lg font-semibold">Stock Alerts</CardTitle>
                     <CardDescription>Products needing attention</CardDescription>
                   </div>
-                  <Badge
-                    variant="outline"
-                    className={cn(
-                      outOfStockProducts.length > 0
-                        ? 'border-destructive/30 bg-destructive/10 text-destructive'
-                        : lowStockProducts.length > 0
-                          ? 'border-warning/30 bg-warning/10 text-warning'
-                          : 'border-border bg-muted text-muted-foreground dark:border-gray-600'
+                  <div className="flex shrink-0 items-center gap-2">
+                    {stockAlertCount > 0 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="hidden sm:inline-flex"
+                        onClick={() => onNavigate('inventory')}
+                      >
+                        Restock
+                      </Button>
                     )}
-                  >
-                    {lowStockProducts.length + outOfStockProducts.length} alerts
-                  </Badge>
+                    {(purchaseDraftCount > 0 || stockAlertCount > 0) && (
+                      <Button size="sm" onClick={handleOpenPurchases}>
+                        <Truck className="mr-1.5 h-4 w-4" />
+                        {purchaseDraftCount > 0 ? `Create PO (${purchaseDraftCount})` : 'Create PO'}
+                      </Button>
+                    )}
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        outOfStockProducts.length > 0
+                          ? 'border-destructive/30 bg-destructive/10 text-destructive'
+                          : lowStockProducts.length > 0
+                            ? 'border-warning/30 bg-warning/10 text-warning'
+                            : 'border-border bg-muted text-muted-foreground dark:border-gray-600',
+                      )}
+                    >
+                      {stockAlertCount} alerts
+                    </Badge>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
@@ -272,9 +322,20 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
                             ) : null}
                           </div>
                         </div>
-                        <Badge className="shrink-0 bg-destructive text-destructive-foreground text-xs hover:bg-destructive">
-                          Out of Stock
-                        </Badge>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 text-xs"
+                            onClick={() => handleMarkForPurchase(product)}
+                            disabled={markedProductIds.has(product.id)}
+                          >
+                            {markedProductIds.has(product.id) ? 'Added' : 'Mark for PO'}
+                          </Button>
+                          <Badge className="shrink-0 bg-destructive text-destructive-foreground text-xs hover:bg-destructive">
+                            Out of Stock
+                          </Badge>
+                        </div>
                       </div>
                     );
                   })}
@@ -302,9 +363,20 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
                             </p>
                           </div>
                         </div>
-                        <Badge className="shrink-0 border border-warning/30 bg-warning/15 text-warning text-xs hover:bg-warning/20">
-                          Low Stock
-                        </Badge>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 text-xs"
+                            onClick={() => handleMarkForPurchase(product)}
+                            disabled={markedProductIds.has(product.id)}
+                          >
+                            {markedProductIds.has(product.id) ? 'Added' : 'Mark for PO'}
+                          </Button>
+                          <Badge className="shrink-0 border border-warning/30 bg-warning/15 text-warning text-xs hover:bg-warning/20">
+                            Low Stock
+                          </Badge>
+                        </div>
                       </div>
                     );
                   })}
@@ -346,6 +418,11 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
                       <p className="mt-1 max-w-xs text-sm text-gray-500 dark:text-gray-400">
                         Sales will appear here once you make your first transaction
                       </p>
+                      <Button className="mt-4" onClick={() => onNavigate('pos')}>
+                        <ShoppingBag className="mr-2 h-4 w-4" />
+                        Go to POS
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </Button>
                     </div>
                   ) : (
                     recentSales.map((sale) => {

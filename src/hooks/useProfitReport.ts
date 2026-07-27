@@ -54,6 +54,24 @@ function mapRow(row: Record<string, unknown>): ProfitSummary {
   };
 }
 
+export async function fetchProfitSummary(
+  businessMode: string,
+  startIso: string,
+  endIso: string,
+): Promise<ProfitSummary> {
+  const { data, error: rpcErr } = await supabase.rpc('get_profit_summary', {
+    p_start: startIso,
+    p_end: endIso,
+    p_store_id: null,
+    p_business_mode: businessMode,
+  });
+
+  if (rpcErr) throw rpcErr;
+
+  const row = Array.isArray(data) ? data[0] : data;
+  return row ? mapRow(row as Record<string, unknown>) : emptySummary();
+}
+
 export function useProfitReport() {
   const { mode } = useBusinessMode();
   const [loading, setLoading] = useState(false);
@@ -65,17 +83,8 @@ export function useProfitReport() {
       setLoading(true);
       setError(null);
       try {
-        const { data, error: rpcErr } = await supabase.rpc('get_profit_summary', {
-          p_start: startIso,
-          p_end: endIso,
-          p_store_id: null,
-          p_business_mode: mode,
-        });
-
-        if (rpcErr) throw rpcErr;
-
-        const row = Array.isArray(data) ? data[0] : data;
-        setSummary(row ? mapRow(row as Record<string, unknown>) : emptySummary());
+        const result = await fetchProfitSummary(mode, startIso, endIso);
+        setSummary(result);
       } catch (err: unknown) {
         const message =
           err instanceof Error ? err.message : 'Failed to load profit report';

@@ -7,6 +7,7 @@ import {
   startOfMonth,
   subDays,
   subMonths,
+  differenceInDays,
 } from 'date-fns';
 import {
   TrendingUp,
@@ -35,7 +36,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useProfitReport } from '@/hooks/useProfitReport';
+import { useProfitReport, fetchProfitSummary, type ProfitSummary } from '@/hooks/useProfitReport';
 import {
   ALL_EXPENSE_CATEGORIES,
   ROUTE_EXPENSE_CATEGORIES,
@@ -48,6 +49,9 @@ import { supabase } from '@/lib/supabase';
 import { fc } from '@/lib/currency';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { useBusinessMode } from '@/context/BusinessModeContext';
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
+import { Bar, BarChart, CartesianGrid, Legend, XAxis, YAxis } from 'recharts';
 
 interface ProfitLossReportProps {
   onNavigate: (tab: string) => void;
@@ -83,6 +87,54 @@ function rangeToIso(startDate: string, endDate: string): { start: string; end: s
   };
 }
 
+function priorPeriodRange(startDate: string, endDate: string): { start: string; end: string } {
+  const start = new Date(`${startDate}T00:00:00`);
+  const end = new Date(`${endDate}T00:00:00`);
+  const days = Math.max(differenceInDays(end, start) + 1, 1);
+  const priorEnd = subDays(start, 1);
+  const priorStart = subDays(priorEnd, days - 1);
+  return {
+    start: toDateInputValue(priorStart),
+    end: toDateInputValue(priorEnd),
+  };
+}
+
+function pctChange(current: number, prior: number): number | null {
+  if (prior === 0) return current === 0 ? 0 : null;
+  return ((current - prior) / Math.abs(prior)) * 100;
+}
+
+function ComparisonNote({
+  current,
+  prior,
+  label = 'vs prior period',
+}: {
+  current: number;
+  prior: number;
+  label?: string;
+}) {
+  const change = pctChange(current, prior);
+  if (change === null) return null;
+  const positive = change >= 0;
+  return (
+    <p
+      className={cn(
+        'text-[11px] mt-1 flex items-center gap-1',
+        positive ? 'text-success' : 'text-destructive',
+      )}
+    >
+      {positive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+      {positive ? '+' : ''}
+      {change.toFixed(1)}% {label}
+    </p>
+  );
+}
+
+const comparisonChartConfig = {
+  current: { label: 'Current', color: 'hsl(var(--primary))' },
+  previous: { label: 'Previous', color: 'hsl(var(--muted-foreground))' },
+};
+
 function exportSummaryCsv(
   summary: ReturnType<typeof useProfitReport>['summary'],
   startDate: string,
@@ -116,8 +168,10 @@ function exportSummaryCsv(
 
 export default function ProfitLossReport({ onNavigate }: ProfitLossReportProps) {
   const { user } = useAuth();
+  const { mode } = useBusinessMode();
   const canView = user?.role === 'admin' || user?.role === 'manager';
   const { summary, loading, error, fetchSummary } = useProfitReport();
+  const [priorSummary, setPriorSummary] = useState<ProfitSummary | null>(null);
   const {
     expenses,
     loading: expensesLoading,
@@ -153,8 +207,37 @@ export default function ProfitLossReport({ onNavigate }: ProfitLossReportProps) 
 
   const refreshReport = useCallback(async () => {
     const { start, end } = rangeToIso(startDate, endDate);
+    const prior = priorPeriodRange(startDate, endDate);
+    const priorIso = rangeToIso(prior.start, prior.end);
     await Promise.all([fetchSummary(start, end), fetchInRange(start, end)]);
-  }, [startDate, endDate, fetchSummary, fetchInRange]);
+    try {
+      const priorData = await fetchProfitSummary(mode, priorIso.start, priorIso.end);
+      setPriorSummary(priorData);
+    } catch {
+      setPriorSummary(null);
+    }
+  }, [startDate, endDate, fetchSummary, fetchInRange, mode]);
+
+  const comparisonChartData = useMemo(
+    () =>
+      priorSummary
+        ? [
+            { metric: 'Revenue', current: summary.netRevenue, previous: priorSummary.netRevenue },
+            {
+              metric: 'Gross profit',
+              current: summary.grossProfit,
+              previous: priorSummary.grossProfit,
+            },
+            {
+              metric: 'Expenses',
+              current: summary.operatingExpenses,
+              previous: priorSummary.operatingExpenses,
+            },
+            { metric: 'Net profit', current: summary.netProfit, previous: priorSummary.netProfit },
+          ]
+        : [],
+    [summary, priorSummary],
+  );
 
   useEffect(() => {
     if (!canView) return;
@@ -383,6 +466,12 @@ export default function ProfitLossReport({ onNavigate }: ProfitLossReportProps) 
                       <p className="text-[11px] text-muted-foreground mt-1">
                         {summary.orderCount} orders
                       </p>
+                      {priorSummary && (
+                        <ComparisonNote
+                          current={summary.netRevenue}
+                          prior={priorSummary.netRevenue}
+                        />
+                      )}
                     </div>
                     <Receipt className="w-8 h-8 text-primary opacity-40" />
                   </div>
@@ -404,6 +493,12 @@ export default function ProfitLossReport({ onNavigate }: ProfitLossReportProps) 
                       <p className="text-[11px] text-muted-foreground mt-1">
                         {summary.grossMarginPct.toFixed(1)}% margin
                       </p>
+                      {priorSummary && (
+                        <ComparisonNote
+                          current={summary.grossProfit}
+                          prior={priorSummary.grossProfit}
+                        />
+                      )}
                     </div>
                     <TrendingUp className="w-8 h-8 text-success opacity-40" />
                   </div>
@@ -418,6 +513,12 @@ export default function ProfitLossReport({ onNavigate }: ProfitLossReportProps) 
                       <p className="text-[11px] text-muted-foreground mt-1">
                         {summary.expenseCount} entries
                       </p>
+                      {priorSummary && (
+                        <ComparisonNote
+                          current={summary.operatingExpenses}
+                          prior={priorSummary.operatingExpenses}
+                        />
+                      )}
                     </div>
                     <Wallet className="w-8 h-8 text-warning opacity-40" />
                   </div>
@@ -439,6 +540,12 @@ export default function ProfitLossReport({ onNavigate }: ProfitLossReportProps) 
                       <p className="text-[11px] text-muted-foreground mt-1">
                         {summary.netMarginPct.toFixed(1)}% net margin
                       </p>
+                      {priorSummary && (
+                        <ComparisonNote
+                          current={summary.netProfit}
+                          prior={priorSummary.netProfit}
+                        />
+                      )}
                     </div>
                     {summary.netProfit >= 0 ? (
                       <PiggyBank className="w-8 h-8 text-success opacity-40" />
@@ -473,6 +580,38 @@ export default function ProfitLossReport({ onNavigate }: ProfitLossReportProps) 
                 </CardContent>
               </Card>
             </div>
+
+            {comparisonChartData.length > 0 && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Period comparison</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ChartContainer config={comparisonChartConfig} className="h-[260px] w-full">
+                    <BarChart data={comparisonChartData} margin={{ left: 8, right: 8, top: 8 }}>
+                      <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                      <XAxis dataKey="metric" tickLine={false} axisLine={false} fontSize={12} />
+                      <YAxis
+                        tickLine={false}
+                        axisLine={false}
+                        fontSize={12}
+                        tickFormatter={(v) => fc(Number(v))}
+                      />
+                      <ChartTooltip
+                        content={
+                          <ChartTooltipContent
+                            formatter={(value) => fc(Number(value))}
+                          />
+                        }
+                      />
+                      <Legend />
+                      <Bar dataKey="current" fill="var(--color-current)" radius={4} />
+                      <Bar dataKey="previous" fill="var(--color-previous)" radius={4} />
+                    </BarChart>
+                  </ChartContainer>
+                </CardContent>
+              </Card>
+            )}
 
             <Card>
               <CardHeader>

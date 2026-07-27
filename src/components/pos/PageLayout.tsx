@@ -24,6 +24,8 @@ interface PageLayoutProps {
    * so the sticky Complete Sale bar isn't competing for thumb space).
    */
   hideBottomNav?: boolean;
+  /** Hide the global header search (e.g. POS has its own product search). */
+  hideHeaderSearch?: boolean;
 }
 
 interface BottomNavItem {
@@ -57,6 +59,7 @@ export function PageLayout({
   children,
   flexContent,
   hideBottomNav = false,
+  hideHeaderSearch = false,
 }: PageLayoutProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { isRestaurant } = useBusinessMode();
@@ -75,7 +78,10 @@ export function PageLayout({
 
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         <DemoModeBanner />
-        <Header onMenuToggle={() => setMobileMenuOpen(true)} />
+        <Header
+          onMenuToggle={() => setMobileMenuOpen(true)}
+          hideSearch={hideHeaderSearch}
+        />
 
         {flexContent ? (
           <div

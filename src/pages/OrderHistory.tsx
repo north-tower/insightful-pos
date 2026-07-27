@@ -13,7 +13,27 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { PaginationControls } from '@/components/ui/pagination-controls';
-import { Search, RotateCcw, Eye, Printer, X, Loader2, DollarSign, ShoppingBag, AlertTriangle, FileText, CreditCard, Banknote, CircleDollarSign, Pencil, Trash2 } from 'lucide-react';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import { Search, RotateCcw, Eye, Printer, X, Loader2, DollarSign, ShoppingBag, AlertTriangle, FileText, CreditCard, Banknote, CircleDollarSign, Pencil, Trash2, SlidersHorizontal, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import {
@@ -158,9 +178,18 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
   const [reportOrders, setReportOrders] = useState<SaleOrder[] | null>(null);
   const [isReportLoading, setIsReportLoading] = useState(false);
   const [isReportMode, setIsReportMode] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (statusFilter !== 'all') count += 1;
+    if (saleTypeFilter !== 'all') count += 1;
+    if (paymentMethodFilter !== 'all') count += 1;
+    return count;
+  }, [statusFilter, saleTypeFilter, paymentMethodFilter]);
 
   const sourceOrders = useMemo(
-    () => (isReportMode && reportOrders ? reportOrders : orders),
     [isReportMode, reportOrders, orders],
   );
 

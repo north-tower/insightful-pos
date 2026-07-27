@@ -66,7 +66,7 @@ import { useSuppliers, type Supplier } from '@/hooks/useSuppliers';
 import { useProducts } from '@/hooks/useProducts';
 import { toast } from 'sonner';
 import { format, subMonths, startOfMonth, isAfter, isSameMonth } from 'date-fns';
-import { formatCurrency } from '@/lib/currency';
+import { consumePurchaseDraft } from '@/lib/purchaseDraft';
 
 type PurchaseSortKey = 'purchase_number' | 'supplier' | 'date' | 'items' | 'status' | 'total';
 type SortDirection = 'asc' | 'desc';
@@ -353,6 +353,31 @@ export default function Purchases({ onNavigate }: PurchasesProps) {
     resetPoForm();
     setShowPoDialog(true);
   };
+
+  const openPurchaseWithDraft = (draftItems: ReturnType<typeof consumePurchaseDraft>) => {
+    resetPoForm();
+    const items = draftItems.map((item, idx) => ({
+      _key: idx + 1,
+      product_id: item.product_id,
+      product_name: item.product_name,
+      product_sku: item.product_sku,
+      quantity: item.quantity,
+      unit_cost: item.unit_cost > 0 ? item.unit_cost : 0,
+    }));
+    setPoItems(items);
+    setNextKey(items.length + 1);
+    setPoNotes('Restock from dashboard stock alerts');
+    setShowPoDialog(true);
+    toast.success(`Loaded ${items.length} item${items.length === 1 ? '' : 's'} from stock alerts`);
+  };
+
+  useEffect(() => {
+    const draftItems = consumePurchaseDraft();
+    if (draftItems.length > 0) {
+      openPurchaseWithDraft(draftItems);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
+  }, []);
 
   const openEditPurchase = (po: (typeof purchases)[0]) => {
     setEditingPurchaseId(po.id);
