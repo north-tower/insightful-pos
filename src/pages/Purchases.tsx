@@ -66,6 +66,7 @@ import { useSuppliers, type Supplier } from '@/hooks/useSuppliers';
 import { useProducts } from '@/hooks/useProducts';
 import { toast } from 'sonner';
 import { format, subMonths, startOfMonth, isAfter, isSameMonth } from 'date-fns';
+import { formatCurrency } from '@/lib/currency';
 import { consumePurchaseDraft } from '@/lib/purchaseDraft';
 
 type PurchaseSortKey = 'purchase_number' | 'supplier' | 'date' | 'items' | 'status' | 'total';
