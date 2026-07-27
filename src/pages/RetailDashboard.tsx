@@ -10,7 +10,6 @@ import { cn } from '@/lib/utils';
 import { useProducts } from '@/hooks/useProducts';
 import { useDashboardStats } from '@/hooks/useDashboardStats';
 import {
-  DollarSign,
   ShoppingCart,
   Package,
   AlertTriangle,
@@ -29,6 +28,7 @@ import { Button } from '@/components/ui/button';
 import { useCompanySettings } from '@/context/BusinessSettingsContext';
 import { ShopLogo } from '@/components/branding/ShopLogo';
 import { getDisplaySku } from '@/lib/productSku';
+import { CurrencyIcon } from '@/components/icons/CurrencyIcon';
 import {
   addToPurchaseDraft,
   getPurchaseDraftCount,
@@ -222,7 +222,7 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
                 title="Today's Revenue"
                 value={formatCurrency(retailStats.todayRevenue)}
                 change={retailStats.revenueChange}
-                icon={<DollarSign className="h-6 w-6" />}
+                icon={<CurrencyIcon className="h-6 w-6" />}
                 description={
                   retailStats.revenueChange
                     ? `${retailStats.revenueChange >= 0 ? '↑' : '↓'} ${Math.abs(Math.round(retailStats.revenueChange))}% from yesterday`

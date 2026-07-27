@@ -54,6 +54,11 @@ interface NavItem {
   children?: NavChild[];
 }
 
+interface NavSection {
+  label: string;
+  items: NavItem[];
+}
+
 const restaurantNavItems: NavItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'order-line', label: 'Order Line', icon: ClipboardList },
@@ -66,27 +71,55 @@ const restaurantNavItems: NavItem[] = [
   { id: 'customers', label: 'Customers', icon: Users, roles: ['admin', 'manager'] },
 ];
 
-const retailNavItems: NavItem[] = [
-  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { id: 'pos', label: 'Point of Sale', icon: ShoppingCart },
-  { id: 'products', label: 'Products', icon: Package, roles: ['admin', 'manager'] },
+const retailNavSections: NavSection[] = [
   {
-    id: 'inventory',
-    label: 'Inventory',
-    icon: Warehouse,
-    roles: ['admin', 'manager'],
-    children: [
-      { id: 'inventory', label: 'Overview' },
-      { id: 'inventory-assign-staff', label: 'Assign Staff Inventory' },
+    label: 'Sales',
+    items: [
+      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { id: 'pos', label: 'Point of Sale', icon: ShoppingCart },
+      { id: 'order-history', label: 'Transactions', icon: Receipt },
     ],
   },
-  { id: 'production', label: 'Production', icon: Factory, roles: ['admin', 'manager'] },
-  { id: 'purchases', label: 'Purchases', icon: Truck, roles: ['admin', 'manager'] },
-  { id: 'profit-loss', label: 'Profit & Loss', icon: TrendingUp, roles: ['admin', 'manager'] },
-  { id: 'order-history', label: 'Transactions', icon: Receipt },
-  { id: 'accounts', label: 'Accounts', icon: CircleDollarSign, roles: ['admin', 'manager', 'cashier'] },
-  { id: 'customers', label: 'Customers', icon: Users, roles: ['admin', 'manager'] },
+  {
+    label: 'Catalog',
+    items: [
+      { id: 'products', label: 'Products', icon: Package, roles: ['admin', 'manager'] },
+      { id: 'customers', label: 'Customers', icon: Users, roles: ['admin', 'manager'] },
+    ],
+  },
+  {
+    label: 'Stock',
+    items: [
+      {
+        id: 'inventory',
+        label: 'Inventory',
+        icon: Warehouse,
+        roles: ['admin', 'manager'],
+        children: [
+          { id: 'inventory', label: 'Overview' },
+          { id: 'inventory-assign-staff', label: 'Assign Staff Inventory' },
+        ],
+      },
+      { id: 'production', label: 'Production', icon: Factory, roles: ['admin', 'manager'] },
+    ],
+  },
+  {
+    label: 'Finance',
+    items: [
+      { id: 'purchases', label: 'Purchases', icon: Truck, roles: ['admin', 'manager'] },
+      { id: 'profit-loss', label: 'Profit & Loss', icon: TrendingUp, roles: ['admin', 'manager'] },
+      {
+        id: 'accounts',
+        label: 'Accounts',
+        icon: CircleDollarSign,
+        roles: ['admin', 'manager', 'cashier'],
+      },
+    ],
+  },
 ];
+
+/** Flat list of retail nav items for active-tab parent expansion. */
+const retailNavItems: NavItem[] = retailNavSections.flatMap((section) => section.items);
 
 const bottomNavItems: NavItem[] = [
   { id: 'settings', label: 'Settings', icon: Settings, roles: ['admin', 'manager'] },
@@ -163,6 +196,88 @@ export function Sidebar({ activeTab, onTabChange, mobileOpen, onMobileClose }: S
     });
   };
 
+  const renderNavItem = (item: NavItem) => {
+    const Icon = item.icon;
+    const hasChildren = Boolean(item.children?.length);
+    const isGroupActive = isNavGroupActive(item, activeTab);
+    const isExpanded = hasChildren && (expandedMenus.has(item.id) || isGroupActive);
+
+    if (hasChildren) {
+      return (
+        <div key={item.id} className="space-y-1">
+          <button
+            onClick={() => toggleMenuExpanded(item.id)}
+            className={cn(
+              'w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group relative',
+              isGroupActive
+                ? 'bg-sidebar-primary/15 text-sidebar-foreground'
+                : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground',
+            )}
+          >
+            <Icon
+              className={cn(
+                'w-5 h-5 transition-transform duration-200',
+                isGroupActive ? 'scale-110' : 'group-hover:scale-110',
+              )}
+            />
+            <span className="flex-1 text-left">{item.label}</span>
+            <ChevronDown
+              className={cn(
+                'w-4 h-4 opacity-70 transition-transform duration-200',
+                isExpanded && 'rotate-180',
+              )}
+            />
+          </button>
+          {isExpanded && (
+            <div className="ml-4 pl-3 border-l border-sidebar-border/50 space-y-1">
+              {item.children!.map((child) => {
+                const isChildActive = activeTab === child.id;
+                return (
+                  <button
+                    key={child.id}
+                    onClick={() => handleNavClick(child.id)}
+                    className={cn(
+                      'w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200',
+                      isChildActive
+                        ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-md shadow-sidebar-primary/20'
+                        : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground',
+                    )}
+                  >
+                    <span className="flex-1 text-left">{child.label}</span>
+                    {isChildActive && <ChevronRight className="w-3.5 h-3.5 opacity-70" />}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    const isActive = activeTab === item.id;
+    return (
+      <button
+        key={item.id}
+        onClick={() => handleNavClick(item.id)}
+        className={cn(
+          'w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group relative',
+          isActive
+            ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-lg shadow-sidebar-primary/20'
+            : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground',
+        )}
+      >
+        <Icon
+          className={cn(
+            'w-5 h-5 transition-transform duration-200',
+            isActive ? 'scale-110' : 'group-hover:scale-110',
+          )}
+        />
+        <span className="flex-1 text-left">{item.label}</span>
+        {isActive && <ChevronRight className="w-4 h-4 opacity-70" />}
+      </button>
+    );
+  };
+
   const sidebarContent = (
     <aside className="w-64 bg-sidebar text-sidebar-foreground flex flex-col shadow-sidebar h-full">
       {/* Logo Section */}
@@ -191,93 +306,32 @@ export function Sidebar({ activeTab, onTabChange, mobileOpen, onMobileClose }: S
       </div>
 
       {/* Main Navigation */}
-      <nav className="flex-1 px-4 py-6 overflow-y-auto">
-        <div className="space-y-2">
-          <p className="text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider px-3 mb-3">
-            Main Menu
-          </p>
-          {mainNavItems.map((item) => {
-            const Icon = item.icon;
-            const hasChildren = Boolean(item.children?.length);
-            const isGroupActive = isNavGroupActive(item, activeTab);
-            const isExpanded = hasChildren && (expandedMenus.has(item.id) || isGroupActive);
-
-            if (hasChildren) {
+      <nav className="flex-1 px-4 py-4 overflow-y-auto">
+        {isRestaurant ? (
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider px-3 mb-2">
+              Main Menu
+            </p>
+            {mainNavItems.map((item) => renderNavItem(item))}
+          </div>
+        ) : (
+          <div className="space-y-5">
+            {retailNavSections.map((section) => {
+              const visibleItems = section.items.filter(
+                (item) => !item.roles || item.roles.includes(userRole),
+              );
+              if (visibleItems.length === 0) return null;
               return (
-                <div key={item.id} className="space-y-1">
-                  <button
-                    onClick={() => toggleMenuExpanded(item.id)}
-                    className={cn(
-                      'w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 group relative',
-                      isGroupActive
-                        ? 'bg-sidebar-primary/15 text-sidebar-foreground'
-                        : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground'
-                    )}
-                  >
-                    <Icon className={cn(
-                      'w-5 h-5 transition-transform duration-200',
-                      isGroupActive ? 'scale-110' : 'group-hover:scale-110'
-                    )} />
-                    <span className="flex-1 text-left">{item.label}</span>
-                    <ChevronDown
-                      className={cn(
-                        'w-4 h-4 opacity-70 transition-transform duration-200',
-                        isExpanded && 'rotate-180'
-                      )}
-                    />
-                  </button>
-                  {isExpanded && (
-                    <div className="ml-4 pl-3 border-l border-sidebar-border/50 space-y-1">
-                      {item.children!.map((child) => {
-                        const isChildActive = activeTab === child.id;
-                        return (
-                          <button
-                            key={child.id}
-                            onClick={() => handleNavClick(child.id)}
-                            className={cn(
-                              'w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200',
-                              isChildActive
-                                ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-md shadow-sidebar-primary/20'
-                                : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground'
-                            )}
-                          >
-                            <span className="flex-1 text-left">{child.label}</span>
-                            {isChildActive && (
-                              <ChevronRight className="w-3.5 h-3.5 opacity-70" />
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
+                <div key={section.label} className="space-y-1.5">
+                  <p className="text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider px-3">
+                    {section.label}
+                  </p>
+                  {visibleItems.map((item) => renderNavItem(item))}
                 </div>
               );
-            }
-
-            const isActive = activeTab === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => handleNavClick(item.id)}
-                className={cn(
-                  'w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 group relative',
-                  isActive
-                    ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-lg shadow-sidebar-primary/20'
-                    : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground'
-                )}
-              >
-                <Icon className={cn(
-                  'w-5 h-5 transition-transform duration-200',
-                  isActive ? 'scale-110' : 'group-hover:scale-110'
-                )} />
-                <span className="flex-1 text-left">{item.label}</span>
-                {isActive && (
-                  <ChevronRight className="w-4 h-4 opacity-70" />
-                )}
-              </button>
-            );
-          })}
-        </div>
+            })}
+          </div>
+        )}
       </nav>
 
       {/* User Profile Section */}

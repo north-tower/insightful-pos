@@ -17,7 +17,6 @@ import {
   Trash2,
   Eye,
   Star,
-  Award,
   CreditCard,
   Loader2,
 } from 'lucide-react';
@@ -152,7 +151,7 @@ export default function CustomerManagement({
                 Customer Management
               </h1>
               <p className="text-sm sm:text-base text-muted-foreground">
-                Manage your customer database and loyalty program
+                Manage your customer database
               </p>
             </div>
             <Button onClick={handleCreateCustomer} className="gap-2 self-start sm:self-auto">
@@ -190,7 +189,7 @@ export default function CustomerManagement({
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-5 gap-3 sm:gap-4 mb-6">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-4">
             <Card>
               <CardContent className="p-4 min-w-0">
                 <p className="text-sm text-muted-foreground mb-1">
@@ -220,16 +219,6 @@ export default function CustomerManagement({
                 </p>
                 <p className="text-2xl font-bold text-warning tabular-nums truncate">
                   {customers.filter((c) => c.status === 'vip').length}
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4 min-w-0">
-                <p className="text-sm text-muted-foreground mb-1">
-                  Total Loyalty Points
-                </p>
-                <p className="text-2xl font-bold text-primary tabular-nums truncate">
-                  {customers.reduce((sum, c) => sum + c.loyalty_points, 0).toLocaleString()}
                 </p>
               </CardContent>
             </Card>
@@ -274,8 +263,8 @@ export default function CustomerManagement({
                       'border-l-4 border-l-warning',
                   )}
                 >
-                  <CardContent className="p-5">
-                    <div className="flex items-start justify-between gap-2 mb-4">
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-2 mb-3">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1 min-w-0">
                           <h3 className="font-bold text-lg truncate">
@@ -316,7 +305,7 @@ export default function CustomerManagement({
                     )}
 
                     {/* Stats */}
-                    <div className="grid grid-cols-2 gap-3 mb-4 p-3 bg-muted/50 rounded-lg">
+                    <div className="grid grid-cols-3 gap-2 mb-3 p-2.5 bg-muted/50 rounded-lg">
                       <div className="min-w-0">
                         <p className="text-xs text-muted-foreground">Orders</p>
                         <p className="font-semibold tabular-nums truncate">
@@ -327,12 +316,6 @@ export default function CustomerManagement({
                         <p className="text-xs text-muted-foreground">Spent</p>
                         <p className="font-semibold tabular-nums truncate">
                           {formatCurrency(customer.total_spent)}
-                        </p>
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-xs text-muted-foreground">Points</p>
-                        <p className="font-semibold text-primary tabular-nums truncate">
-                          {customer.loyalty_points.toLocaleString()}
                         </p>
                       </div>
                       <div className="min-w-0">
@@ -352,18 +335,8 @@ export default function CustomerManagement({
                       </div>
                     </div>
 
-                    {/* Loyalty Points */}
-                    {customer.loyalty_points > 0 && (
-                      <div className="flex items-center gap-2 mb-4 p-2 bg-primary/10 rounded-lg min-w-0">
-                        <Award className="w-4 h-4 text-primary shrink-0" />
-                        <span className="text-sm font-medium text-primary tabular-nums truncate">
-                          {customer.loyalty_points.toLocaleString()} loyalty points
-                        </span>
-                      </div>
-                    )}
-
                     {/* Actions */}
-                    <div className="flex gap-2 pt-4 border-t">
+                    <div className="flex gap-2 pt-3 border-t">
                       <Button
                         variant="outline"
                         size="sm"

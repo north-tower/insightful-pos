@@ -14,7 +14,6 @@ import { format } from 'date-fns';
 import {
   Edit,
   Star,
-  Award,
   Mail,
   Phone,
   MapPin,
@@ -238,23 +237,12 @@ export function CustomerDetailDialog({
             </Card>
 
             {/* Stats */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <Card>
                 <CardContent className="p-4 text-center min-w-0">
                   <ShoppingBag className="w-6 h-6 mx-auto mb-2 text-muted-foreground" />
                   <p className="text-2xl font-bold tabular-nums truncate">{customer.total_orders.toLocaleString()}</p>
                   <p className="text-sm text-muted-foreground">Total Orders</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4 text-center min-w-0">
-                  <Award className="w-6 h-6 mx-auto mb-2 text-primary" />
-                  <p className="text-2xl font-bold text-primary tabular-nums truncate">
-                    {customer.loyalty_points.toLocaleString()}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    Loyalty Points
-                  </p>
                 </CardContent>
               </Card>
               <Card>
