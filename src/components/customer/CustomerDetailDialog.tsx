@@ -322,34 +322,52 @@ export function CustomerDetailDialog({
                     <div className="min-w-0">
                       <p className="text-muted-foreground">Available</p>
                       <p className="font-medium text-success tabular-nums truncate">
-                        {formatCurrency(Math.max(
-                          customer.credit_limit - customer.credit_balance,
-                          0,
-                        ))}
+                        {customer.credit_limit > 0
+                          ? formatCurrency(
+                              Math.max(
+                                customer.credit_limit - customer.credit_balance,
+                                0,
+                              ),
+                            )
+                          : 'No limit'}
                       </p>
                     </div>
                   </div>
-                  {/* Usage bar */}
-                  <div className="mt-3 h-2 bg-muted rounded-full overflow-hidden">
-                    <div
-                      className={cn(
-                        'h-full rounded-full transition-all',
-                        customer.credit_balance / customer.credit_limit > 0.8
-                          ? 'bg-destructive'
-                          : customer.credit_balance / customer.credit_limit >
-                              0.5
-                            ? 'bg-warning'
-                            : 'bg-success',
-                      )}
-                      style={{
-                        width: `${Math.min((customer.credit_balance / customer.credit_limit) * 100, 100)}%`,
-                      }}
-                    />
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1 text-right">
-                    {((customer.credit_balance / customer.credit_limit) * 100).toFixed(0)}%
-                    utilised
-                  </p>
+                  {/* Usage bar — only when a real credit limit is set */}
+                  {customer.credit_limit > 0 ? (
+                    <>
+                      <div className="mt-3 h-2 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className={cn(
+                            'h-full rounded-full transition-all',
+                            customer.credit_balance / customer.credit_limit > 0.8
+                              ? 'bg-destructive'
+                              : customer.credit_balance / customer.credit_limit >
+                                  0.5
+                                ? 'bg-warning'
+                                : 'bg-success',
+                          )}
+                          style={{
+                            width: `${Math.min(
+                              (customer.credit_balance / customer.credit_limit) * 100,
+                              100,
+                            )}%`,
+                          }}
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1 text-right">
+                        {Math.min(
+                          (customer.credit_balance / customer.credit_limit) * 100,
+                          100,
+                        ).toFixed(0)}
+                        % utilised
+                      </p>
+                    </>
+                  ) : (
+                    <p className="mt-3 text-xs text-muted-foreground">
+                      No credit limit set
+                    </p>
+                  )}
                 </CardContent>
               </Card>
             )}

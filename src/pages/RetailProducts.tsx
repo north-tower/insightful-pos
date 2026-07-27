@@ -66,6 +66,7 @@ import ImageUploader from '@/components/product/ImageUploader';
 import { generatePlaceholderUrl } from '@/lib/product-images';
 import { toast } from 'sonner';
 import { formatCurrency } from '@/lib/currency';
+import { shouldHideSkuColumn, getDisplaySku } from '@/lib/productSku';
 
 interface RetailProductsProps {
   onNavigate: (tab: string) => void;
@@ -384,10 +385,23 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
   const isFilterActive =
     stockFilter !== 'all' || debouncedSearch.trim().length > 0;
 
+  const hideSkuColumn = useMemo(
+    () => shouldHideSkuColumn(sourceProducts),
+    [sourceProducts],
+  );
+
   // Reset page on filter/search/tab change (not on view mode switch)
   useEffect(() => {
     setCurrentPage(1);
   }, [debouncedSearch, sortField, sortDir, productTypeTab, stockFilter]);
+
+  // If SKU column is hidden but sort is still on sku, fall back to name
+  useEffect(() => {
+    if (hideSkuColumn && sortField === 'sku') {
+      setSortField('name');
+      setSortDir('asc');
+    }
+  }, [hideSkuColumn, sortField]);
 
   const totalPages = Math.ceil(filteredProducts.length / pageSize);
   const paginatedProducts = useMemo(
@@ -544,16 +558,18 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
               <div className="flex-1 overflow-y-auto">
                 {/* ── Desktop table header (hidden on mobile) ── */}
                 <div className="hidden md:grid sticky top-0 bg-muted/50 backdrop-blur-sm px-4 py-2 grid-cols-12 gap-4 text-xs font-medium text-muted-foreground uppercase">
-                  <div className="col-span-4 flex items-center gap-1">
+                  <div className={cn(hideSkuColumn ? 'col-span-5' : 'col-span-4', 'flex items-center gap-1')}>
                     <button onClick={() => toggleSort('name')} className="flex items-center gap-1 hover:text-foreground">
                       Product <ArrowUpDown className="w-3 h-3" />
                     </button>
                   </div>
-                  <div className="col-span-2 flex items-center gap-1">
-                    <button onClick={() => toggleSort('sku')} className="flex items-center gap-1 hover:text-foreground">
-                      SKU <ArrowUpDown className="w-3 h-3" />
-                    </button>
-                  </div>
+                  {!hideSkuColumn && (
+                    <div className="col-span-2 flex items-center gap-1">
+                      <button onClick={() => toggleSort('sku')} className="flex items-center gap-1 hover:text-foreground">
+                        SKU <ArrowUpDown className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
                   <div className="col-span-1 flex items-center gap-1">
                     <button onClick={() => toggleSort('price')} className="flex items-center gap-1 hover:text-foreground">
                       Price <ArrowUpDown className="w-3 h-3" />
@@ -565,14 +581,20 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
                       Stock <ArrowUpDown className="w-3 h-3" />
                     </button>
                   </div>
-                  <div className="col-span-2">Status</div>
+                  <div className={cn(hideSkuColumn ? 'col-span-3' : 'col-span-2')}>Status</div>
                   <div className="col-span-1 text-right">Actions</div>
                 </div>
 
                 {/* ── Mobile sort bar (hidden on desktop) ── */}
                 <div className="flex md:hidden items-center gap-2 px-3 py-2 border-b border-border overflow-x-auto scrollbar-hide">
                   <span className="text-[10px] text-muted-foreground uppercase shrink-0">Sort:</span>
-                  {([['name', 'Name'], ['price', 'Price'], ['stock', 'Stock'], ['sku', 'SKU']] as [SortField, string][]).map(([field, label]) => (
+                  {(
+                    (
+                      hideSkuColumn
+                        ? ([['name', 'Name'], ['price', 'Price'], ['stock', 'Stock']] as [SortField, string][])
+                        : ([['name', 'Name'], ['price', 'Price'], ['stock', 'Stock'], ['sku', 'SKU']] as [SortField, string][])
+                    )
+                  ).map(([field, label]) => (
                     <button
                       key={field}
                       onClick={() => toggleSort(field)}
@@ -595,12 +617,13 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
                     const categoryLabel = getSubcategoryLabel(product);
                     const marginLabel = formatMarginLabel(product.price, product.cost);
                     const stockTier = getStockTier(product);
+                    const displaySku = getDisplaySku(product.sku);
                     return (
                       <div
                         key={product.id}
                         className="group px-4 py-3 grid grid-cols-12 gap-4 items-center hover:bg-muted/30 transition-colors"
                       >
-                        <div className="col-span-4 flex items-center gap-3">
+                        <div className={cn(hideSkuColumn ? 'col-span-5' : 'col-span-4', 'flex items-center gap-3')}>
                           <img src={getProductImage(product)} alt={product.name} className="w-10 h-10 rounded object-cover" />
                           <div className="min-w-0">
                             <p className="text-sm font-semibold text-foreground truncate">
@@ -611,12 +634,14 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
                             )}
                           </div>
                         </div>
-                        <div className="col-span-2">
-                          <span className={cn('text-sm font-mono', product.sku ? 'text-foreground' : 'text-muted-foreground')}>
-                            {product.sku || '—'}
-                          </span>
-                          {product.barcode && <p className="text-xs text-muted-foreground font-mono">{product.barcode}</p>}
-                        </div>
+                        {!hideSkuColumn && (
+                          <div className="col-span-2">
+                            <span className={cn('text-sm font-mono', displaySku ? 'text-foreground' : 'text-muted-foreground')}>
+                              {displaySku || '—'}
+                            </span>
+                            {product.barcode && <p className="text-xs text-muted-foreground font-mono">{product.barcode}</p>}
+                          </div>
+                        )}
                         <div className="col-span-1">
                           <span className="text-base font-bold text-foreground">{formatCurrency(product.price)}</span>
                         </div>
@@ -632,7 +657,7 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
                           </span>
                           <p className="text-xs text-muted-foreground">{product.unit}</p>
                         </div>
-                        <div className="col-span-2 flex items-center gap-2">
+                        <div className={cn(hideSkuColumn ? 'col-span-3' : 'col-span-2', 'flex items-center gap-2')}>
                           <StockStatusBadge product={product} />
                           {product.variants && <Badge variant="outline" className="text-xs">{product.variants.length} variants</Badge>}
                         </div>
@@ -657,6 +682,7 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
                   {paginatedProducts.map((product) => {
                     const categoryLabel = getSubcategoryLabel(product);
                     const marginLabel = formatMarginLabel(product.price, product.cost);
+                    const displaySku = getDisplaySku(product.sku);
                     return (
                       <div
                         key={product.id}
@@ -676,14 +702,18 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
                             <StockStatusBadge product={product} className="text-[10px] px-1.5 py-0 shrink-0" />
                           </div>
                           <div className="flex items-center gap-2 mt-0.5">
-                            <span className={cn('text-xs font-mono', product.sku ? 'text-muted-foreground' : 'text-muted-foreground/70')}>
-                              {product.sku || '—'}
-                            </span>
-                            {categoryLabel && (
+                            {!hideSkuColumn && displaySku && (
                               <>
-                                <span className="text-muted-foreground">·</span>
-                                <span className="text-xs text-muted-foreground truncate">{categoryLabel}</span>
+                                <span className="text-xs font-mono text-muted-foreground">
+                                  {displaySku}
+                                </span>
+                                {categoryLabel && (
+                                  <span className="text-muted-foreground">·</span>
+                                )}
                               </>
+                            )}
+                            {categoryLabel && (
+                              <span className="text-xs text-muted-foreground truncate">{categoryLabel}</span>
                             )}
                           </div>
                         </div>
@@ -824,9 +854,11 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
               <DialogHeader>
                 <DialogTitle className="text-base sm:text-lg">{selectedProduct.name}</DialogTitle>
                 <DialogDescription className="text-xs sm:text-sm">
-                  SKU: {selectedProduct.sku}
+                  {getDisplaySku(selectedProduct.sku)
+                    ? `SKU: ${getDisplaySku(selectedProduct.sku)}`
+                    : null}
                   {selectedProduct.barcode &&
-                    ` • Barcode: ${selectedProduct.barcode}`}
+                    `${getDisplaySku(selectedProduct.sku) ? ' • ' : ''}Barcode: ${selectedProduct.barcode}`}
                 </DialogDescription>
               </DialogHeader>
 

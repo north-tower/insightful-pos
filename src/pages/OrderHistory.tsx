@@ -110,7 +110,10 @@ function orderToReceiptData(order: SaleOrder): ReceiptData {
 }
 
 export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
-  const { mode } = useBusinessMode();
+  const { mode, isRestaurant } = useBusinessMode();
+  const statusFilterOptions = isRestaurant
+    ? ['all', 'completed', 'pending', 'preparing', 'cancelled', 'voided']
+    : ['all', 'completed', 'pending', 'cancelled', 'voided'];
   const { orders, loading, voidOrder, refundOrder, updatePayment, deletePayment, todaysOrders, todaysRevenue, getOrderBalanceDue, recordPayment } = useOrders();
   const { customers, getCustomerById, makePaymentOnAccount } = useCustomers();
   const { companyName, settings } = useCompanySettings();
@@ -206,6 +209,13 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
   useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery, statusFilter, saleTypeFilter, paymentMethodFilter]);
+
+  // Drop restaurant-only status if mode is retail
+  useEffect(() => {
+    if (!isRestaurant && statusFilter === 'preparing') {
+      setStatusFilter('all');
+    }
+  }, [isRestaurant, statusFilter]);
 
   // Keep order detail dialog in sync after payments/refetch (e.g. refund button visibility)
   useEffect(() => {
@@ -728,7 +738,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
               />
               </div>
               <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                {['all', 'completed', 'pending', 'preparing', 'cancelled', 'voided'].map((s) => (
+                {statusFilterOptions.map((s) => (
                   <Button
                     key={s}
                     variant={statusFilter === s ? 'default' : 'outline'}

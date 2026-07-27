@@ -24,6 +24,7 @@ import { formatCurrency } from '@/lib/currency';
 import { Button } from '@/components/ui/button';
 import { useCompanySettings } from '@/context/BusinessSettingsContext';
 import { ShopLogo } from '@/components/branding/ShopLogo';
+import { getDisplaySku } from '@/lib/productSku';
 
 interface RetailDashboardProps {
   onNavigate: (tab: string) => void;
@@ -35,14 +36,6 @@ const paymentIcons = {
   qr: QrCode,
   mpesa: Smartphone,
 };
-
-/** Valid SKU for display — omit null/empty/literal "SKU" placeholders. */
-function getDisplaySku(sku: string | null | undefined): string | null {
-  if (!sku) return null;
-  const trimmed = sku.trim();
-  if (!trimmed || trimmed.toUpperCase() === 'SKU') return null;
-  return trimmed;
-}
 
 function StatsCardSkeleton({ large = false }: { large?: boolean }) {
   return (
@@ -276,11 +269,7 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
                               <p className="text-xs text-gray-500 dark:text-gray-400">
                                 SKU: {displaySku}
                               </p>
-                            ) : (
-                              <p className="text-xs text-gray-400 dark:text-gray-500">
-                                No SKU assigned
-                              </p>
-                            )}
+                            ) : null}
                           </div>
                         </div>
                         <Badge className="shrink-0 bg-destructive text-destructive-foreground text-xs hover:bg-destructive">
@@ -308,13 +297,7 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
                                   SKU: {displaySku} • {product.stock} left
                                 </>
                               ) : (
-                                <>
-                                  <span className="text-gray-400 dark:text-gray-500">
-                                    No SKU assigned
-                                  </span>
-                                  {' • '}
-                                  {product.stock} left
-                                </>
+                                <>{product.stock} left</>
                               )}
                             </p>
                           </div>

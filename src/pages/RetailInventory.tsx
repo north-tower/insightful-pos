@@ -57,6 +57,7 @@ import { toast } from 'sonner';
 import { formatDistanceToNow, format } from 'date-fns';
 import { fc } from '@/lib/currency';
 import { generatePlaceholderUrl } from '@/lib/product-images';
+import { shouldHideSkuColumn } from '@/lib/productSku';
 
 interface RetailInventoryProps {
   onNavigate: (tab: string) => void;
@@ -248,11 +249,10 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
     return ids;
   }, [adjustments]);
 
-  const hideSkuColumn = useMemo(() => {
-    if (retailProducts.length === 0) return false;
-    const emptyCount = retailProducts.filter((p) => !p.sku?.trim()).length;
-    return emptyCount / retailProducts.length > 0.8;
-  }, [retailProducts]);
+  const hideSkuColumn = useMemo(
+    () => shouldHideSkuColumn(retailProducts),
+    [retailProducts],
+  );
 
   const filteredProducts = useMemo(() => {
     let products = [...retailProducts];

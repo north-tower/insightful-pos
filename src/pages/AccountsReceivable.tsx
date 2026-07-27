@@ -255,21 +255,21 @@ export default function AccountsReceivable({
     [customerAccounts],
   );
 
-  const overdueTotal = useMemo(
-    () =>
-      customerAccounts
-        .filter((a) => a.isOverdue)
-        .reduce(
-          (sum, a) =>
-            sum +
-            a.orders.reduce(
-              (orderSum, order) => orderSum + getOrderBalanceDue(order),
-              0,
-            ),
-          0,
-        ),
-    [customerAccounts, getOrderBalanceDue],
-  );
+  /**
+   * Overdue = sum of past-due invoice balances only, capped per account to
+   * ledger totalOwed so account-level payments cannot make Overdue > Outstanding.
+   */
+  const overdueTotal = useMemo(() => {
+    const now = new Date();
+    return customerAccounts.reduce((sum, account) => {
+      const overdueInvoices = account.orders.reduce((orderSum, order) => {
+        const dueDate = order.due_date ? new Date(order.due_date) : null;
+        if (!dueDate || differenceInDays(now, dueDate) <= 0) return orderSum;
+        return orderSum + getOrderBalanceDue(order);
+      }, 0);
+      return sum + Math.min(overdueInvoices, Math.max(account.totalOwed, 0));
+    }, 0);
+  }, [customerAccounts, getOrderBalanceDue]);
 
   const handleRecordPayment = (order: SaleOrder, account: CustomerAccount) => {
     setPaymentOrder(order);
