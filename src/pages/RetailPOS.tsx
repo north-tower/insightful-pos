@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { PageLayout } from '@/components/pos/PageLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -45,6 +45,8 @@ import {
   CloudOff,
   Wifi,
   Info,
+  Star,
+  Clock,
 } from 'lucide-react';
 import { useSyncStatus } from '@/hooks/useSyncStatus';
 import { generatePlaceholderUrl } from '@/lib/product-images';
@@ -72,6 +74,32 @@ type CreditDepositMethod = 'cash' | 'card' | 'qr';
 type DiscountMode = 'amount' | 'percent';
 
 const PRODUCT_VIEW_STORAGE_KEY = 'retail-pos:product-view-mode';
+const MAX_RECENT_PRODUCTS = 12;
+
+function readStoredIdList(key: string): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(key);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter((id) => typeof id === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeStoredIdList(key: string, ids: string[]) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(key, JSON.stringify(ids));
+  } catch {
+    /* ignore quota */
+  }
+}
+
+function getInitialShowOutOfStock(userKey: string): boolean {
+  if (typeof window === 'undefined') return false;
+  return localStorage.getItem(`retail-pos:show-oos:${userKey}`) === '1';
+}
 
 /** localStorage snapshot: product ids + qty + optional price override (rehydrated from live catalog). */
 type PersistedRetailCartLine = {
@@ -93,6 +121,93 @@ function formatStoredCustomerAddress(c: Customer): string | undefined {
   if (cityLine) parts.push(cityLine);
   if (c.country?.trim()) parts.push(c.country.trim());
   return parts.length ? parts.join(', ') : undefined;
+}
+
+/** Collapsed by default; expands when tapped or when fields already have values. */
+function WalkInCustomerFields({
+  name,
+  phone,
+  address,
+  onNameChange,
+  onPhoneChange,
+  onAddressChange,
+  compact = false,
+}: {
+  name: string;
+  phone: string;
+  address: string;
+  onNameChange: (value: string) => void;
+  onPhoneChange: (value: string) => void;
+  onAddressChange: (value: string) => void;
+  compact?: boolean;
+}) {
+  const hasValue = Boolean(name.trim() || phone.trim() || address.trim());
+  const [expanded, setExpanded] = useState(hasValue);
+
+  useEffect(() => {
+    if (hasValue) setExpanded(true);
+  }, [hasValue]);
+
+  const inputClass = compact ? 'h-9 text-xs' : 'min-h-11 text-sm';
+  const labelClass = compact ? 'text-xs text-muted-foreground' : 'text-[11px] text-muted-foreground';
+
+  if (!expanded) {
+    return (
+      <button
+        type="button"
+        onClick={() => setExpanded(true)}
+        className="flex min-h-9 w-full items-center justify-between rounded-lg border border-dashed border-border px-3 py-2 text-left text-xs text-muted-foreground transition-colors hover:bg-muted/50"
+      >
+        <span>
+          Add customer details <span className="font-normal">(optional)</span>
+        </span>
+        <ChevronDown className="h-4 w-4 shrink-0" />
+      </button>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <p className={labelClass}>
+          Customer <span className="font-normal">(optional)</span>
+        </p>
+        {!hasValue && (
+          <button
+            type="button"
+            onClick={() => setExpanded(false)}
+            className="text-[10px] text-muted-foreground hover:text-foreground"
+          >
+            Hide
+          </button>
+        )}
+      </div>
+      <Input
+        placeholder="Name"
+        value={name}
+        onChange={(e) => onNameChange(e.target.value)}
+        className={inputClass}
+        autoComplete="name"
+      />
+      <Input
+        placeholder="Phone"
+        type="tel"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        value={phone}
+        onChange={(e) => onPhoneChange(e.target.value)}
+        className={inputClass}
+        autoComplete="tel"
+      />
+      <Textarea
+        placeholder="Address"
+        value={address}
+        onChange={(e) => onAddressChange(e.target.value)}
+        rows={2}
+        className={compact ? 'min-h-[52px] resize-y text-xs' : 'min-h-[52px] resize-y text-xs'}
+      />
+    </div>
+  );
 }
 
 const cashPaymentOptions: Array<{
@@ -484,8 +599,18 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
     () => `insightful-pos:v1:retail-cart:${user?.id ?? 'guest'}`,
     [user?.id],
   );
+  const posPrefsKey = useMemo(() => user?.id ?? 'guest', [user?.id]);
+  const favoritesStorageKey = useMemo(
+    () => `retail-pos:favorites:${posPrefsKey}`,
+    [posPrefsKey],
+  );
+  const recentStorageKey = useMemo(
+    () => `retail-pos:recent:${posPrefsKey}`,
+    [posPrefsKey],
+  );
   const {
     sellableRetailProducts,
+    retailCategories,
     loading,
     refetch: refetchProducts,
     debugOfflineCacheKey,
@@ -497,8 +622,16 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
   // REVIEW: Connectivity for POS banner — wired to existing useSyncStatus (navigator.onLine + outbox).
   const { isOnline } = useSyncStatus();
   const [searchQuery, setSearchQuery] = useState('');
-  // All retail products are under one category – no category filter needed
-  const activeCategory = 'all';
+  const [activeBrowseKey, setActiveBrowseKey] = useState('all');
+  const [showOutOfStock, setShowOutOfStock] = useState(() =>
+    getInitialShowOutOfStock(user?.id ?? 'guest'),
+  );
+  const [favoriteProductIds, setFavoriteProductIds] = useState<string[]>(() =>
+    readStoredIdList(`retail-pos:favorites:${user?.id ?? 'guest'}`),
+  );
+  const [recentProductIds, setRecentProductIds] = useState<string[]>(() =>
+    readStoredIdList(`retail-pos:recent:${user?.id ?? 'guest'}`),
+  );
   const [cart, setCart] = useState<CartItem[]>([]);
   const retailCartHydratedRef = useRef(false);
   const retailCartStorageKeySeenRef = useRef<string | null>(null);
@@ -532,6 +665,79 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
   const [cashPaymentMethod, setCashPaymentMethod] = useState<PaymentMethod>('cash');
   const [cashPaymentReference, setCashPaymentReference] = useState('');
   const getMainStock = (product: Product) => product.mainStock ?? product.stock;
+
+  // Reload POS prefs when user changes
+  useEffect(() => {
+    setShowOutOfStock(getInitialShowOutOfStock(posPrefsKey));
+    setFavoriteProductIds(readStoredIdList(favoritesStorageKey));
+    setRecentProductIds(readStoredIdList(recentStorageKey));
+  }, [posPrefsKey, favoritesStorageKey, recentStorageKey]);
+
+  const pushRecentProduct = useCallback(
+    (productId: string) => {
+      setRecentProductIds((prev) => {
+        const next = [productId, ...prev.filter((id) => id !== productId)].slice(
+          0,
+          MAX_RECENT_PRODUCTS,
+        );
+        writeStoredIdList(recentStorageKey, next);
+        return next;
+      });
+    },
+    [recentStorageKey],
+  );
+
+  const toggleFavorite = useCallback(
+    (productId: string) => {
+      setFavoriteProductIds((prev) => {
+        const next = prev.includes(productId)
+          ? prev.filter((id) => id !== productId)
+          : [...prev, productId];
+        writeStoredIdList(favoritesStorageKey, next);
+        return next;
+      });
+    },
+    [favoritesStorageKey],
+  );
+
+  const toggleShowOutOfStock = useCallback(() => {
+    setShowOutOfStock((prev) => {
+      const next = !prev;
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`retail-pos:show-oos:${posPrefsKey}`, next ? '1' : '0');
+      }
+      return next;
+    });
+  }, [posPrefsKey]);
+
+  const posCategoryChips = useMemo(() => {
+    const counts = new Map<string, { name: string; icon: string; count: number }>();
+    for (const product of sellableRetailProducts) {
+      if (!product.isActive) continue;
+      const slug = product.category || 'uncategorized';
+      const meta = counts.get(slug);
+      if (meta) {
+        meta.count += 1;
+      } else {
+        const fromCatalog = retailCategories.find((c) => c.id === slug);
+        counts.set(slug, {
+          name:
+            fromCatalog?.name ||
+            (slug === 'uncategorized' ? 'Uncategorized' : slug.replace(/-/g, ' ')),
+          icon: fromCatalog?.icon || '📦',
+          count: 1,
+        });
+      }
+    }
+    return Array.from(counts.entries())
+      .map(([slug, meta]) => ({ slug, ...meta }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [sellableRetailProducts, retailCategories]);
+
+  const hiddenOutOfStockCount = useMemo(
+    () => sellableRetailProducts.filter((p) => p.isActive && p.stock <= 0).length,
+    [sellableRetailProducts],
+  );
 
   // When the storage key changes (different user), clear cart and re-run hydration.
   useEffect(() => {
@@ -657,20 +863,57 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
   // Filter products
   const filteredProducts = useMemo(() => {
     let products = sellableRetailProducts.filter((p) => p.isActive);
-    if (activeCategory !== 'all') {
-      products = products.filter((p) => p.category === activeCategory);
+
+    if (!showOutOfStock) {
+      products = products.filter((p) => p.stock > 0);
     }
+
+    if (activeBrowseKey === 'recent') {
+      const order = new Map(recentProductIds.map((id, index) => [id, index]));
+      products = products
+        .filter((p) => order.has(p.id))
+        .sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+    } else if (activeBrowseKey === 'favorites') {
+      const favSet = new Set(favoriteProductIds);
+      products = products.filter((p) => favSet.has(p.id));
+    } else if (activeBrowseKey !== 'all') {
+      products = products.filter((p) => p.category === activeBrowseKey);
+    }
+
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       products = products.filter(
         (p) =>
           p.name.toLowerCase().includes(q) ||
           p.sku.toLowerCase().includes(q) ||
-          p.barcode?.includes(q)
+          p.barcode?.includes(q),
       );
     }
     return products;
-  }, [activeCategory, searchQuery, sellableRetailProducts]);
+  }, [
+    activeBrowseKey,
+    favoriteProductIds,
+    recentProductIds,
+    searchQuery,
+    sellableRetailProducts,
+    showOutOfStock,
+  ]);
+
+  const emptyProductsMessage = useMemo(() => {
+    if (searchQuery.trim()) return 'No products match your search';
+    if (activeBrowseKey === 'favorites') {
+      return 'No favorites yet — tap the star on a product to save it here';
+    }
+    if (activeBrowseKey === 'recent') {
+      return 'No recent products — items appear here after you add them to a sale';
+    }
+    if (!showOutOfStock && hiddenOutOfStockCount > 0) {
+      return `No in-stock products. ${hiddenOutOfStockCount} out-of-stock item${
+        hiddenOutOfStockCount === 1 ? '' : 's'
+      } hidden — tap "Show OOS" to view them.`;
+    }
+    return 'No products found';
+  }, [activeBrowseKey, hiddenOutOfStockCount, searchQuery, showOutOfStock]);
 
   // Cart functions
   const addToCart = (product: Product) => {
@@ -678,6 +921,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
       toast.error(`${product.name} is out of stock`);
       return;
     }
+    pushRecentProduct(product.id);
     setCart((prev) => {
       const existing = prev.find((item) => item.product.id === product.id);
       if (existing) {
@@ -1008,6 +1252,26 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
               <div className="flex shrink-0 items-center gap-1 rounded-lg border border-border bg-card p-1">
                 <button
                   type="button"
+                  onClick={toggleShowOutOfStock}
+                  className={cn(
+                    'flex min-h-11 items-center justify-center gap-1 rounded-md px-2 text-xs font-medium active:scale-95',
+                    showOutOfStock
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                  title={
+                    showOutOfStock
+                      ? 'Hide out-of-stock products'
+                      : `Show out-of-stock products (${hiddenOutOfStockCount})`
+                  }
+                >
+                  <Package className="h-4 w-4" />
+                  <span className="hidden sm:inline">
+                    {showOutOfStock ? 'Hide OOS' : 'Show OOS'}
+                  </span>
+                </button>
+                <button
+                  type="button"
                   onClick={() => {
                     setProductViewMode('card');
                     if (typeof window !== 'undefined') {
@@ -1047,6 +1311,49 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
               </div>
             </div>
 
+            {/* Browse: All / Recent / Favorites / categories */}
+            <div className="flex gap-2 overflow-x-auto px-2 pb-2 sm:px-3 lg:px-4 scrollbar-hide">
+              {(
+                [
+                  { key: 'all', label: 'All' },
+                  { key: 'recent', label: 'Recent', icon: Clock },
+                  { key: 'favorites', label: 'Favorites', icon: Star },
+                ] as const
+              ).map(({ key, label, icon: Icon }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setActiveBrowseKey(key)}
+                  className={cn(
+                    'flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium transition-colors',
+                    activeBrowseKey === key
+                      ? 'bg-primary text-primary-foreground shadow-sm'
+                      : 'bg-muted text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {Icon && <Icon className="h-3 w-3" />}
+                  {label}
+                </button>
+              ))}
+              {posCategoryChips.map((chip) => (
+                <button
+                  key={chip.slug}
+                  type="button"
+                  onClick={() => setActiveBrowseKey(chip.slug)}
+                  className={cn(
+                    'flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium transition-colors',
+                    activeBrowseKey === chip.slug
+                      ? 'bg-primary text-primary-foreground shadow-sm'
+                      : 'bg-muted text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  <span>{chip.icon}</span>
+                  <span>{chip.name}</span>
+                  <span className="opacity-70">({chip.count})</span>
+                </button>
+              ))}
+            </div>
+
             {/* Product Grid */}
             <div
               className={cn(
@@ -1083,22 +1390,52 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                       product.stock <= product.lowStockThreshold;
                     const mainStock = getMainStock(product);
                     const showsAllocatedStock = mainStock !== product.stock;
+                    const isFavorite = favoriteProductIds.includes(product.id);
 
                     return (
-                      <button
+                      <div
                         key={product.id}
-                        type="button"
-                        onClick={() => addToCart(product)}
-                        disabled={isOutOfStock}
+                        role="button"
+                        tabIndex={isOutOfStock ? -1 : 0}
+                        onClick={() => {
+                          if (!isOutOfStock) addToCart(product);
+                        }}
+                        onKeyDown={(e) => {
+                          if (isOutOfStock) return;
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            addToCart(product);
+                          }
+                        }}
                         className={cn(
-                          'group relative min-h-[7.5rem] rounded-lg border bg-card p-2 text-left transition-all active:scale-[0.98] sm:min-h-0 sm:p-3',
+                          'group relative min-h-[7.5rem] cursor-pointer rounded-lg border bg-card p-2 text-left transition-all active:scale-[0.98] sm:min-h-0 sm:p-3',
                           inCart > 0
                             ? 'border-primary shadow-md'
                             : 'border-border hover:border-primary/40',
-                          isOutOfStock && 'cursor-not-allowed opacity-50'
+                          isOutOfStock && 'cursor-not-allowed opacity-50',
                         )}
                       >
                         <div className="relative aspect-square rounded overflow-hidden bg-muted mb-2">
+                          <button
+                            type="button"
+                            aria-label={
+                              isFavorite ? 'Remove from favorites' : 'Add to favorites'
+                            }
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleFavorite(product.id);
+                            }}
+                            className="absolute top-1 right-1 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-background/85 shadow-sm active:scale-95"
+                          >
+                            <Star
+                              className={cn(
+                                'h-3.5 w-3.5',
+                                isFavorite
+                                  ? 'fill-warning text-warning'
+                                  : 'text-muted-foreground',
+                              )}
+                            />
+                          </button>
                           <img
                             src={product.image || generatePlaceholderUrl(product.name)}
                             alt={product.name}
@@ -1155,12 +1492,12 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                             Main: {mainStock} {product.unit}
                           </p>
                         )}
-                      </button>
+                      </div>
                     );
                   })}
                 </div>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-1">
                   {filteredProducts.map((product) => {
                     const cartItem = cart.find((c) => c.product.id === product.id);
                     const inCart = cartItem ? cartItem.quantity : 0;
@@ -1168,34 +1505,54 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                     const isLowStock = product.stock > 0 && product.stock <= product.lowStockThreshold;
                     const mainStock = getMainStock(product);
                     const showsAllocatedStock = mainStock !== product.stock;
+                    const isFavorite = favoriteProductIds.includes(product.id);
 
                     return (
                       <div
                         key={product.id}
                         className={cn(
-                          'flex items-center gap-3 rounded-lg border bg-card p-2',
+                          'flex items-center gap-2 rounded-md border bg-card py-1.5 pl-1.5 pr-2',
                           inCart > 0 ? 'border-primary' : 'border-border',
-                          isOutOfStock && 'opacity-60'
+                          isOutOfStock && 'opacity-60',
                         )}
                       >
+                        <button
+                          type="button"
+                          aria-label={
+                            isFavorite ? 'Remove from favorites' : 'Add to favorites'
+                          }
+                          onClick={() => toggleFavorite(product.id)}
+                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md active:scale-95"
+                        >
+                          <Star
+                            className={cn(
+                              'h-3.5 w-3.5',
+                              isFavorite
+                                ? 'fill-warning text-warning'
+                                : 'text-muted-foreground',
+                            )}
+                          />
+                        </button>
                         <img
                           src={product.image || generatePlaceholderUrl(product.name)}
                           alt={product.name}
-                          className="h-12 w-12 shrink-0 rounded object-cover"
+                          className="h-9 w-9 shrink-0 rounded object-cover"
                         />
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <p className="truncate text-sm font-semibold text-foreground">{product.name}</p>
+                          <div className="flex items-center gap-1.5">
+                            <p className="truncate text-xs font-semibold text-foreground sm:text-sm">
+                              {product.name}
+                            </p>
                             {isLowStock && !isOutOfStock && (
-                              <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-warning" />
+                              <AlertTriangle className="h-3 w-3 shrink-0 text-warning" />
                             )}
                             {product.discount && (
-                              <Badge className="bg-destructive px-1.5 py-0 text-[10px] text-destructive-foreground">
+                              <Badge className="bg-destructive px-1 py-0 text-[9px] text-destructive-foreground">
                                 {product.discount}% OFF
                               </Badge>
                             )}
                           </div>
-                          <div className="mt-0.5 flex items-center gap-2 text-xs">
+                          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0 text-[11px]">
                             <span className="font-bold text-foreground">{fc(product.price)}</span>
                             <span
                               className={cn(
@@ -1203,19 +1560,19 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                                   ? 'text-destructive'
                                   : isLowStock
                                   ? 'text-warning'
-                                  : 'text-muted-foreground'
+                                  : 'text-muted-foreground',
                               )}
                             >
                               {product.stock} {product.unit}
                             </span>
                             {showsAllocatedStock && (
                               <span className="text-muted-foreground">
-                                Main: {mainStock} {product.unit}
+                                Main: {mainStock}
                               </span>
                             )}
                             {inCart > 0 && (
-                              <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">
-                                In cart: {inCart}
+                              <Badge variant="secondary" className="px-1 py-0 text-[9px]">
+                                ×{inCart}
                               </Badge>
                             )}
                           </div>
@@ -1224,9 +1581,9 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                           size="sm"
                           onClick={() => addToCart(product)}
                           disabled={isOutOfStock}
-                          className="min-h-11 shrink-0 px-4 font-semibold active:scale-95 active:bg-primary/90"
+                          className="h-8 min-h-8 shrink-0 px-2.5 text-xs font-semibold active:scale-95"
                         >
-                          {isOutOfStock ? 'Out' : 'Add to Cart'}
+                          {isOutOfStock ? 'Out' : 'Add'}
                         </Button>
                       </div>
                     );
@@ -1237,7 +1594,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
               {filteredProducts.length === 0 && (
                 <div className="text-center py-16 text-muted-foreground">
                   <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p>No products found</p>
+                  <p>{emptyProductsMessage}</p>
                 </div>
               )}
               </>
@@ -1460,35 +1817,14 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                     </div>
                   )}
                   {saleType === 'cash' && (
-                    <div className="space-y-2 pt-1">
-                      <p className="text-[11px] text-muted-foreground">
-                        Customer <span className="font-normal">(optional)</span>
-                      </p>
-                      <Input
-                        placeholder="Name"
-                        value={walkInCustomerName}
-                        onChange={(e) => setWalkInCustomerName(e.target.value)}
-                        className="min-h-11 text-sm"
-                        autoComplete="name"
-                      />
-                      <Input
-                        placeholder="Phone"
-                        type="tel"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        value={walkInCustomerPhone}
-                        onChange={(e) => setWalkInCustomerPhone(e.target.value)}
-                        className="min-h-11 text-sm"
-                        autoComplete="tel"
-                      />
-                      <Textarea
-                        placeholder="Address"
-                        value={walkInCustomerAddress}
-                        onChange={(e) => setWalkInCustomerAddress(e.target.value)}
-                        rows={2}
-                        className="min-h-[52px] resize-y text-xs"
-                      />
-                    </div>
+                    <WalkInCustomerFields
+                      name={walkInCustomerName}
+                      phone={walkInCustomerPhone}
+                      address={walkInCustomerAddress}
+                      onNameChange={setWalkInCustomerName}
+                      onPhoneChange={setWalkInCustomerPhone}
+                      onAddressChange={setWalkInCustomerAddress}
+                    />
                   )}
                 </div>
 
@@ -1798,31 +2134,15 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                 </div>
               )}
               {saleType === 'cash' && (
-                <div className="mt-3 space-y-2">
-                  <p className="text-xs text-muted-foreground">
-                    Customer <span className="font-normal">(optional)</span>
-                  </p>
-                  <Input
-                    placeholder="Name"
-                    value={walkInCustomerName}
-                    onChange={(e) => setWalkInCustomerName(e.target.value)}
-                    className="h-9 text-xs"
-                    autoComplete="name"
-                  />
-                  <Input
-                    placeholder="Phone"
-                    type="tel"
-                    value={walkInCustomerPhone}
-                    onChange={(e) => setWalkInCustomerPhone(e.target.value)}
-                    className="h-9 text-xs"
-                    autoComplete="tel"
-                  />
-                  <Textarea
-                    placeholder="Address"
-                    value={walkInCustomerAddress}
-                    onChange={(e) => setWalkInCustomerAddress(e.target.value)}
-                    rows={2}
-                    className="min-h-[52px] resize-y text-xs"
+                <div className="mt-3">
+                  <WalkInCustomerFields
+                    compact
+                    name={walkInCustomerName}
+                    phone={walkInCustomerPhone}
+                    address={walkInCustomerAddress}
+                    onNameChange={setWalkInCustomerName}
+                    onPhoneChange={setWalkInCustomerPhone}
+                    onAddressChange={setWalkInCustomerAddress}
                   />
                 </div>
               )}
