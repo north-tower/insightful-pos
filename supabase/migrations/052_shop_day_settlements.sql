@@ -23,8 +23,8 @@ CREATE TABLE IF NOT EXISTS public.shop_day_settlements (
   store_id             UUID NOT NULL REFERENCES public.stores(id) ON DELETE CASCADE,
   business_date        DATE NOT NULL,
 
-  opening_float        NUMERIC(12,2) NOT NULL DEFAULT 0 CHECK (opening_float >= 0),
-  closing_float        NUMERIC(12,2) NOT NULL DEFAULT 0 CHECK (closing_float >= 0),
+  opening_float        NUMERIC(12,2) NOT NULL DEFAULT 1500 CHECK (opening_float >= 0),
+  closing_float        NUMERIC(12,2) NOT NULL DEFAULT 1500 CHECK (closing_float >= 0),
 
   expected_cash        NUMERIC(12,2) NOT NULL DEFAULT 0,
   expected_mpesa       NUMERIC(12,2) NOT NULL DEFAULT 0,

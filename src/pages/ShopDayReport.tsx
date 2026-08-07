@@ -23,6 +23,7 @@ import { ShopDayReportPrint } from '@/components/reports/ShopDayReportPrint';
 import { expenseCategoryLabel, expensePaymentMethodLabel } from '@/hooks/useOperatingExpenses';
 import { generateInvoicePdf } from '@/lib/generateInvoicePdf';
 import { fc } from '@/lib/currency';
+import { SHOP_CASH_FLOAT, formatShopCashFloat } from '@/lib/shopFloat';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -63,7 +64,8 @@ function exportReportCsv(data: ShopDayReportData) {
     ],
     [],
     ['Expected'],
-    ['Expected cash', data.expected.cash.toFixed(2)],
+    ['Till float (fixed)', String(SHOP_CASH_FLOAT)],
+    ['Expected cash remittance', data.expected.cash.toFixed(2)],
     ['Expected M-Pesa', data.expected.mpesa.toFixed(2)],
     ['Expected bank', data.expected.bank.toFixed(2)],
     [],
@@ -83,9 +85,9 @@ function exportReportCsv(data: ShopDayReportData) {
     rows.push(
       [],
       ['Settlement'],
-      ['Opening float', data.settlement.opening_float.toFixed(2)],
-      ['Closing float', data.settlement.closing_float.toFixed(2)],
-      ['Cash counted', data.settlement.cash_counted.toFixed(2)],
+      ['Opening float (fixed)', data.settlement.opening_float.toFixed(2)],
+      ['Closing float (fixed)', data.settlement.closing_float.toFixed(2)],
+      ['Cash handed over', data.settlement.cash_counted.toFixed(2)],
       ['M-Pesa confirmed', data.settlement.mpesa_confirmed.toFixed(2)],
       ['Bank confirmed', data.settlement.bank_confirmed.toFixed(2)],
       ['Cash variance', data.settlement.cash_variance.toFixed(2)],
@@ -140,23 +142,20 @@ export default function ShopDayReport({ onNavigate }: ShopDayReportProps) {
   const [businessDate, setBusinessDate] = useState(toDateInputValue());
   const [report, setReport] = useState<ShopDayReportData | null>(null);
 
-  const [openingFloat, setOpeningFloat] = useState('0');
-  const [closingFloat, setClosingFloat] = useState('0');
   const [cashCounted, setCashCounted] = useState('');
   const [mpesaConfirmed, setMpesaConfirmed] = useState('');
   const [bankConfirmed, setBankConfirmed] = useState('');
   const [notes, setNotes] = useState('');
 
   const loadReport = useCallback(
-    async (date: string, floatOverride?: { opening: number; closing: number }) => {
-      const data = await fetchReport(date, floatOverride
-        ? { openingFloat: floatOverride.opening, closingFloat: floatOverride.closing }
-        : undefined);
+    async (date: string) => {
+      const data = await fetchReport(date, {
+        openingFloat: SHOP_CASH_FLOAT,
+        closingFloat: SHOP_CASH_FLOAT,
+      });
       setReport(data);
       if (data) {
         const s = data.settlement;
-        setOpeningFloat(s ? String(s.opening_float) : '0');
-        setClosingFloat(s ? String(s.closing_float) : '0');
         setCashCounted(s ? String(s.cash_counted) : '');
         setMpesaConfirmed(
           s ? String(s.mpesa_confirmed) : String(data.salesBreakdown.mpesa),
@@ -175,43 +174,37 @@ export default function ShopDayReport({ onNavigate }: ShopDayReportProps) {
     void loadReport(businessDate);
   }, [canManage, businessDate, loadReport]);
 
-  const parsedOpening = parseFloat(openingFloat) || 0;
-  const parsedClosing = parseFloat(closingFloat) || 0;
   const parsedCash = parseFloat(cashCounted) || 0;
   const parsedMpesa = parseFloat(mpesaConfirmed) || 0;
   const parsedBank = parseFloat(bankConfirmed) || 0;
 
   const liveExpected = useMemo(() => {
     if (!report) return { cash: 0, mpesa: 0, bank: 0 };
-    // Recompute cash expected with live float inputs; mpesa/bank follow report
-    const base = report.expected;
-    const settledOpening = report.settlement?.opening_float ?? 0;
-    const settledClosing = report.settlement?.closing_float ?? 0;
-    const cash =
-      base.cash - settledOpening + settledClosing + parsedOpening - parsedClosing;
-    return { cash, mpesa: base.mpesa, bank: base.bank };
-  }, [report, parsedOpening, parsedClosing]);
+    // Float is fixed at SHOP_CASH_FLOAT open and close, so it nets to zero in expected cash.
+    return report.expected;
+  }, [report]);
+
+  const expectedDrawerTotal = useMemo(() => {
+    if (!report) return SHOP_CASH_FLOAT;
+    return SHOP_CASH_FLOAT + liveExpected.cash;
+  }, [report, liveExpected.cash]);
 
   const liveCashVariance = parsedCash - liveExpected.cash;
   const liveMpesaVariance = parsedMpesa - liveExpected.mpesa;
   const liveBankVariance = parsedBank - liveExpected.bank;
   const isFinalized = report?.settlement?.is_finalized ?? false;
 
-  const handleRecalcExpected = async () => {
-    await loadReport(businessDate, { opening: parsedOpening, closing: parsedClosing });
-  };
-
   const handleSave = async (finalize: boolean) => {
     if (!report) return;
-    if (parsedCash < 0 || parsedOpening < 0 || parsedClosing < 0) {
-      toast.error('Enter valid cash / float amounts');
+    if (parsedCash < 0) {
+      toast.error('Enter a valid cash remittance amount');
       return;
     }
     try {
       await saveSettlement({
         business_date: businessDate,
-        opening_float: parsedOpening,
-        closing_float: parsedClosing,
+        opening_float: SHOP_CASH_FLOAT,
+        closing_float: SHOP_CASH_FLOAT,
         expected_cash: liveExpected.cash,
         expected_mpesa: liveExpected.mpesa,
         expected_bank: liveExpected.bank,
@@ -238,8 +231,8 @@ export default function ShopDayReport({ onNavigate }: ShopDayReportProps) {
   };
 
   const displaySettlement = {
-    opening_float: parsedOpening,
-    closing_float: parsedClosing,
+    opening_float: SHOP_CASH_FLOAT,
+    closing_float: SHOP_CASH_FLOAT,
     expected_cash: liveExpected.cash,
     expected_mpesa: liveExpected.mpesa,
     expected_bank: liveExpected.bank,
@@ -385,58 +378,36 @@ export default function ShopDayReport({ onNavigate }: ShopDayReportProps) {
               <div>
                 <p className="text-sm font-semibold">Till settlement</p>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Expected cash = cash sales − cash expenses − refunds + opening float − closing
-                  float. M-Pesa / bank exclude float. Enter the till statement totals to reconcile.
+                  Standard float is KES {formatShopCashFloat()}. Start the day with that amount in
+                  the register and leave KES {formatShopCashFloat()} at close. Hand over everything
+                  above the float.
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div className="rounded-md border border-border bg-background p-3 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
                 <div>
-                  <Label htmlFor="opening-float">Opening float</Label>
-                  <Input
-                    id="opening-float"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={openingFloat}
-                    onChange={(e) => setOpeningFloat(e.target.value)}
-                    disabled={isFinalized || saving}
-                    className="mt-1"
-                  />
+                  <p className="text-xs text-muted-foreground">Till float (fixed)</p>
+                  <p className="text-lg font-bold tabular-nums">{fc(SHOP_CASH_FLOAT)}</p>
                 </div>
                 <div>
-                  <Label htmlFor="closing-float">Closing float kept</Label>
-                  <Input
-                    id="closing-float"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={closingFloat}
-                    onChange={(e) => setClosingFloat(e.target.value)}
-                    disabled={isFinalized || saving}
-                    className="mt-1"
-                  />
+                  <p className="text-xs text-muted-foreground">Drawer should hold (before remittance)</p>
+                  <p className="text-lg font-bold tabular-nums">{fc(expectedDrawerTotal)}</p>
                 </div>
-                <div className="flex items-end">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="w-full"
-                    disabled={isFinalized || loading}
-                    onClick={() => void handleRecalcExpected()}
-                  >
-                    Update expected
-                  </Button>
+                <div>
+                  <p className="text-xs text-muted-foreground">Cash to hand over</p>
+                  <p className="text-lg font-bold tabular-nums">{fc(liveExpected.cash)}</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    = drawer − {formatShopCashFloat()} float left in till
+                  </p>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="rounded-md border border-border bg-background p-3 space-y-1">
-                  <p className="text-xs text-muted-foreground">Expected cash</p>
+                  <p className="text-xs text-muted-foreground">Expected cash remittance</p>
                   <p className="text-lg font-bold tabular-nums">{fc(liveExpected.cash)}</p>
                   <Label htmlFor="cash-counted" className="text-xs">
-                    Cash counted *
+                    Cash handed over *
                   </Label>
                   <Input
                     id="cash-counted"
@@ -448,6 +419,9 @@ export default function ShopDayReport({ onNavigate }: ShopDayReportProps) {
                     disabled={isFinalized || saving}
                     placeholder="0.00"
                   />
+                  <p className="text-[10px] text-muted-foreground">
+                    Count the drawer, leave {formatShopCashFloat()} in the till, enter the rest here.
+                  </p>
                 </div>
                 <div className="rounded-md border border-border bg-background p-3 space-y-1">
                   <p className="text-xs text-muted-foreground">Expected M-Pesa</p>

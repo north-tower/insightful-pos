@@ -198,8 +198,7 @@ export function ShopDayReportPrint({ report, displaySettlement }: ShopDayReportP
         <tbody>
           <tr>
             <td style={{ ...cellStyle, textAlign: 'left' }}>
-              Cash (float {fc(displaySettlement.opening_float)} →{' '}
-              {fc(displaySettlement.closing_float)})
+              Cash (fixed float {fc(displaySettlement.opening_float)} open &amp; close)
             </td>
             <td style={{ ...cellStyle, textAlign: 'right' }}>
               {fc(displaySettlement.expected_cash)}

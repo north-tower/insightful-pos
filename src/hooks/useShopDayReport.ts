@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { useBusinessMode } from '@/context/BusinessModeContext';
 import type { ShopDaySettlement } from '@/hooks/useShopDaySettlement';
 import type { ExpensePaymentMethod } from '@/hooks/useOperatingExpenses';
+import { SHOP_CASH_FLOAT } from '@/lib/shopFloat';
 
 export interface ShopDayExpense {
   id: string;
@@ -267,8 +268,8 @@ export function useShopDayReport() {
           ? mapSettlement(settlementRow as Record<string, unknown>)
           : null;
 
-        const openingFloat = floats?.openingFloat ?? settlement?.opening_float ?? 0;
-        const closingFloat = floats?.closingFloat ?? settlement?.closing_float ?? 0;
+        const openingFloat = floats?.openingFloat ?? settlement?.opening_float ?? SHOP_CASH_FLOAT;
+        const closingFloat = floats?.closingFloat ?? settlement?.closing_float ?? SHOP_CASH_FLOAT;
 
         // Allocate refunds proportionally across channels with sales that day
         const collectedBeforeRefund = cash + mpesa + bank;
