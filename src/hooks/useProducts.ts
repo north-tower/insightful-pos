@@ -213,7 +213,7 @@ export function useProducts() {
         if (vErr) throw vErr;
         variantData = vData || [];
 
-        if (user?.role === 'cashier' || user?.role === 'manager') {
+        if (user?.role === 'cashier') {
           let allocationQuery = supabase
             .from('cashier_stock_allocations')
             .select('product_id, assigned_qty, sold_qty')
@@ -331,9 +331,9 @@ export function useProducts() {
         variantsByProduct.get(p.id),
       );
 
-      // Cashiers and managers sell from their route allocation, not main warehouse stock.
-      // Main stock is reduced when stock is assigned out, so we must not cap by mainStock here.
-      if (mode === 'retail' && (user?.role === 'cashier' || user?.role === 'manager')) {
+      // Route cashiers sell from staff allocation only (not main warehouse).
+      // Branch managers/admins use main branch stock — allocation overlay hid all stock for them.
+      if (mode === 'retail' && user?.role === 'cashier') {
         product.stock = allocationMap.get(p.id) ?? 0;
       }
 

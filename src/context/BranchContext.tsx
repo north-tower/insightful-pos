@@ -44,6 +44,8 @@ export function BranchProvider({ children }: { children: ReactNode }) {
     }
     setLoading(true);
     try {
+      // Promote a membership to active if none is marked default
+      await supabase.rpc('ensure_default_store');
       const { data, error } = await supabase.rpc('my_branch_stores');
       if (error) throw error;
       setBranches((data || []) as BranchStore[]);

@@ -121,14 +121,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         supabase
           .from('profile_stores')
           .select('id', { count: 'exact', head: true })
-          .eq('profile_id', supaUser.id)
-          .eq('is_default_store', true),
+          .eq('profile_id', supaUser.id),
       ]);
 
       if (!membershipError) {
         const assigned = (count ?? 0) > 0;
         setHasAssignedStore(assigned);
         writeCachedStoreAssignment(supaUser.id, assigned);
+        if (assigned) {
+          // Ensure one membership is the active branch (fixes empty stock for managers)
+          void supabase.rpc('ensure_default_store');
+        }
       } else {
         setHasAssignedStore(readCachedStoreAssignment(supaUser.id));
       }

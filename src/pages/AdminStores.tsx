@@ -301,13 +301,22 @@ export default function AdminStores() {
       }
     }
 
+    // If user has no active branch yet, force this assignment to be active
+    const { count: defaultCount } = await supabase
+      .from('profile_stores')
+      .select('id', { count: 'exact', head: true })
+      .eq('profile_id', membershipForm.profile_id)
+      .eq('is_default_store', true);
+
+    const makeDefault = membershipForm.is_default_store || (defaultCount ?? 0) === 0;
+
     const { error } = await supabase.from('profile_stores').upsert(
       [
         {
           profile_id: membershipForm.profile_id,
           store_id: membershipForm.store_id,
           role_in_store: membershipForm.role_in_store,
-          is_default_store: membershipForm.is_default_store,
+          is_default_store: makeDefault,
         },
       ],
       { onConflict: 'profile_id,store_id' },
