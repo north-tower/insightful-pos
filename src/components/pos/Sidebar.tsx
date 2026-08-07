@@ -21,6 +21,7 @@ import {
   X,
   TrendingUp,
   Factory,
+  CalendarDays,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -66,6 +67,7 @@ const restaurantNavItems: NavItem[] = [
   { id: 'accounts', label: 'Accounts', icon: CircleDollarSign, roles: ['admin', 'manager', 'cashier'] },
   { id: 'purchases', label: 'Purchases', icon: Truck, roles: ['admin', 'manager'] },
   { id: 'profit-loss', label: 'Profit & Loss', icon: TrendingUp, roles: ['admin', 'manager'] },
+  { id: 'shop-day', label: 'Shop Day Close', icon: CalendarDays, roles: ['admin', 'manager'] },
   { id: 'manage-table', label: 'Manage Table', icon: Armchair, roles: ['admin', 'manager'] },
   { id: 'manage-dishes', label: 'Manage Dishes', icon: UtensilsCrossed, roles: ['admin', 'manager'] },
   { id: 'customers', label: 'Customers', icon: Users, roles: ['admin', 'manager'] },
@@ -108,6 +110,7 @@ const retailNavSections: NavSection[] = [
     items: [
       { id: 'purchases', label: 'Purchases', icon: Truck, roles: ['admin', 'manager'] },
       { id: 'profit-loss', label: 'Profit & Loss', icon: TrendingUp, roles: ['admin', 'manager'] },
+      { id: 'shop-day', label: 'Shop Day Close', icon: CalendarDays, roles: ['admin', 'manager'] },
       {
         id: 'accounts',
         label: 'Accounts',

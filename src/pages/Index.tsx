@@ -16,6 +16,7 @@ import RetailStaffInventory from '@/pages/RetailStaffInventory';
 import Purchases from '@/pages/Purchases';
 import AccountsReceivable from '@/pages/AccountsReceivable';
 import ProfitLossReport from '@/pages/ProfitLossReport';
+import ShopDayReport from '@/pages/ShopDayReport';
 import RetailProduction from '@/pages/RetailProduction';
 import Settings from '@/pages/Settings';
 
@@ -27,6 +28,7 @@ const RESTAURANT_TABS = new Set([
   'accounts',
   'purchases',
   'profit-loss',
+  'shop-day',
   'manage-table',
   'manage-dishes',
   'settings',
@@ -41,6 +43,7 @@ const RETAIL_TABS = new Set([
   'production',
   'purchases',
   'profit-loss',
+  'shop-day',
   'order-history',
   'accounts',
   'customers',
@@ -107,6 +110,8 @@ function POSApp() {
       return <Purchases onNavigate={handleNavigate} />;
     case 'profit-loss':
       return <ProfitLossReport onNavigate={handleNavigate} />;
+    case 'shop-day':
+      return <ShopDayReport onNavigate={handleNavigate} />;
     case 'manage-table':
       return <ManageTable onNavigate={handleNavigate} />;
     case 'manage-dishes':
@@ -136,6 +141,8 @@ function POSApp() {
       return <Purchases onNavigate={handleNavigate} />;
     case 'profit-loss':
       return <ProfitLossReport onNavigate={handleNavigate} />;
+    case 'shop-day':
+      return <ShopDayReport onNavigate={handleNavigate} />;
     case 'order-history':
       return <OrderHistory onNavigate={handleNavigate} />;
     case 'accounts':

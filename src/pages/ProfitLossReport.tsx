@@ -39,10 +39,13 @@ import {
 import { useProfitReport, fetchProfitSummary, type ProfitSummary } from '@/hooks/useProfitReport';
 import {
   ALL_EXPENSE_CATEGORIES,
+  EXPENSE_PAYMENT_METHODS,
   ROUTE_EXPENSE_CATEGORIES,
   expenseCategoryLabel,
+  expensePaymentMethodLabel,
   isRouteExpenseCategory,
   useOperatingExpenses,
+  type ExpensePaymentMethod,
 } from '@/hooks/useOperatingExpenses';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
@@ -192,6 +195,8 @@ export default function ProfitLossReport({ onNavigate }: ProfitLossReportProps) 
   const [expenseDate, setExpenseDate] = useState(toDateInputValue(new Date()));
   const [expenseReference, setExpenseReference] = useState('');
   const [expenseNotes, setExpenseNotes] = useState('');
+  const [expensePaymentMethod, setExpensePaymentMethod] =
+    useState<ExpensePaymentMethod>('cash');
   const [expenseAssignmentId, setExpenseAssignmentId] = useState('');
   const [routeAssignments, setRouteAssignments] = useState<
     Array<{ id: string; route_name: string; assignment_date: string; cashier_id: string }>
@@ -282,6 +287,7 @@ export default function ProfitLossReport({ onNavigate }: ProfitLossReportProps) 
     setExpenseDate(toDateInputValue(new Date()));
     setExpenseReference('');
     setExpenseNotes('');
+    setExpensePaymentMethod('cash');
     setExpenseAssignmentId('');
   };
 
@@ -308,6 +314,7 @@ export default function ProfitLossReport({ onNavigate }: ProfitLossReportProps) 
         description: expenseDescription.trim(),
         amount,
         expense_date: expenseTimestamp,
+        payment_method: expensePaymentMethod,
         reference: expenseReference.trim() || undefined,
         notes: expenseNotes.trim() || undefined,
         assignment_id: expenseAssignmentId || undefined,
@@ -746,6 +753,29 @@ export default function ProfitLossReport({ onNavigate }: ProfitLossReportProps) 
                         />
                       </div>
                       <div className="space-y-1">
+                        <Label>Paid via</Label>
+                        <Select
+                          value={expensePaymentMethod}
+                          onValueChange={(v) =>
+                            setExpensePaymentMethod(v as ExpensePaymentMethod)
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {EXPENSE_PAYMENT_METHODS.map((m) => (
+                              <SelectItem key={m.id} value={m.id}>
+                                {m.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-[10px] text-muted-foreground">
+                          Needed for cash / M-Pesa till reconciliation on Shop Day EOD.
+                        </p>
+                      </div>
+                      <div className="space-y-1">
                         <Label>Reference (optional)</Label>
                         <Input
                           placeholder="Invoice / receipt no."
@@ -816,6 +846,7 @@ export default function ProfitLossReport({ onNavigate }: ProfitLossReportProps) 
                           </p>
                           <p className="text-xs text-muted-foreground">
                             {expenseCategoryLabel(e.category)} ·{' '}
+                            {expensePaymentMethodLabel(e.payment_method)} ·{' '}
                             {format(new Date(e.expense_date), 'dd MMM yyyy')}
                             {e.reference ? ` · ${e.reference}` : ''}
                           </p>

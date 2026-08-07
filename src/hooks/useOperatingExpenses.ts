@@ -32,8 +32,20 @@ export const ALL_EXPENSE_CATEGORIES = [
 
 export type ExpenseCategoryId = (typeof EXPENSE_CATEGORIES)[number]['id'];
 
+export const EXPENSE_PAYMENT_METHODS = [
+  { id: 'cash', label: 'Cash' },
+  { id: 'mpesa', label: 'M-Pesa' },
+  { id: 'bank', label: 'Bank' },
+] as const;
+
+export type ExpensePaymentMethod = (typeof EXPENSE_PAYMENT_METHODS)[number]['id'];
+
 export function expenseCategoryLabel(id: string): string {
   return ALL_EXPENSE_CATEGORIES.find((c) => c.id === id)?.label ?? id;
+}
+
+export function expensePaymentMethodLabel(id: string): string {
+  return EXPENSE_PAYMENT_METHODS.find((m) => m.id === id)?.label ?? id;
 }
 
 export function isRouteExpenseCategory(id: string): boolean {
@@ -48,6 +60,7 @@ export interface OperatingExpense {
   description: string;
   amount: number;
   expense_date: string;
+  payment_method: ExpensePaymentMethod;
   reference: string | null;
   notes: string | null;
   staff_id: string | null;
@@ -62,9 +75,15 @@ export interface CreateExpenseParams {
   description: string;
   amount: number;
   expense_date: string;
+  payment_method?: ExpensePaymentMethod;
   reference?: string;
   notes?: string;
   assignment_id?: string;
+}
+
+function mapPaymentMethod(value: unknown): ExpensePaymentMethod {
+  if (value === 'mpesa' || value === 'bank' || value === 'cash') return value;
+  return 'cash';
 }
 
 function mapRow(row: Record<string, unknown>): OperatingExpense {
@@ -76,6 +95,7 @@ function mapRow(row: Record<string, unknown>): OperatingExpense {
     description: (row.description as string) || '',
     amount: Number(row.amount),
     expense_date: row.expense_date as string,
+    payment_method: mapPaymentMethod(row.payment_method),
     reference: (row.reference as string) || null,
     notes: (row.notes as string) || null,
     staff_id: (row.staff_id as string) || null,
@@ -129,6 +149,7 @@ export function useOperatingExpenses() {
           description: params.description.trim(),
           amount: params.amount,
           expense_date: params.expense_date,
+          payment_method: params.payment_method || 'cash',
           reference: params.reference?.trim() || null,
           notes: params.notes?.trim() || null,
           staff_id: user?.id || null,

@@ -22,10 +22,12 @@ import {
   ShoppingBag,
   Truck,
   ArrowRight,
+  CalendarDays,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/currency';
 import { Button } from '@/components/ui/button';
 import { useCompanySettings } from '@/context/BusinessSettingsContext';
+import { useAuth } from '@/context/AuthContext';
 import { ShopLogo } from '@/components/branding/ShopLogo';
 import { getDisplaySku } from '@/lib/productSku';
 import { CurrencyIcon } from '@/components/icons/CurrencyIcon';
@@ -115,6 +117,8 @@ function ChartSkeleton() {
 
 export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
   const { companyName, shopLogoUrl } = useCompanySettings();
+  const { user } = useAuth();
+  const canManage = user?.role === 'admin' || user?.role === 'manager';
   const { retailProducts, loading: productsLoading } = useProducts();
   const [purchaseDraftCount, setPurchaseDraftCount] = useState(() => getPurchaseDraftCount());
   const [markedProductIds, setMarkedProductIds] = useState<Set<string>>(() => new Set());
@@ -193,16 +197,29 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
             )}
           </div>
         </div>
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={refetch}
-          disabled={statsLoading}
-          className="shrink-0 dark:border-gray-700 dark:bg-gray-800"
-          title="Refresh dashboard"
-        >
-          <RefreshCw className={`h-4 w-4 ${statsLoading ? 'animate-spin' : ''}`} />
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          {canManage && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onNavigate('shop-day')}
+              className="dark:border-gray-700 dark:bg-gray-800"
+            >
+              <CalendarDays className="h-4 w-4 mr-1.5" />
+              <span className="hidden sm:inline">Shop Day Close</span>
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={refetch}
+            disabled={statsLoading}
+            className="shrink-0 dark:border-gray-700 dark:bg-gray-800"
+            title="Refresh dashboard"
+          >
+            <RefreshCw className={`h-4 w-4 ${statsLoading ? 'animate-spin' : ''}`} />
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}
