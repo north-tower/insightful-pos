@@ -236,12 +236,12 @@ export default function Settings({ onNavigate }: SettingsProps) {
                 Admin Controls
               </CardTitle>
               <CardDescription>
-                Manage stores and user assignments for multi-store operations.
+                Manage the parent business, branches, and staff assignments.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Button asChild variant="outline">
-                <Link to="/admin/stores">Open Store Management</Link>
+                <Link to="/admin/stores">Open Business & Branches</Link>
               </Button>
             </CardContent>
           </Card>

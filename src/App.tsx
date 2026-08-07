@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/context/AuthContext";
+import { BranchProvider } from "@/context/BranchContext";
 import { BusinessModeProvider } from "@/context/BusinessModeContext";
 import { BusinessSettingsProvider } from "@/context/BusinessSettingsContext";
 import { OrderQueueProvider } from "@/context/OrderQueueContext";
@@ -22,6 +23,7 @@ const queryClient = new QueryClient();
 const App = () => (
   <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
     <AuthProvider>
+      <BranchProvider>
       <DemoBrandingEffect />
       <BusinessModeProvider>
         <BusinessSettingsProvider>
@@ -76,6 +78,7 @@ const App = () => (
     </QueryClientProvider>
         </BusinessSettingsProvider>
       </BusinessModeProvider>
+      </BranchProvider>
     </AuthProvider>
   </ThemeProvider>
 );

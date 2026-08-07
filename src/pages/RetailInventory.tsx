@@ -20,6 +20,7 @@ import {
   X,
   ChevronDown,
   ChevronRight,
+  ArrowRightLeft,
   ShoppingCart,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -58,6 +59,9 @@ import { formatDistanceToNow, format } from 'date-fns';
 import { fc } from '@/lib/currency';
 import { generatePlaceholderUrl } from '@/lib/product-images';
 import { shouldHideSkuColumn } from '@/lib/productSku';
+import TransferToBranchDialog from '@/components/inventory/TransferToBranchDialog';
+import { useAuth } from '@/context/AuthContext';
+import { useBranch } from '@/context/BranchContext';
 
 interface RetailInventoryProps {
   onNavigate: (tab: string) => void;
@@ -178,6 +182,10 @@ function exportInventoryCsv(products: Product[], getMainStock: (p: Product) => n
 }
 
 export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
+  const { user } = useAuth();
+  const { branches } = useBranch();
+  const canTransfer =
+    (user?.role === 'admin' || user?.role === 'manager') && branches.length > 1;
   const { retailProducts, loading, refetch: refetchProducts } = useProducts();
   const {
     adjustments,
@@ -191,6 +199,8 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
   const [sortField, setSortField] = useState<SortField>('stock');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [showAdjustDialog, setShowAdjustDialog] = useState(false);
+  const [showTransferDialog, setShowTransferDialog] = useState(false);
+  const [transferProduct, setTransferProduct] = useState<Product | null>(null);
   const [adjustProduct, setAdjustProduct] = useState<Product | null>(null);
   const [bulkAdjustProducts, setBulkAdjustProducts] = useState<Product[]>([]);
   const [bulkAdjustMode, setBulkAdjustMode] = useState<BulkAdjustMode>('uniform');
@@ -360,6 +370,11 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
     setAdjustQty('');
     setAdjustNote('');
     setShowAdjustDialog(true);
+  };
+
+  const openTransferDialog = (product: Product) => {
+    setTransferProduct(product);
+    setShowTransferDialog(true);
   };
 
   const parseStockQty = (raw: string) => {
@@ -677,6 +692,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
           <p className="text-muted-foreground">
             {stockSummary.totalProducts} products • {stockSummary.totalUnits} total
             units
+            {canTransfer ? ' · transfer stock between branches from a product row' : ''}
           </p>
         </div>
       </div>
@@ -968,6 +984,17 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                         </div>
 
                         <div className="flex justify-end gap-1">
+                          {canTransfer && getMainStock(product) > 0 && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs"
+                              onClick={() => openTransferDialog(product)}
+                            >
+                              <ArrowRightLeft className="w-3 h-3 mr-1" />
+                              Send
+                            </Button>
+                          )}
                           <Button
                             size="sm"
                             variant="outline"
@@ -1459,6 +1486,18 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
           )}
         </DialogContent>
       </Dialog>
+
+      <TransferToBranchDialog
+        open={showTransferDialog}
+        onOpenChange={(v) => {
+          setShowTransferDialog(v);
+          if (!v) setTransferProduct(null);
+        }}
+        product={transferProduct}
+        onTransferred={() => {
+          void refetchProducts();
+        }}
+      />
     </PageLayout>
   );
 }

@@ -7,14 +7,23 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { ArrowLeft, Building2, Loader2, Plus, UserPlus } from 'lucide-react';
+import { ArrowLeft, Building2, GitBranch, Loader2, Plus, UserPlus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
-type Store = {
+type Business = {
   id: string;
   code: string;
   name: string;
   status: 'active' | 'inactive';
+};
+
+type Branch = {
+  id: string;
+  code: string;
+  name: string;
+  status: 'active' | 'inactive';
+  business_id: string;
+  is_headquarters: boolean;
 };
 
 type Profile = {
@@ -32,20 +41,25 @@ type StoreMembership = {
   is_default_store: boolean;
 };
 
-const defaultCreateStoreForm = { code: '', name: '' };
-
 export default function AdminStores() {
   const { toast } = useToast();
 
   const [loading, setLoading] = useState(true);
-  const [savingStore, setSavingStore] = useState(false);
+  const [savingBusiness, setSavingBusiness] = useState(false);
+  const [savingBranch, setSavingBranch] = useState(false);
   const [savingMembership, setSavingMembership] = useState(false);
 
-  const [stores, setStores] = useState<Store[]>([]);
+  const [businesses, setBusinesses] = useState<Business[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [memberships, setMemberships] = useState<StoreMembership[]>([]);
 
-  const [storeForm, setStoreForm] = useState(defaultCreateStoreForm);
+  const [businessForm, setBusinessForm] = useState({ code: '', name: '' });
+  const [branchForm, setBranchForm] = useState({
+    business_id: '',
+    code: '',
+    name: '',
+  });
   const [membershipForm, setMembershipForm] = useState({
     profile_id: '',
     store_id: '',
@@ -59,22 +73,38 @@ export default function AdminStores() {
         value: p.id,
         label: `${p.full_name || p.email} (${p.email})`,
       })),
-    [profiles]
+    [profiles],
   );
 
-  const storeOptions = useMemo(
+  const businessOptions = useMemo(
     () =>
-      stores.map((s) => ({
-        value: s.id,
-        label: `${s.name} (${s.code})`,
+      businesses.map((b) => ({
+        value: b.id,
+        label: `${b.name} (${b.code})`,
       })),
-    [stores]
+    [businesses],
+  );
+
+  const branchOptions = useMemo(
+    () =>
+      branches.map((s) => {
+        const biz = businesses.find((b) => b.id === s.business_id);
+        return {
+          value: s.id,
+          label: `${s.name}${s.is_headquarters ? ' · HQ' : ''} — ${biz?.name || 'Business'}`,
+        };
+      }),
+    [branches, businesses],
   );
 
   const loadData = async () => {
     setLoading(true);
-    const [storesRes, profilesRes, membershipsRes] = await Promise.all([
-      supabase.from('stores').select('id, code, name, status').order('created_at', { ascending: false }),
+    const [bizRes, storesRes, profilesRes, membershipsRes] = await Promise.all([
+      supabase.from('businesses').select('id, code, name, status').order('created_at', { ascending: false }),
+      supabase
+        .from('stores')
+        .select('id, code, name, status, business_id, is_headquarters')
+        .order('created_at', { ascending: false }),
       supabase.from('profiles').select('id, email, full_name, role').order('created_at', { ascending: false }),
       supabase
         .from('profile_stores')
@@ -82,63 +112,159 @@ export default function AdminStores() {
         .order('created_at', { ascending: false }),
     ]);
 
-    if (storesRes.error || profilesRes.error || membershipsRes.error) {
+    if (bizRes.error || storesRes.error || profilesRes.error || membershipsRes.error) {
       toast({
-        title: 'Failed to load store admin data',
+        title: 'Failed to load branch admin data',
         description:
-          storesRes.error?.message || profilesRes.error?.message || membershipsRes.error?.message || 'Unknown error',
+          bizRes.error?.message ||
+          storesRes.error?.message ||
+          profilesRes.error?.message ||
+          membershipsRes.error?.message ||
+          'Unknown error',
         variant: 'destructive',
       });
       setLoading(false);
       return;
     }
 
-    setStores((storesRes.data || []) as Store[]);
+    setBusinesses((bizRes.data || []) as Business[]);
+    setBranches((storesRes.data || []) as Branch[]);
     setProfiles((profilesRes.data || []) as Profile[]);
     setMemberships((membershipsRes.data || []) as StoreMembership[]);
     setLoading(false);
   };
 
   useEffect(() => {
-    loadData();
+    void loadData();
   }, []);
 
-  const handleCreateStore = async () => {
-    const code = storeForm.code.trim().toLowerCase();
-    const name = storeForm.name.trim();
-
+  const handleCreateBusiness = async () => {
+    const code = businessForm.code.trim().toLowerCase();
+    const name = businessForm.name.trim();
     if (!code || !name) {
       toast({
         title: 'Missing fields',
-        description: 'Store code and name are required.',
+        description: 'Business code and name are required.',
         variant: 'destructive',
       });
       return;
     }
 
-    setSavingStore(true);
-    const { error } = await supabase.from('stores').insert([{ code, name, status: 'active' }]);
-    setSavingStore(false);
-
-    if (error) {
+    setSavingBusiness(true);
+    const { data: biz, error } = await supabase
+      .from('businesses')
+      .insert([{ code, name, status: 'active' }])
+      .select('id')
+      .single();
+    if (error || !biz) {
+      setSavingBusiness(false);
       toast({
-        title: 'Store creation failed',
-        description: error.message,
+        title: 'Business creation failed',
+        description: error?.message || 'Unknown error',
         variant: 'destructive',
       });
       return;
     }
 
-    setStoreForm(defaultCreateStoreForm);
-    toast({ title: 'Store created', description: `${name} is ready.` });
-    loadData();
+    // Auto-create headquarters branch for the new business
+    const hqCode = `${code}-hq`;
+    const { error: branchErr } = await supabase.from('stores').insert([
+      {
+        code: hqCode,
+        name: `${name} HQ`,
+        status: 'active',
+        business_id: biz.id,
+        is_headquarters: true,
+      },
+    ]);
+    setSavingBusiness(false);
+
+    if (branchErr) {
+      toast({
+        title: 'Business created, HQ branch failed',
+        description: branchErr.message,
+        variant: 'destructive',
+      });
+      void loadData();
+      return;
+    }
+
+    setBusinessForm({ code: '', name: '' });
+    toast({
+      title: 'Business registered',
+      description: `${name} created with an HQ branch. Add more branches below.`,
+    });
+    void loadData();
+  };
+
+  const handleCreateBranch = async () => {
+    const code = branchForm.code.trim().toLowerCase();
+    const name = branchForm.name.trim();
+    if (!branchForm.business_id || !code || !name) {
+      toast({
+        title: 'Missing fields',
+        description: 'Select a business and enter branch code and name.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSavingBranch(true);
+    const { data: created, error } = await supabase
+      .from('stores')
+      .insert([
+        {
+          code,
+          name,
+          status: 'active',
+          business_id: branchForm.business_id,
+          is_headquarters: false,
+        },
+      ])
+      .select('id')
+      .single();
+    if (error || !created) {
+      setSavingBranch(false);
+      toast({
+        title: 'Branch creation failed',
+        description: error?.message || 'Unknown error',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Auto-assign the creating admin so it appears in the header dropdown
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (user?.id) {
+      await supabase.from('profile_stores').upsert(
+        [
+          {
+            profile_id: user.id,
+            store_id: created.id,
+            role_in_store: 'admin',
+            is_default_store: false,
+          },
+        ],
+        { onConflict: 'profile_id,store_id' },
+      );
+    }
+
+    setSavingBranch(false);
+    setBranchForm({ business_id: branchForm.business_id, code: '', name: '' });
+    toast({
+      title: 'Branch created',
+      description: `${name} is ready and added to your branch switcher. Assign other staff as needed.`,
+    });
+    void loadData();
   };
 
   const handleAssignMembership = async () => {
     if (!membershipForm.profile_id || !membershipForm.store_id) {
       toast({
         title: 'Missing fields',
-        description: 'Select both a user and a store.',
+        description: 'Select both a user and a branch.',
         variant: 'destructive',
       });
       return;
@@ -154,7 +280,7 @@ export default function AdminStores() {
       if (resetError) {
         setSavingMembership(false);
         toast({
-          title: 'Failed to update default store',
+          title: 'Failed to update default branch',
           description: resetError.message,
           variant: 'destructive',
         });
@@ -171,7 +297,7 @@ export default function AdminStores() {
           is_default_store: membershipForm.is_default_store,
         },
       ],
-      { onConflict: 'profile_id,store_id' }
+      { onConflict: 'profile_id,store_id' },
     );
 
     setSavingMembership(false);
@@ -185,8 +311,8 @@ export default function AdminStores() {
       return;
     }
 
-    toast({ title: 'User assigned to store' });
-    loadData();
+    toast({ title: 'User assigned to branch' });
+    void loadData();
   };
 
   return (
@@ -194,8 +320,10 @@ export default function AdminStores() {
       <div className="max-w-6xl mx-auto space-y-6">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold">Store Administration</h1>
-            <p className="text-sm text-muted-foreground">Create stores and assign users for independent operations.</p>
+            <h1 className="text-2xl font-bold">Business & Branches</h1>
+            <p className="text-sm text-muted-foreground">
+              Register the parent business, add branches under it, then assign staff.
+            </p>
           </div>
           <Button asChild variant="outline">
             <Link to="/">
@@ -211,53 +339,117 @@ export default function AdminStores() {
           </div>
         ) : (
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-            <Card className="xl:col-span-1">
+            <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Building2 className="w-5 h-5" />
-                  Create Store
+                  Register business
                 </CardTitle>
-                <CardDescription>New stores get isolated data automatically.</CardDescription>
+                <CardDescription>
+                  Parent company only. Creates an HQ branch automatically.
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <Label htmlFor="store-code">Store code</Label>
+                  <Label htmlFor="biz-code">Business code</Label>
                   <Input
-                    id="store-code"
-                    placeholder="e.g. nairobi-west"
-                    value={storeForm.code}
-                    onChange={(e) => setStoreForm((prev) => ({ ...prev, code: e.target.value }))}
+                    id="biz-code"
+                    placeholder="e.g. afya-gold"
+                    value={businessForm.code}
+                    onChange={(e) => setBusinessForm((prev) => ({ ...prev, code: e.target.value }))}
                   />
                 </div>
                 <div>
-                  <Label htmlFor="store-name">Store name</Label>
+                  <Label htmlFor="biz-name">Business name</Label>
                   <Input
-                    id="store-name"
-                    placeholder="e.g. Nairobi West Branch"
-                    value={storeForm.name}
-                    onChange={(e) => setStoreForm((prev) => ({ ...prev, name: e.target.value }))}
+                    id="biz-name"
+                    placeholder="e.g. Afya Gold"
+                    value={businessForm.name}
+                    onChange={(e) => setBusinessForm((prev) => ({ ...prev, name: e.target.value }))}
                   />
                 </div>
-                <Button onClick={handleCreateStore} disabled={savingStore} className="w-full">
-                  {savingStore ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
-                  Create Store
+                <Button onClick={() => void handleCreateBusiness()} disabled={savingBusiness} className="w-full">
+                  {savingBusiness ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Plus className="w-4 h-4 mr-2" />
+                  )}
+                  Register business
                 </Button>
               </CardContent>
             </Card>
 
-            <Card className="xl:col-span-1">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <GitBranch className="w-5 h-5" />
+                  Add branch
+                </CardTitle>
+                <CardDescription>
+                  New location under an existing business (own till &amp; stock).
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label>Business</Label>
+                  <Select
+                    value={branchForm.business_id || undefined}
+                    onValueChange={(value) => setBranchForm((prev) => ({ ...prev, business_id: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select parent business" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {businessOptions.map((item) => (
+                        <SelectItem key={item.value} value={item.value}>
+                          {item.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="branch-code">Branch code</Label>
+                  <Input
+                    id="branch-code"
+                    placeholder="e.g. westlands"
+                    value={branchForm.code}
+                    onChange={(e) => setBranchForm((prev) => ({ ...prev, code: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="branch-name">Branch name</Label>
+                  <Input
+                    id="branch-name"
+                    placeholder="e.g. Westlands"
+                    value={branchForm.name}
+                    onChange={(e) => setBranchForm((prev) => ({ ...prev, name: e.target.value }))}
+                  />
+                </div>
+                <Button onClick={() => void handleCreateBranch()} disabled={savingBranch} className="w-full">
+                  {savingBranch ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Plus className="w-4 h-4 mr-2" />
+                  )}
+                  Create branch
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <UserPlus className="w-5 h-5" />
-                  Assign User to Store
+                  Assign staff to branch
                 </CardTitle>
-                <CardDescription>Grant a user access to a specific store.</CardDescription>
+                <CardDescription>Staff only see the branches they are assigned to.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
                   <Label>User</Label>
                   <Select
-                    value={membershipForm.profile_id}
+                    value={membershipForm.profile_id || undefined}
                     onValueChange={(value) => setMembershipForm((prev) => ({ ...prev, profile_id: value }))}
                   >
                     <SelectTrigger>
@@ -273,16 +465,16 @@ export default function AdminStores() {
                   </Select>
                 </div>
                 <div>
-                  <Label>Store</Label>
+                  <Label>Branch</Label>
                   <Select
-                    value={membershipForm.store_id}
+                    value={membershipForm.store_id || undefined}
                     onValueChange={(value) => setMembershipForm((prev) => ({ ...prev, store_id: value }))}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select store" />
+                      <SelectValue placeholder="Select branch" />
                     </SelectTrigger>
                     <SelectContent>
-                      {storeOptions.map((item) => (
+                      {branchOptions.map((item) => (
                         <SelectItem key={item.value} value={item.value}>
                           {item.label}
                         </SelectItem>
@@ -291,7 +483,7 @@ export default function AdminStores() {
                   </Select>
                 </div>
                 <div>
-                  <Label>Role in store</Label>
+                  <Label>Role at branch</Label>
                   <Select
                     value={membershipForm.role_in_store}
                     onValueChange={(value: 'admin' | 'manager' | 'cashier') =>
@@ -310,47 +502,96 @@ export default function AdminStores() {
                 </div>
                 <div className="flex items-center justify-between rounded-md border p-3">
                   <div>
-                    <p className="text-sm font-medium">Set as default store</p>
+                    <p className="text-sm font-medium">Set as active branch</p>
                     <p className="text-xs text-muted-foreground">Used at login for this user.</p>
                   </div>
                   <Switch
                     checked={membershipForm.is_default_store}
-                    onCheckedChange={(value) => setMembershipForm((prev) => ({ ...prev, is_default_store: value }))}
+                    onCheckedChange={(value) =>
+                      setMembershipForm((prev) => ({ ...prev, is_default_store: value }))
+                    }
                   />
                 </div>
-                <Button onClick={handleAssignMembership} disabled={savingMembership} className="w-full">
-                  {savingMembership ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <UserPlus className="w-4 h-4 mr-2" />}
-                  Assign User
+                <Button
+                  onClick={() => void handleAssignMembership()}
+                  disabled={savingMembership}
+                  className="w-full"
+                >
+                  {savingMembership ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <UserPlus className="w-4 h-4 mr-2" />
+                  )}
+                  Assign to branch
                 </Button>
-              </CardContent>
-            </Card>
-
-            <Card className="xl:col-span-1">
-              <CardHeader>
-                <CardTitle>Current Stores</CardTitle>
-                <CardDescription>{stores.length} total stores</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {stores.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No stores yet.</p>
-                ) : (
-                  stores.map((store) => (
-                    <div key={store.id} className="rounded-md border p-3">
-                      <p className="font-medium">{store.name}</p>
-                      <p className="text-xs text-muted-foreground">Code: {store.code}</p>
-                      <p className="text-xs text-muted-foreground capitalize mt-1">Status: {store.status}</p>
-                    </div>
-                  ))
-                )}
               </CardContent>
             </Card>
           </div>
         )}
 
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Businesses</CardTitle>
+              <CardDescription>{businesses.length} parent business(es)</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {businesses.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No businesses yet — register one above.</p>
+              ) : (
+                businesses.map((biz) => {
+                  const bizBranches = branches.filter((b) => b.business_id === biz.id);
+                  return (
+                    <div key={biz.id} className="rounded-md border p-3">
+                      <p className="font-medium">{biz.name}</p>
+                      <p className="text-xs text-muted-foreground">Code: {biz.code}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {bizBranches.length} branch{bizBranches.length === 1 ? '' : 'es'}
+                        {bizBranches.length === 1 && bizBranches[0]?.is_headquarters
+                          ? ' (HQ only — add locations with Add branch)'
+                          : ''}
+                      </p>
+                    </div>
+                  );
+                })
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Branches</CardTitle>
+              <CardDescription>{branches.length} location(s)</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {branches.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No branches yet.</p>
+              ) : (
+                branches.map((branch) => {
+                  const biz = businesses.find((b) => b.id === branch.business_id);
+                  return (
+                    <div key={branch.id} className="rounded-md border p-3">
+                      <p className="font-medium">
+                        {branch.name}
+                        {branch.is_headquarters && (
+                          <span className="ml-2 text-xs text-primary font-medium">HQ</span>
+                        )}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {biz?.name || 'Business'} · Code: {branch.code}
+                      </p>
+                    </div>
+                  );
+                })
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
         <Card>
           <CardHeader>
-            <CardTitle>User-store memberships</CardTitle>
-            <CardDescription>Who can access what store right now.</CardDescription>
+            <CardTitle>Staff ↔ branch</CardTitle>
+            <CardDescription>Who can work at which branch.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
             {memberships.length === 0 ? (
@@ -358,14 +599,18 @@ export default function AdminStores() {
             ) : (
               memberships.map((m) => {
                 const profile = profiles.find((p) => p.id === m.profile_id);
-                const store = stores.find((s) => s.id === m.store_id);
+                const branch = branches.find((s) => s.id === m.store_id);
                 return (
                   <div key={m.id} className="rounded-md border px-3 py-2 text-sm">
-                    <span className="font-medium">{profile?.full_name || profile?.email || m.profile_id}</span>
-                    <span className="text-muted-foreground">{' -> '}</span>
-                    <span>{store?.name || m.store_id}</span>
+                    <span className="font-medium">
+                      {profile?.full_name || profile?.email || m.profile_id}
+                    </span>
+                    <span className="text-muted-foreground">{' → '}</span>
+                    <span>{branch?.name || m.store_id}</span>
                     <span className="text-muted-foreground"> ({m.role_in_store})</span>
-                    {m.is_default_store && <span className="ml-2 text-xs text-primary font-medium">default</span>}
+                    {m.is_default_store && (
+                      <span className="ml-2 text-xs text-primary font-medium">active</span>
+                    )}
                   </div>
                 );
               })
