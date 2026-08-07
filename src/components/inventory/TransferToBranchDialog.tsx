@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ArrowRightLeft, Loader2 } from 'lucide-react';
 import {
   Dialog,
@@ -27,21 +27,30 @@ import { toast } from 'sonner';
 interface TransferToBranchDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  product: Product | null;
+  /** One or more products to send */
+  products: Product[];
   onTransferred?: () => void;
+}
+
+function availableStock(product: Product): number {
+  return product.mainStock ?? product.stock;
 }
 
 export default function TransferToBranchDialog({
   open,
   onOpenChange,
-  product,
+  products,
   onTransferred,
 }: TransferToBranchDialogProps) {
   const { branches, activeBranch } = useBranch();
   const { transferStock, transferring } = useBranchStockTransfer();
   const [toStoreId, setToStoreId] = useState('');
-  const [quantity, setQuantity] = useState('');
+  const [quantities, setQuantities] = useState<Record<string, string>>({});
   const [note, setNote] = useState('');
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+
+  const isBulk = products.length > 1;
+  const primary = products[0] || null;
 
   const destinations = useMemo(
     () =>
@@ -53,77 +62,137 @@ export default function TransferToBranchDialog({
     [branches, activeBranch],
   );
 
-  const available = product ? product.mainStock ?? product.stock : 0;
+  useEffect(() => {
+    if (!open) return;
+    const next: Record<string, string> = {};
+    for (const p of products) {
+      const avail = availableStock(p);
+      // Prefill with available stock so bulk send is one click after picking branch
+      next[p.id] = avail > 0 ? String(avail) : '';
+    }
+    setQuantities(next);
+    setToStoreId('');
+    setNote('');
+    setProgress(null);
+  }, [open, products]);
 
   const reset = () => {
     setToStoreId('');
-    setQuantity('');
+    setQuantities({});
     setNote('');
+    setProgress(null);
   };
 
+  const setQty = (productId: string, value: string) => {
+    setQuantities((prev) => ({ ...prev, [productId]: value }));
+  };
+
+  const linesToSend = useMemo(() => {
+    return products
+      .map((p) => {
+        const qty = parseFloat(quantities[p.id] || '');
+        return { product: p, qty, available: availableStock(p) };
+      })
+      .filter((line) => Number.isFinite(line.qty) && line.qty > 0);
+  }, [products, quantities]);
+
   const handleTransfer = async () => {
-    if (!product || !activeBranch) return;
-    const qty = parseFloat(quantity);
+    if (!activeBranch || products.length === 0) return;
     if (!toStoreId) {
       toast.error('Select a destination branch');
       return;
     }
-    if (Number.isNaN(qty) || qty <= 0) {
-      toast.error('Enter a valid quantity');
-      return;
-    }
-    if (qty > available) {
-      toast.error(`Only ${available} available at this branch`);
+    if (linesToSend.length === 0) {
+      toast.error('Enter a quantity for at least one product');
       return;
     }
 
+    const over = linesToSend.find((l) => l.qty > l.available);
+    if (over) {
+      toast.error(
+        `Only ${over.available} available for "${over.product.name}" at this branch`,
+      );
+      return;
+    }
+
+    const dest = destinations.find((d) => d.id === toStoreId);
+    let ok = 0;
+    const failures: string[] = [];
+    setProgress({ done: 0, total: linesToSend.length });
+
     try {
-      await transferStock({
-        fromStoreId: activeBranch.id,
-        toStoreId,
-        productId: product.id,
-        quantity: qty,
-        note,
-      });
-      const dest = destinations.find((d) => d.id === toStoreId);
-      toast.success(`Sent ${qty} ${product.unit || 'pcs'} of ${product.name} to ${dest?.name || 'branch'}`);
-      reset();
-      onOpenChange(false);
-      onTransferred?.();
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Transfer failed');
+      for (let i = 0; i < linesToSend.length; i++) {
+        const line = linesToSend[i];
+        try {
+          await transferStock({
+            fromStoreId: activeBranch.id,
+            toStoreId,
+            productId: line.product.id,
+            quantity: line.qty,
+            note,
+          });
+          ok += 1;
+        } catch (err: unknown) {
+          failures.push(
+            `${line.product.name}: ${err instanceof Error ? err.message : 'failed'}`,
+          );
+        }
+        setProgress({ done: i + 1, total: linesToSend.length });
+      }
+
+      if (ok > 0 && failures.length === 0) {
+        toast.success(
+          isBulk
+            ? `Sent ${ok} product${ok === 1 ? '' : 's'} to ${dest?.name || 'branch'}`
+            : `Sent ${linesToSend[0].qty} ${linesToSend[0].product.unit || 'pcs'} of ${linesToSend[0].product.name} to ${dest?.name || 'branch'}`,
+        );
+        reset();
+        onOpenChange(false);
+        onTransferred?.();
+      } else if (ok > 0) {
+        toast.warning(`Sent ${ok}, ${failures.length} failed. ${failures[0]}`);
+        onTransferred?.();
+      } else {
+        toast.error(failures[0] || 'Transfer failed');
+      }
+    } finally {
+      setProgress(null);
     }
   };
+
+  const busy = transferring || progress !== null;
 
   return (
     <Dialog
       open={open}
       onOpenChange={(v) => {
-        if (transferring) return;
+        if (busy) return;
         onOpenChange(v);
         if (!v) reset();
       }}
     >
-      <DialogContent className="max-w-md">
+      <DialogContent className={isBulk ? 'max-w-lg max-h-[90vh] overflow-y-auto' : 'max-w-md'}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ArrowRightLeft className="w-5 h-5" />
-            Send stock to branch
+            {isBulk ? `Send ${products.length} products to branch` : 'Send stock to branch'}
           </DialogTitle>
           <DialogDescription>
             Move stock from {activeBranch?.name || 'this branch'} to another branch under the
-            same business. If the product does not exist there, it will be created.
+            same business. Missing products at the destination are created automatically.
           </DialogDescription>
         </DialogHeader>
 
-        {product && (
+        {products.length > 0 && (
           <div className="space-y-4">
-            <div className="rounded-md border border-border bg-muted/20 px-3 py-2 text-sm">
-              <p className="font-medium">{product.name}</p>
-              <p className="text-xs text-muted-foreground">
-                Available here: {available} {product.unit || 'pcs'}
-              </p>
-            </div>
+            {!isBulk && primary && (
+              <div className="rounded-md border border-border bg-muted/20 px-3 py-2 text-sm">
+                <p className="font-medium">{primary.name}</p>
+                <p className="text-xs text-muted-foreground">
+                  Available here: {availableStock(primary)} {primary.unit || 'pcs'}
+                </p>
+              </div>
+            )}
 
             {destinations.length === 0 ? (
               <p className="text-sm text-muted-foreground">
@@ -134,7 +203,11 @@ export default function TransferToBranchDialog({
               <>
                 <div className="space-y-1">
                   <Label>Destination branch</Label>
-                  <Select value={toStoreId || undefined} onValueChange={setToStoreId} disabled={transferring}>
+                  <Select
+                    value={toStoreId || undefined}
+                    onValueChange={setToStoreId}
+                    disabled={busy}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Select branch" />
                     </SelectTrigger>
@@ -148,26 +221,79 @@ export default function TransferToBranchDialog({
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-1">
-                  <Label>Quantity</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={quantity}
-                    onChange={(e) => setQuantity(e.target.value)}
-                    disabled={transferring}
-                    placeholder="0"
-                  />
-                </div>
+
+                {isBulk ? (
+                  <div className="rounded-md border border-border overflow-hidden">
+                    <div className="max-h-56 overflow-y-auto">
+                      <table className="w-full text-sm">
+                        <thead className="sticky top-0 bg-muted text-xs text-muted-foreground">
+                          <tr>
+                            <th className="text-left p-2 font-medium">Product</th>
+                            <th className="text-right p-2 font-medium w-20">Avail</th>
+                            <th className="text-right p-2 font-medium w-28">Send qty</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {products.map((p) => {
+                            const avail = availableStock(p);
+                            return (
+                              <tr key={p.id} className="border-t border-border/70">
+                                <td className="p-2">
+                                  <p className="font-medium leading-tight">{p.name}</p>
+                                  <p className="text-[10px] text-muted-foreground">
+                                    {p.unit || 'pcs'}
+                                  </p>
+                                </td>
+                                <td className="p-2 text-right tabular-nums text-muted-foreground">
+                                  {avail}
+                                </td>
+                                <td className="p-2">
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    step="any"
+                                    max={avail}
+                                    value={quantities[p.id] ?? ''}
+                                    onChange={(e) => setQty(p.id, e.target.value)}
+                                    disabled={busy || avail <= 0}
+                                    className="h-8 text-right"
+                                  />
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="border-t border-border bg-muted/30 px-2 py-1.5 text-[11px] text-muted-foreground">
+                      Prefills available stock — edit any qty or clear rows you don&apos;t want to
+                      send. {linesToSend.length} line
+                      {linesToSend.length === 1 ? '' : 's'} ready.
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    <Label>Quantity</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={quantities[primary?.id || ''] ?? ''}
+                      onChange={(e) => primary && setQty(primary.id, e.target.value)}
+                      disabled={busy}
+                      placeholder="0"
+                    />
+                  </div>
+                )}
+
                 <div className="space-y-1">
                   <Label>Note (optional)</Label>
                   <Textarea
                     rows={2}
                     value={note}
                     onChange={(e) => setNote(e.target.value)}
-                    disabled={transferring}
-                    placeholder="e.g. Restock Westlands for weekend"
+                    disabled={busy}
+                    placeholder="e.g. Restock branch for weekend"
                   />
                 </div>
               </>
@@ -176,18 +302,22 @@ export default function TransferToBranchDialog({
         )}
 
         <DialogFooter>
-          <Button variant="outline" disabled={transferring} onClick={() => onOpenChange(false)}>
+          <Button variant="outline" disabled={busy} onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button
-            disabled={transferring || destinations.length === 0 || !product}
+            disabled={busy || destinations.length === 0 || products.length === 0}
             onClick={() => void handleTransfer()}
           >
-            {transferring ? (
+            {busy ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                Sending…
+                {progress
+                  ? `Sending ${progress.done}/${progress.total}…`
+                  : 'Sending…'}
               </>
+            ) : isBulk ? (
+              `Send ${linesToSend.length || products.length} products`
             ) : (
               'Send stock'
             )}

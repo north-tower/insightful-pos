@@ -200,7 +200,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [showAdjustDialog, setShowAdjustDialog] = useState(false);
   const [showTransferDialog, setShowTransferDialog] = useState(false);
-  const [transferProduct, setTransferProduct] = useState<Product | null>(null);
+  const [transferProducts, setTransferProducts] = useState<Product[]>([]);
   const [adjustProduct, setAdjustProduct] = useState<Product | null>(null);
   const [bulkAdjustProducts, setBulkAdjustProducts] = useState<Product[]>([]);
   const [bulkAdjustMode, setBulkAdjustMode] = useState<BulkAdjustMode>('uniform');
@@ -372,8 +372,15 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
     setShowAdjustDialog(true);
   };
 
-  const openTransferDialog = (product: Product) => {
-    setTransferProduct(product);
+  const openTransferDialog = (product: Product, bulk?: Product[]) => {
+    const list = (bulk && bulk.length > 0 ? bulk : [product]).filter(
+      (p) => getMainStock(p) > 0,
+    );
+    if (list.length === 0) {
+      toast.error('No selected products have stock to send');
+      return;
+    }
+    setTransferProducts(list);
     setShowTransferDialog(true);
   };
 
@@ -692,7 +699,9 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
           <p className="text-muted-foreground">
             {stockSummary.totalProducts} products • {stockSummary.totalUnits} total
             units
-            {canTransfer ? ' · transfer stock between branches from a product row' : ''}
+            {canTransfer
+              ? ' · select products and use Send selected, or Send on a row'
+              : ''}
           </p>
         </div>
       </div>
@@ -1046,6 +1055,18 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                         >
                           Adjust selected
                         </Button>
+                        {canTransfer && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                              openTransferDialog(selectedProducts[0], selectedProducts)
+                            }
+                          >
+                            <ArrowRightLeft className="w-4 h-4 mr-1.5" />
+                            Send selected
+                          </Button>
+                        )}
                         <Button size="sm" onClick={handleMarkForPurchase}>
                           <ShoppingCart className="w-4 h-4 mr-1.5" />
                           Mark for purchase
@@ -1491,10 +1512,11 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
         open={showTransferDialog}
         onOpenChange={(v) => {
           setShowTransferDialog(v);
-          if (!v) setTransferProduct(null);
+          if (!v) setTransferProducts([]);
         }}
-        product={transferProduct}
+        products={transferProducts}
         onTransferred={() => {
+          setSelectedIds(new Set());
           void refetchProducts();
         }}
       />
