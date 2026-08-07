@@ -125,6 +125,7 @@ function toProduct(
 export function useProducts() {
   const { mode } = useBusinessMode();
   const { user } = useAuth();
+  const { activeBranch } = useBranch();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -137,12 +138,13 @@ export function useProducts() {
   const [lastDataSource, setLastDataSource] = useState<'cache' | 'network' | 'none'>('none');
 
   const offlineCacheKey = useMemo(
-    () => `snapshot:products:${mode}:${user?.id || 'anon'}`,
-    [mode, user?.id],
+    () =>
+      `snapshot:products:${mode}:${user?.id || 'anon'}:branch:${activeBranch?.id || 'none'}`,
+    [mode, user?.id, activeBranch?.id],
   );
   const legacyOfflineCacheKey = useMemo(
-    () => `snapshot:products:${mode}:${user?.id || 'anon'}:${user?.role || 'unknown'}`,
-    [mode, user?.id, user?.role],
+    () => `snapshot:products:${mode}:${user?.id || 'anon'}`,
+    [mode, user?.id],
   );
 
   const loadFromOfflineCache = useCallback(async (): Promise<boolean> => {
