@@ -2,7 +2,11 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useBusinessMode } from '@/context/BusinessModeContext';
 import { useAuth } from '@/context/AuthContext';
-import { getCachedSnapshot, setCachedSnapshot } from '@/lib/offline/cache';
+import {
+  getCachedSnapshot,
+  getProductsSnapshot,
+  setCachedSnapshot,
+} from '@/lib/offline/cache';
 import {
   enqueueOperation,
   getPendingOperations,
@@ -11,6 +15,7 @@ import {
   updateOperationStatus,
 } from '@/lib/offline/outbox';
 import { assertCanWriteLocally } from '@/lib/demoMode';
+import { useBranch } from '@/context/BranchContext';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -165,6 +170,7 @@ interface ProductsOfflineSnapshot {
 export function useOrders() {
   const { mode, isRestaurant } = useBusinessMode();
   const { user } = useAuth();
+  const { activeBranch } = useBranch();
 
   const [orders, setOrders] = useState<SaleOrder[]>([]);
   const [loading, setLoading] = useState(false);
@@ -188,16 +194,14 @@ export function useOrders() {
     async (params: CreateOrderParams) => {
       if (mode !== 'retail') return;
 
-      const productsCacheKey = `snapshot:products:${mode}:${user?.id || 'anon'}`;
-      const legacyProductsCacheKey = `snapshot:products:${mode}:${user?.id || 'anon'}:${user?.role || 'unknown'}`;
-      let snapshot = await getCachedSnapshot<ProductsOfflineSnapshot>(productsCacheKey);
-      if (!snapshot && legacyProductsCacheKey !== productsCacheKey) {
-        snapshot = await getCachedSnapshot<ProductsOfflineSnapshot>(legacyProductsCacheKey);
-        if (snapshot) {
-          await setCachedSnapshot<ProductsOfflineSnapshot>(productsCacheKey, snapshot);
-        }
-      }
-      if (!snapshot) return;
+      const loaded = await getProductsSnapshot<ProductsOfflineSnapshot>(
+        mode,
+        user?.id,
+        activeBranch?.id,
+        user?.role,
+      );
+      if (!loaded) return;
+      const { key: productsCacheKey, snapshot } = loaded;
 
       const qtyByProduct = new Map<string, number>();
       for (const item of params.items) {
@@ -241,7 +245,7 @@ export function useOrders() {
         }),
       );
     },
-    [mode, user?.id, user?.role],
+    [mode, user?.id, user?.role, activeBranch?.id],
   );
 
   /** Resolve unit cost per product_id for COGS snapshot (online DB or offline cache). */
@@ -284,19 +288,19 @@ export function useOrders() {
         return costByProduct;
       }
 
-      const productsCacheKey = `snapshot:products:${mode}:${user?.id || 'anon'}`;
-      const legacyProductsCacheKey = `snapshot:products:${mode}:${user?.id || 'anon'}:${user?.role || 'unknown'}`;
-      let snapshot = await getCachedSnapshot<ProductsOfflineSnapshot>(productsCacheKey);
-      if (!snapshot && legacyProductsCacheKey !== productsCacheKey) {
-        snapshot = await getCachedSnapshot<ProductsOfflineSnapshot>(legacyProductsCacheKey);
-      }
+      const loaded = await getProductsSnapshot<ProductsOfflineSnapshot>(
+        mode,
+        user?.id,
+        activeBranch?.id,
+        user?.role,
+      );
       missing.forEach((id) => {
-        const row = snapshot?.products.find((p) => p.id === id);
+        const row = loaded?.snapshot.products.find((p) => p.id === id);
         costByProduct.set(id, Number(row?.cost ?? 0));
       });
       return costByProduct;
     },
-    [mode, user?.id, user?.role],
+    [mode, user?.id, user?.role, activeBranch?.id],
   );
 
   const createOrderRemote = useCallback(

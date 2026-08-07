@@ -1,8 +1,13 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
+import { useBranch } from '@/context/BranchContext';
 import { useBusinessMode } from '@/context/BusinessModeContext';
-import { getCachedSnapshot, setCachedSnapshot } from '@/lib/offline/cache';
+import {
+  getCachedSnapshot,
+  getProductsSnapshot,
+  setCachedSnapshot,
+} from '@/lib/offline/cache';
 import {
   enqueueOperation,
   getPendingOperations,
@@ -62,16 +67,13 @@ interface ProductsOfflineSnapshot {
 export function useStockAdjustments(limit = 20) {
   const { user } = useAuth();
   const { mode } = useBusinessMode();
+  const { activeBranch } = useBranch();
   const [adjustments, setAdjustments] = useState<StockAdjustmentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const isSyncingRef = useRef(false);
 
   const adjustmentsCacheKey = useMemo(() => `snapshot:stock-adjustments:${limit}`, [limit]);
-  const productsCacheKey = useMemo(
-    () => `snapshot:products:${mode}:${user?.id || 'anon'}:${user?.role || 'unknown'}`,
-    [mode, user?.id, user?.role],
-  );
 
   const loadAdjustmentsCache = useCallback(async (): Promise<StockAdjustmentRow[]> => {
     const cached = await getCachedSnapshot<StockAdjustmentRow[]>(adjustmentsCacheKey);
@@ -260,11 +262,17 @@ export function useStockAdjustments(limit = 20) {
         return result;
       }
 
-      const snapshot = await getCachedSnapshot<ProductsOfflineSnapshot>(productsCacheKey);
-      if (!snapshot) {
+      const loaded = await getProductsSnapshot<ProductsOfflineSnapshot>(
+        mode,
+        user?.id,
+        activeBranch?.id,
+        user?.role,
+      );
+      if (!loaded) {
         throw new Error('Offline cache unavailable for inventory adjustment');
       }
 
+      const { key: cacheKey, snapshot } = loaded;
       const product = snapshot.products.find((p) => p.id === productId);
       if (!product) {
         throw new Error('Product not found in offline cache');
@@ -276,14 +284,14 @@ export function useStockAdjustments(limit = 20) {
         p.id === productId ? { ...p, stock: newStock } : p,
       );
 
-      await setCachedSnapshot<ProductsOfflineSnapshot>(productsCacheKey, {
+      await setCachedSnapshot<ProductsOfflineSnapshot>(cacheKey, {
         ...snapshot,
         products: nextProducts,
       });
 
       window.dispatchEvent(
         new CustomEvent('offline-products-updated', {
-          detail: { cacheKey: productsCacheKey },
+          detail: { cacheKey },
         }),
       );
 
@@ -322,9 +330,11 @@ export function useStockAdjustments(limit = 20) {
     [
       user?.id,
       user?.full_name,
+      user?.role,
+      mode,
+      activeBranch?.id,
       fetchAdjustments,
       adjustStockRemote,
-      productsCacheKey,
       adjustments,
       limit,
       persistAdjustmentsCache,

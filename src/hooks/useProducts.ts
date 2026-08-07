@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { useBusinessMode } from '@/context/BusinessModeContext';
 import { useAuth } from '@/context/AuthContext';
 import { useBranch } from '@/context/BranchContext';
-import { getCachedSnapshot, setCachedSnapshot } from '@/lib/offline/cache';
+import { getCachedSnapshot, productsSnapshotKey, setCachedSnapshot } from '@/lib/offline/cache';
 
 // ── Re-export types consumers already rely on ────────────────────────────────
 import type { MenuItem, Category } from '@/data/menuData';
@@ -139,8 +139,7 @@ export function useProducts() {
   const [lastDataSource, setLastDataSource] = useState<'cache' | 'network' | 'none'>('none');
 
   const offlineCacheKey = useMemo(
-    () =>
-      `snapshot:products:${mode}:${user?.id || 'anon'}:branch:${activeBranch?.id || 'none'}`,
+    () => productsSnapshotKey(mode, user?.id, activeBranch?.id),
     [mode, user?.id, activeBranch?.id],
   );
 
