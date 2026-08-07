@@ -390,6 +390,22 @@ export function useProducts() {
     [mode, fetchData],
   );
 
+  const addProducts = useCallback(
+    async (products: Record<string, unknown>[]) => {
+      if (products.length === 0) return;
+      const rows = products.map((product) => ({ ...product, business_mode: mode }));
+      // Insert in chunks to stay within PostgREST payload limits
+      const chunkSize = 100;
+      for (let i = 0; i < rows.length; i += chunkSize) {
+        const chunk = rows.slice(i, i + chunkSize);
+        const { error: err } = await supabase.from('products').insert(chunk);
+        if (err) throw err;
+      }
+      await fetchData();
+    },
+    [mode, fetchData],
+  );
+
   const updateProduct = useCallback(
     async (id: string, updates: Record<string, unknown>) => {
       const { error: err } = await supabase
@@ -446,6 +462,7 @@ export function useProducts() {
 
     // Write ops
     addProduct,
+    addProducts,
     updateProduct,
     deleteProduct,
     debugOfflineCacheKey: offlineCacheKey,

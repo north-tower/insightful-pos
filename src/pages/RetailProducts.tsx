@@ -12,6 +12,7 @@ import {
   Loader2,
   FlaskConical,
   ShoppingBag,
+  Upload,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -23,7 +24,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import {
   AlertDialog,
@@ -60,8 +60,9 @@ import { PageLayout } from '@/components/pos/PageLayout';
 import { PaginationControls } from '@/components/ui/pagination-controls';
 import { cn } from '@/lib/utils';
 import { useProducts } from '@/hooks/useProducts';
-import type { Product, ProductCategory, ProductType } from '@/hooks/useProducts';
+import type { Product, ProductType } from '@/hooks/useProducts';
 import EditProductDialog from '@/components/product/EditProductDialog';
+import BulkImportProductsDialog from '@/components/product/BulkImportProductsDialog';
 import ImageUploader from '@/components/product/ImageUploader';
 import { generatePlaceholderUrl } from '@/lib/product-images';
 import { toast } from 'sonner';
@@ -220,6 +221,7 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
     updateProduct,
     deleteProduct,
     addProduct,
+    addProducts,
   } = useProducts();
   const [productTypeTab, setProductTypeTab] = useState<ProductTypeTab>('finished');
   const sourceProducts =
@@ -233,6 +235,7 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
   const [sortField, setSortField] = useState<SortField>('name');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showBulkImport, setShowBulkImport] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   // Edit product state
@@ -502,6 +505,11 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
                     </button>
                   </div>
 
+                  <Button variant="outline" onClick={() => setShowBulkImport(true)} size="sm">
+                    <Upload className="w-4 h-4 mr-1 sm:mr-2" />
+                    <span className="hidden sm:inline">Bulk import</span>
+                    <span className="sm:hidden">Bulk</span>
+                  </Button>
                   <Button onClick={openAddDialog} size="sm">
                     <Plus className="w-4 h-4 mr-1 sm:mr-2" />
                     <span className="hidden sm:inline">
@@ -1198,6 +1206,15 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Bulk Import Dialog */}
+      <BulkImportProductsDialog
+        open={showBulkImport}
+        onOpenChange={setShowBulkImport}
+        productType={productTypeTab === 'raw' ? 'raw' : 'finished'}
+        categories={rawCategories}
+        onImport={addProducts}
+      />
 
       {/* Edit Product Dialog */}
       <EditProductDialog
