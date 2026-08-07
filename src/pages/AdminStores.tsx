@@ -7,8 +7,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { ArrowLeft, Building2, GitBranch, Loader2, Plus, UserPlus } from 'lucide-react';
+import { ArrowLeft, Building2, GitBranch, Loader2, Plus, UserPlus, UserRoundPlus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useBusinessMode } from '@/context/BusinessModeContext';
 
 type Business = {
   id: string;
@@ -43,11 +44,13 @@ type StoreMembership = {
 
 export default function AdminStores() {
   const { toast } = useToast();
+  const { mode } = useBusinessMode();
 
   const [loading, setLoading] = useState(true);
   const [savingBusiness, setSavingBusiness] = useState(false);
   const [savingBranch, setSavingBranch] = useState(false);
   const [savingMembership, setSavingMembership] = useState(false);
+  const [creatingUser, setCreatingUser] = useState(false);
 
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -65,6 +68,16 @@ export default function AdminStores() {
     store_id: '',
     role_in_store: 'cashier' as 'admin' | 'manager' | 'cashier',
     is_default_store: false,
+  });
+  const [createUserForm, setCreateUserForm] = useState({
+    full_name: '',
+    email: '',
+    role: 'cashier' as 'admin' | 'manager' | 'cashier',
+    store_id: '',
+    role_in_store: 'cashier' as 'admin' | 'manager' | 'cashier',
+    is_default_store: true,
+    send_invite: false,
+    password: '',
   });
 
   const profileOptions = useMemo(
@@ -315,6 +328,75 @@ export default function AdminStores() {
     void loadData();
   };
 
+  const handleCreateUser = async () => {
+    const fullName = createUserForm.full_name.trim();
+    const email = createUserForm.email.trim().toLowerCase();
+    if (!fullName || !email || !createUserForm.store_id) {
+      toast({
+        title: 'Missing fields',
+        description: 'Name, email, and branch are required.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (!createUserForm.send_invite) {
+      if (!createUserForm.password || createUserForm.password.length < 6) {
+        toast({
+          title: 'Password required',
+          description: 'Set a password of at least 6 characters, or turn on email invite.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
+    setCreatingUser(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('admin-create-user', {
+        body: {
+          email,
+          full_name: fullName,
+          role: createUserForm.role,
+          business_mode: mode,
+          store_id: createUserForm.store_id,
+          role_in_store: createUserForm.role_in_store,
+          is_default_store: createUserForm.is_default_store,
+          send_invite: createUserForm.send_invite,
+          password: createUserForm.send_invite ? undefined : createUserForm.password,
+        },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      toast({
+        title: data?.existed ? 'Existing user linked' : 'User created',
+        description: data?.invited
+          ? `Invite sent to ${email}. They can set a password from the email.`
+          : `${fullName} can sign in with ${email}.`,
+      });
+      setCreateUserForm({
+        full_name: '',
+        email: '',
+        role: 'cashier',
+        store_id: createUserForm.store_id,
+        role_in_store: 'cashier',
+        is_default_store: true,
+        send_invite: false,
+        password: '',
+      });
+      void loadData();
+    } catch (err: unknown) {
+      toast({
+        title: 'Could not create user',
+        description: err instanceof Error ? err.message : 'Unknown error',
+        variant: 'destructive',
+      });
+    } finally {
+      setCreatingUser(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background p-4 md:p-6">
       <div className="max-w-6xl mx-auto space-y-6">
@@ -338,6 +420,179 @@ export default function AdminStores() {
             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
           </div>
         ) : (
+          <>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <UserRoundPlus className="w-5 h-5" />
+                Create staff user
+              </CardTitle>
+              <CardDescription>
+                Create a login for a cashier, manager, or admin and assign them to a branch.
+                Requires the <code className="text-xs">admin-create-user</code> edge function to be
+                deployed.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="new-user-name">Full name *</Label>
+                  <Input
+                    id="new-user-name"
+                    placeholder="e.g. Jane Wanjiku"
+                    value={createUserForm.full_name}
+                    onChange={(e) =>
+                      setCreateUserForm((prev) => ({ ...prev, full_name: e.target.value }))
+                    }
+                    disabled={creatingUser}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="new-user-email">Email *</Label>
+                  <Input
+                    id="new-user-email"
+                    type="email"
+                    placeholder="jane@example.com"
+                    value={createUserForm.email}
+                    onChange={(e) =>
+                      setCreateUserForm((prev) => ({ ...prev, email: e.target.value }))
+                    }
+                    disabled={creatingUser}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>App role *</Label>
+                  <Select
+                    value={createUserForm.role}
+                    onValueChange={(value: 'admin' | 'manager' | 'cashier') =>
+                      setCreateUserForm((prev) => ({
+                        ...prev,
+                        role: value,
+                        role_in_store: value,
+                      }))
+                    }
+                    disabled={creatingUser}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cashier">Cashier</SelectItem>
+                      <SelectItem value="manager">Manager</SelectItem>
+                      <SelectItem value="admin">Admin</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label>Branch *</Label>
+                  <Select
+                    value={createUserForm.store_id || undefined}
+                    onValueChange={(value) =>
+                      setCreateUserForm((prev) => ({ ...prev, store_id: value }))
+                    }
+                    disabled={creatingUser}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select branch" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {branchOptions.map((item) => (
+                        <SelectItem key={item.value} value={item.value}>
+                          {item.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label>Role at branch</Label>
+                  <Select
+                    value={createUserForm.role_in_store}
+                    onValueChange={(value: 'admin' | 'manager' | 'cashier') =>
+                      setCreateUserForm((prev) => ({ ...prev, role_in_store: value }))
+                    }
+                    disabled={creatingUser}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cashier">Cashier</SelectItem>
+                      <SelectItem value="manager">Manager</SelectItem>
+                      <SelectItem value="admin">Admin</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {!createUserForm.send_invite && (
+                  <div className="space-y-1">
+                    <Label htmlFor="new-user-password">Temporary password *</Label>
+                    <Input
+                      id="new-user-password"
+                      type="text"
+                      autoComplete="new-password"
+                      placeholder="Min 6 characters"
+                      value={createUserForm.password}
+                      onChange={(e) =>
+                        setCreateUserForm((prev) => ({ ...prev, password: e.target.value }))
+                      }
+                      disabled={creatingUser}
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between gap-4 rounded-md border px-3 py-2">
+                    <div>
+                      <p className="text-sm font-medium">Set as their active branch</p>
+                      <p className="text-xs text-muted-foreground">Used when they log in.</p>
+                    </div>
+                    <Switch
+                      checked={createUserForm.is_default_store}
+                      onCheckedChange={(value) =>
+                        setCreateUserForm((prev) => ({ ...prev, is_default_store: value }))
+                      }
+                      disabled={creatingUser}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between gap-4 rounded-md border px-3 py-2">
+                    <div>
+                      <p className="text-sm font-medium">Send email invite instead</p>
+                      <p className="text-xs text-muted-foreground">
+                        They set their own password from the invite email.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={createUserForm.send_invite}
+                      onCheckedChange={(value) =>
+                        setCreateUserForm((prev) => ({ ...prev, send_invite: value }))
+                      }
+                      disabled={creatingUser}
+                    />
+                  </div>
+                </div>
+                <Button
+                  onClick={() => void handleCreateUser()}
+                  disabled={creatingUser || branchOptions.length === 0}
+                  className="sm:self-end"
+                >
+                  {creatingUser ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <UserRoundPlus className="w-4 h-4 mr-2" />
+                  )}
+                  Create user
+                </Button>
+              </div>
+              {branchOptions.length === 0 && (
+                <p className="text-xs text-destructive">
+                  Create a business/branch first, then you can add users.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
             <Card>
               <CardHeader>
@@ -527,6 +782,7 @@ export default function AdminStores() {
               </CardContent>
             </Card>
           </div>
+          </>
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

@@ -886,14 +886,14 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                   </div>
                 </div>
               ) : (
-                <div className="space-y-1 min-w-[500px]">
+                <div className="space-y-1 min-w-[640px]">
                   {/* Table header */}
                   <div
                     className={cn(
                       'grid gap-3 px-3 py-2 text-xs font-medium text-muted-foreground uppercase',
                       hideSkuColumn
-                        ? 'grid-cols-[2rem_1fr_5rem_5rem]'
-                        : 'grid-cols-[2rem_1fr_6rem_5rem_5rem]',
+                        ? 'grid-cols-[2rem_minmax(0,1fr)_4.5rem_9.5rem]'
+                        : 'grid-cols-[2rem_minmax(0,1fr)_5rem_4.5rem_9.5rem]',
                     )}
                   >
                     <div className="flex items-center">
@@ -940,8 +940,8 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                         className={cn(
                           'grid gap-3 items-center px-3 py-3 rounded hover:bg-muted/30 transition-colors',
                           hideSkuColumn
-                            ? 'grid-cols-[2rem_1fr_5rem_5rem]'
-                            : 'grid-cols-[2rem_1fr_6rem_5rem_5rem]',
+                            ? 'grid-cols-[2rem_minmax(0,1fr)_4.5rem_9.5rem]'
+                            : 'grid-cols-[2rem_minmax(0,1fr)_5rem_4.5rem_9.5rem]',
                           selectedIds.has(product.id) && 'bg-primary/5',
                         )}
                       >
@@ -969,35 +969,35 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                                 query={debouncedSearch}
                               />
                             </p>
-                            <p className="text-xs text-muted-foreground">
+                            <p className="text-xs text-muted-foreground truncate">
                               {product.brand || product.category}
                             </p>
                           </div>
                         </div>
 
                         {!hideSkuColumn && (
-                          <div>
-                            <span className="text-xs font-mono text-muted-foreground">
+                          <div className="min-w-0">
+                            <span className="text-xs font-mono text-muted-foreground truncate block">
                               {product.sku?.trim() ? product.sku : '—'}
                             </span>
                           </div>
                         )}
 
-                        <div className="text-center">
+                        <div className="text-center min-w-0">
                           {renderStockBadge(product, mainStock)}
                           {isAllocationView && (
-                            <p className="text-[10px] text-muted-foreground mt-1">
+                            <p className="text-[10px] text-muted-foreground mt-1 truncate">
                               Allocated: {allocatedStock}
                             </p>
                           )}
                         </div>
 
-                        <div className="flex justify-end gap-1">
+                        <div className="flex justify-end gap-1 shrink-0 flex-nowrap">
                           {canTransfer && getMainStock(product) > 0 && (
                             <Button
                               size="sm"
                               variant="outline"
-                              className="h-7 text-xs"
+                              className="h-7 text-xs shrink-0"
                               onClick={() => openTransferDialog(product)}
                             >
                               <ArrowRightLeft className="w-3 h-3 mr-1" />
@@ -1007,7 +1007,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                           <Button
                             size="sm"
                             variant="outline"
-                            className="h-7 text-xs"
+                            className="h-7 text-xs shrink-0"
                             onClick={() => openAdjustDialog(product)}
                           >
                             Adjust
