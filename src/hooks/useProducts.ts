@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useBusinessMode } from '@/context/BusinessModeContext';
 import { useAuth } from '@/context/AuthContext';
+import { useBranch } from '@/context/BranchContext';
 import { getCachedSnapshot, setCachedSnapshot } from '@/lib/offline/cache';
 
 // ── Re-export types consumers already rely on ────────────────────────────────
@@ -142,19 +143,9 @@ export function useProducts() {
       `snapshot:products:${mode}:${user?.id || 'anon'}:branch:${activeBranch?.id || 'none'}`,
     [mode, user?.id, activeBranch?.id],
   );
-  const legacyOfflineCacheKey = useMemo(
-    () => `snapshot:products:${mode}:${user?.id || 'anon'}`,
-    [mode, user?.id],
-  );
 
   const loadFromOfflineCache = useCallback(async (): Promise<boolean> => {
-    let cached = await getCachedSnapshot<ProductsOfflineSnapshot>(offlineCacheKey);
-    if (!cached && legacyOfflineCacheKey !== offlineCacheKey) {
-      cached = await getCachedSnapshot<ProductsOfflineSnapshot>(legacyOfflineCacheKey);
-      if (cached) {
-        await setCachedSnapshot<ProductsOfflineSnapshot>(offlineCacheKey, cached);
-      }
-    }
+    const cached = await getCachedSnapshot<ProductsOfflineSnapshot>(offlineCacheKey);
     if (!cached) return false;
     setSupaCategories(cached.categories || []);
     setSupaProducts(cached.products || []);
@@ -162,7 +153,7 @@ export function useProducts() {
     setCashierAllocations(cached.cashierAllocations || []);
     setLastDataSource('cache');
     return true;
-  }, [legacyOfflineCacheKey, offlineCacheKey]);
+  }, [offlineCacheKey]);
 
   // ── Fetch ──────────────────────────────────────────────────────────────
 
@@ -179,23 +170,32 @@ export function useProducts() {
     }
 
     try {
+      const { data: storeIdData } = await supabase.rpc('current_store_id');
+      const storeId = (storeIdData as string | null) || activeBranch?.id || null;
+
       // Categories
-      const { data: catData, error: catErr } = await supabase
+      let catQuery = supabase
         .from('categories')
         .select('*')
         .eq('business_mode', mode)
         .eq('is_active', true)
         .order('sort_order');
+      if (storeId) catQuery = catQuery.eq('store_id', storeId);
+
+      const { data: catData, error: catErr } = await catQuery;
 
       if (catErr) throw catErr;
 
-      // Products
-      const { data: prodData, error: prodErr } = await supabase
+      // Products — always scoped to active branch
+      let prodQuery = supabase
         .from('products')
         .select('*')
         .eq('business_mode', mode)
         .eq('is_active', true)
         .order('name');
+      if (storeId) prodQuery = prodQuery.eq('store_id', storeId);
+
+      const { data: prodData, error: prodErr } = await prodQuery;
 
       if (prodErr) throw prodErr;
 
@@ -214,15 +214,14 @@ export function useProducts() {
         variantData = vData || [];
 
         if (user?.role === 'cashier' || user?.role === 'manager') {
-          const { data: storeIdData } = await supabase.rpc('current_store_id');
           let allocationQuery = supabase
             .from('cashier_stock_allocations')
             .select('product_id, assigned_qty, sold_qty')
             .eq('cashier_id', user.id)
             .eq('is_active', true)
             .in('product_id', productIds);
-          if (storeIdData) {
-            allocationQuery = allocationQuery.eq('store_id', storeIdData);
+          if (storeId) {
+            allocationQuery = allocationQuery.eq('store_id', storeId);
           }
           const { data: aData, error: aErr } = await allocationQuery;
           if (aErr) throw aErr;
@@ -251,7 +250,7 @@ export function useProducts() {
     } finally {
       setLoading(false);
     }
-  }, [mode, user?.id, user?.role, loadFromOfflineCache, offlineCacheKey]);
+  }, [mode, user?.id, user?.role, loadFromOfflineCache, offlineCacheKey, activeBranch?.id]);
 
   useEffect(() => {
     fetchData();
