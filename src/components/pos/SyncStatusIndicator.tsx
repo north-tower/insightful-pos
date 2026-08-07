@@ -23,18 +23,16 @@ export function SyncStatusIndicator() {
   const hasFailures = failedCount > 0;
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-1 sm:gap-2">
       {!isOnline && (
         <Badge
           variant="destructive"
-          className="flex max-w-[11rem] items-center gap-1 truncate sm:max-w-none"
+          className="flex h-9 w-9 shrink-0 items-center justify-center p-0 sm:h-auto sm:w-auto sm:max-w-none sm:gap-1 sm:px-2.5"
           title="Offline — sale will sync when reconnected"
         >
-          <CloudOff className="h-3 w-3 shrink-0" />
-          <span className="truncate text-[10px] sm:text-xs">
-            {/* Shorter on very small screens; full message on sm+ */}
-            <span className="sm:hidden">Offline</span>
-            <span className="hidden sm:inline">Offline — sale will sync when reconnected</span>
+          <CloudOff className="h-3.5 w-3.5 shrink-0" />
+          <span className="hidden truncate text-xs sm:inline">
+            Offline — sale will sync when reconnected
           </span>
         </Badge>
       )}
@@ -42,11 +40,11 @@ export function SyncStatusIndicator() {
       {isOnline && (
         <Badge
           variant="outline"
-          className="flex items-center gap-1 border-success/30 text-success"
+          className="flex h-9 w-9 shrink-0 items-center justify-center border-success/30 p-0 text-success sm:h-auto sm:w-auto sm:gap-1 sm:px-2.5"
           title="Online"
         >
-          <Wifi className="h-3 w-3" />
-          <span className="hidden text-[10px] sm:inline sm:text-xs">Online</span>
+          <Wifi className="h-3.5 w-3.5" />
+          <span className="hidden text-xs sm:inline">Online</span>
         </Badge>
       )}
 
@@ -73,14 +71,16 @@ export function SyncStatusIndicator() {
             type="button"
             size="sm"
             variant="outline"
-            className="h-9 min-h-9 min-w-9 px-2.5 text-xs active:scale-95"
+            className="h-9 w-9 shrink-0 px-0 text-xs active:scale-95 sm:w-auto sm:min-w-9 sm:px-2.5"
             onClick={() => {
               void refreshPendingCount();
             }}
             disabled={isRefreshing}
+            aria-label="Sync"
+            title="Sync"
           >
-            <RefreshCcw className={cn('mr-1 h-3.5 w-3.5', isRefreshing && 'animate-spin')} />
-            Sync
+            <RefreshCcw className={cn('h-3.5 w-3.5 sm:mr-1', isRefreshing && 'animate-spin')} />
+            <span className="hidden sm:inline">Sync</span>
           </Button>
         }
       />
