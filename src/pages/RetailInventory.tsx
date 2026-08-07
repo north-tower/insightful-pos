@@ -241,7 +241,17 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
       isLowStock(p, getMainStock(p)),
     );
 
-    return { totalProducts, totalUnits, totalValue, inStock, outOfStock, lowStock };
+    // Avoid IEEE float noise (e.g. 2754.6400000000003) in the summary line
+    const totalUnitsDisplay = Number(totalUnits.toFixed(2));
+
+    return {
+      totalProducts,
+      totalUnits: totalUnitsDisplay,
+      totalValue,
+      inStock,
+      outOfStock,
+      lowStock,
+    };
   }, [retailProducts, getMainStock]);
 
   const recentlyDroppedToZero = useMemo(() => {
@@ -697,8 +707,11 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
             Inventory
           </h1>
           <p className="text-muted-foreground">
-            {stockSummary.totalProducts} products • {stockSummary.totalUnits} total
-            units
+            {stockSummary.totalProducts} products •{' '}
+            {stockSummary.totalUnits.toLocaleString('en-KE', {
+              maximumFractionDigits: 2,
+            })}{' '}
+            total units
             {canTransfer
               ? ' · select products and use Send selected, or Send on a row'
               : ''}
