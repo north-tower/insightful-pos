@@ -9,7 +9,9 @@ const corsHeaders = {
 // ─── Celcom Africa SMS gateway credentials ─────────────────────────────────
 const PARTNER_ID = '266';
 const API_KEY = '39021f645c1d1729b5e281803ab001ea';
-const SHORTCODE = 'KILIMO FEED';
+// Callers may override this per request; other apps on this project send under
+// their own sender ID.
+const DEFAULT_SHORTCODE = 'KILIMO FEED';
 
 serve(async (req) => {
   // Handle CORS preflight
@@ -18,7 +20,7 @@ serve(async (req) => {
   }
 
   try {
-    const { mobile, message } = await req.json();
+    const { mobile, message, shortcode } = await req.json();
 
     if (!mobile || !message) {
       return new Response(
@@ -30,12 +32,12 @@ serve(async (req) => {
       );
     }
 
-    // Build the Celcom Africa SMS URL
-    const smsUrl = new URL('https://isms.celcomafrica.com/api/services/sendsms/');
+    // Temporary Celcom Africa IP while isms.celcomafrica.com is down
+    const smsUrl = new URL('http://34.78.92.242/api/services/sendsms');
     smsUrl.searchParams.set('apikey', API_KEY);
     smsUrl.searchParams.set('partnerID', PARTNER_ID);
     smsUrl.searchParams.set('message', message);
-    smsUrl.searchParams.set('shortcode', SHORTCODE);
+    smsUrl.searchParams.set('shortcode', shortcode || DEFAULT_SHORTCODE);
     smsUrl.searchParams.set('mobile', mobile);
 
     const smsRes = await fetch(smsUrl.toString());
