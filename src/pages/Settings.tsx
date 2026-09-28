@@ -236,12 +236,15 @@ export default function Settings({ onNavigate }: SettingsProps) {
                 Admin Controls
               </CardTitle>
               <CardDescription>
-                Manage the parent business, branches, and staff assignments.
+                Manage businesses, branches, staff assignments, and WhatsApp ops allowlist.
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex flex-wrap gap-2">
               <Button asChild variant="outline">
                 <Link to="/admin/stores">Open Business & Branches</Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link to="/admin/whatsapp-staff">WhatsApp staff access</Link>
               </Button>
             </CardContent>
           </Card>

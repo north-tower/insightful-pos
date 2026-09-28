@@ -35,7 +35,10 @@ Staff can record sales, check customer credit, and take payments on account from
    ```
 
    Expect `403` with `"authorised":false` until the phone is in `whatsapp_staff_links`.
-3. Link staff phones in `whatsapp_staff_links` (E.164, e.g. `+254712345678`):
+3. Link staff phones (E.164, e.g. `+254712345678`):
+
+   - **In the app (recommended):** Settings → Admin Controls → **WhatsApp staff access** (`/admin/whatsapp-staff`). Pick the staff user, branch used for WhatsApp sales, and the phone that messages the shop line.
+   - **SQL alternative:**
 
 ```sql
 INSERT INTO whatsapp_staff_links (phone, profile_id, store_id, enabled)

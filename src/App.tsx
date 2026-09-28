@@ -16,6 +16,7 @@ import Index from "./pages/Index";
 import CustomerOrder from "./pages/CustomerOrder";
 import CustomerOrderTracking from "./pages/CustomerOrderTracking";
 import AdminStores from "./pages/AdminStores";
+import AdminWhatsAppStaff from "./pages/AdminWhatsAppStaff";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -47,6 +48,14 @@ const App = () => (
                   element={
                     <ProtectedRoute allowedRoles={['admin']}>
                       <AdminStores />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/whatsapp-staff"
+                  element={
+                    <ProtectedRoute allowedRoles={['admin']}>
+                      <AdminWhatsAppStaff />
                     </ProtectedRoute>
                   }
                 />
