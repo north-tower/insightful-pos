@@ -5,25 +5,28 @@ Staff can record sales, check customer credit, and take payments on account from
 ## Setup
 
 1. Apply migration `059_whatsapp_ops.sql` to your Supabase project.
-2. Deploy the Edge Function (from repo root `insightful-pos`):
+2. Deploy the Edge Function `whatsapp-ops` (code: `supabase/functions/whatsapp-ops/index.ts`).
+
+   **Supabase Dashboard (no CLI)**
+
+   1. **Edge Functions** → create or open **`whatsapp-ops`** → paste/deploy the code from `index.ts` in this repo.
+   2. **Project Settings → Edge Functions → Secrets** (or **Manage secrets** on the Functions page) → add:
+      - Name: `WHATSAPP_OPS_API_KEY`
+      - Value: a long random string (same value as whatsapp3 `INSIGHTFUL_POS_API_KEY`)
+   3. Open **`whatsapp-ops` → Details** (or **Configuration**) → under **Function configuration**, turn **off** **Verify JWT** / **Verify JWT with legacy secret**.  
+      This is the UI equivalent of `supabase functions deploy whatsapp-ops --no-verify-jwt`. If this stays **on**, whatsapp3’s `Authorization: Bearer <your shared secret>` is rejected by the platform with **401 Invalid JWT** before your code runs.
+   4. Redeploy or save after changing JWT verification or secrets.
+
+   **CLI alternative**
 
    ```sh
-   # One-time: install CLI https://supabase.com/docs/guides/cli
-   supabase login
-   supabase link --project-ref <your-project-ref>
-
-   # Shared secret (same value goes in whatsapp3 INSIGHTFUL_POS_API_KEY)
    supabase secrets set WHATSAPP_OPS_API_KEY=<long-random-secret>
-
-   # whatsapp3 calls with Bearer API key, not a Supabase user JWT
    supabase functions deploy whatsapp-ops --no-verify-jwt
    ```
 
    `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are injected automatically in the cloud; you only set `WHATSAPP_OPS_API_KEY`.
 
    **URL for whatsapp3:** `https://<project-ref>.supabase.co/functions/v1/whatsapp-ops`
-
-   **Dashboard alternative:** Edge Functions → create/upload is possible, but the CLI above matches `supabase/functions/whatsapp-ops/index.ts` in this repo.
 
    **Smoke test** (replace ref and secret):
 
