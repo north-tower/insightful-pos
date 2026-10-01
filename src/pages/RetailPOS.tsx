@@ -241,7 +241,7 @@ function CartPaymentMethodSection({
             type="button"
             onClick={() => onMethodChange(id)}
             className={cn(
-              'flex min-h-11 flex-col items-center justify-center gap-1 rounded-lg border-2 px-1 py-2 text-center transition-all active:scale-95',
+              'focus-ring flex min-h-11 flex-col items-center justify-center gap-1 rounded-lg border-2 px-1 py-2 text-center transition-all duration-200 active:scale-95',
               method === id
                 ? 'border-primary bg-primary/5 text-primary'
                 : 'border-border bg-card text-muted-foreground hover:border-primary/30',
@@ -290,7 +290,7 @@ function CartQtyControl({
         type="button"
         aria-label="Decrease quantity"
         onClick={() => onStep(productId, quantity - 1)}
-        className="flex min-h-9 min-w-9 items-center justify-center rounded-lg border border-border bg-muted/50 text-foreground active:scale-95 active:bg-muted sm:min-h-9 sm:min-w-9"
+        className="focus-ring flex min-h-9 min-w-9 items-center justify-center rounded-lg border border-border bg-muted/50 text-foreground transition-colors duration-200 hover:bg-muted active:scale-95 active:bg-muted"
       >
         <Minus className="h-4 w-4" />
       </button>
@@ -311,7 +311,7 @@ function CartQtyControl({
         type="button"
         aria-label="Increase quantity"
         onClick={() => onStep(productId, quantity + 1)}
-        className="flex min-h-9 min-w-9 items-center justify-center rounded-lg border border-border bg-muted/50 text-foreground active:scale-95 active:bg-muted"
+        className="focus-ring flex min-h-9 min-w-9 items-center justify-center rounded-lg border border-border bg-muted/50 text-foreground transition-colors duration-200 hover:bg-muted active:scale-95 active:bg-muted"
       >
         <Plus className="h-4 w-4" />
       </button>
@@ -336,7 +336,7 @@ function SaleTypeTabs({
         onClick={onCash}
         aria-pressed={saleType === 'cash'}
         className={cn(
-          'flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-md px-3 text-xs font-medium transition-all active:scale-[0.98]',
+          'focus-ring flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-md px-3 text-xs font-medium transition-all duration-200 active:scale-[0.98]',
           saleType === 'cash'
             ? 'bg-primary font-semibold text-primary-foreground shadow-sm'
             : 'text-muted-foreground hover:bg-background/70 hover:text-foreground',
@@ -350,7 +350,7 @@ function SaleTypeTabs({
         onClick={onCredit}
         aria-pressed={saleType === 'credit'}
         className={cn(
-          'flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-md px-3 text-xs font-medium transition-all active:scale-[0.98]',
+          'focus-ring flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-md px-3 text-xs font-medium transition-all duration-200 active:scale-[0.98]',
           saleType === 'credit'
             ? 'bg-primary font-semibold text-primary-foreground shadow-sm'
             : 'text-muted-foreground hover:bg-background/70 hover:text-foreground',
@@ -452,7 +452,7 @@ function CreditSaleExtras({
                   type="button"
                   onClick={() => onCreditPaymentMethodChange(id)}
                   className={cn(
-                    'flex min-h-9 items-center justify-center gap-1 rounded-md border text-[11px] font-medium transition-all active:scale-95',
+                    'focus-ring flex min-h-9 items-center justify-center gap-1 rounded-md border text-[11px] font-medium transition-all duration-200 active:scale-95',
                     creditPaymentMethod === id
                       ? 'border-primary/40 bg-primary/10 text-primary'
                       : 'border-border/60 bg-background text-muted-foreground hover:bg-muted/60',
@@ -542,7 +542,7 @@ function CartTotalsSection({
               type="button"
               onClick={() => onDiscountModeChange('amount')}
               className={cn(
-                'min-h-11 min-w-11 rounded-lg px-3 text-xs font-medium transition-colors active:scale-95',
+                'focus-ring min-h-11 min-w-11 rounded-lg px-3 text-xs font-medium transition-colors duration-200 active:scale-95',
                 discountMode === 'amount'
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-muted text-muted-foreground',
@@ -554,7 +554,7 @@ function CartTotalsSection({
               type="button"
               onClick={() => onDiscountModeChange('percent')}
               className={cn(
-                'min-h-11 min-w-11 rounded-lg px-3 text-xs font-medium transition-colors active:scale-95',
+                'focus-ring min-h-11 min-w-11 rounded-lg px-3 text-xs font-medium transition-colors duration-200 active:scale-95',
                 discountMode === 'percent'
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-muted text-muted-foreground',
@@ -1246,7 +1246,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                   // TODO: Implement camera-based barcode scanning
                   console.log('[RetailPOS] Barcode scan button tapped — scanner not implemented yet');
                 }}
-                className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-foreground active:scale-95 active:bg-muted"
+                className="focus-ring flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-foreground transition-colors duration-200 hover:bg-muted/60 active:scale-95 active:bg-muted"
               >
                 <ScanBarcode className="h-5 w-5" />
               </button>
@@ -1255,7 +1255,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                   type="button"
                   onClick={toggleShowOutOfStock}
                   className={cn(
-                    'flex min-h-11 items-center justify-center gap-1 rounded-md px-2 text-xs font-medium active:scale-95',
+                    'focus-ring flex min-h-11 items-center justify-center gap-1 rounded-md px-2 text-xs font-medium transition-colors duration-200 active:scale-95',
                     showOutOfStock
                       ? 'bg-primary text-primary-foreground'
                       : 'text-muted-foreground hover:text-foreground',
@@ -1280,7 +1280,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                     }
                   }}
                   className={cn(
-                    'flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-md px-2 text-xs font-medium active:scale-95',
+                    'focus-ring flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-md px-2 text-xs font-medium transition-colors duration-200 active:scale-95',
                     productViewMode === 'card'
                       ? 'bg-primary text-primary-foreground'
                       : 'text-muted-foreground hover:text-foreground'
@@ -1299,7 +1299,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                     }
                   }}
                   className={cn(
-                    'flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-md px-2 text-xs font-medium active:scale-95',
+                    'focus-ring flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-md px-2 text-xs font-medium transition-colors duration-200 active:scale-95',
                     productViewMode === 'list'
                       ? 'bg-primary text-primary-foreground'
                       : 'text-muted-foreground hover:text-foreground'
@@ -1326,7 +1326,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                   type="button"
                   onClick={() => setActiveBrowseKey(key)}
                   className={cn(
-                    'flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium transition-colors',
+                    'focus-ring flex min-h-8 shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium transition-colors duration-200',
                     activeBrowseKey === key
                       ? 'bg-primary text-primary-foreground shadow-sm'
                       : 'bg-muted text-muted-foreground hover:text-foreground',
@@ -1342,7 +1342,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                   type="button"
                   onClick={() => setActiveBrowseKey(chip.slug)}
                   className={cn(
-                    'flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium transition-colors',
+                    'focus-ring flex min-h-8 shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium transition-colors duration-200',
                     activeBrowseKey === chip.slug
                       ? 'bg-primary text-primary-foreground shadow-sm'
                       : 'bg-muted text-muted-foreground hover:text-foreground',
@@ -1409,7 +1409,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                           }
                         }}
                         className={cn(
-                          'group relative min-h-[7.5rem] cursor-pointer rounded-lg border bg-card p-2 text-left transition-all active:scale-[0.98] sm:min-h-0 sm:p-3',
+                          'focus-ring group relative min-h-[7.5rem] cursor-pointer rounded-lg border bg-card p-2 text-left transition-all duration-200 active:scale-[0.98] sm:min-h-0 sm:p-3',
                           inCart > 0
                             ? 'border-primary shadow-md'
                             : 'border-border hover:border-primary/40',
@@ -1426,7 +1426,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                               e.stopPropagation();
                               toggleFavorite(product.id);
                             }}
-                            className="absolute top-1 right-1 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-background/85 shadow-sm active:scale-95"
+                            className="focus-ring absolute top-1 right-1 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-background/85 shadow-sm transition-transform duration-200 active:scale-95"
                           >
                             <Star
                               className={cn(
@@ -1627,7 +1627,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                 <button
                   type="button"
                   onClick={() => setMobileCartOpen(true)}
-                  className="flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 text-base font-semibold text-primary-foreground active:scale-95 active:bg-primary/90"
+                  className="focus-ring flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 text-base font-semibold text-primary-foreground transition-colors duration-200 hover:bg-primary/90 active:scale-95 active:bg-primary/90"
                 >
                   <ShoppingCart className="h-5 w-5" />
                   Review Cart &amp; Checkout

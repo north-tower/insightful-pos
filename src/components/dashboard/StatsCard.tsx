@@ -37,19 +37,15 @@ export function StatsCard({
   return (
     <Card
       className={cn(
-        'border-l-4 bg-card dark:bg-gray-800',
-        isLarge
-          ? 'border-warning shadow-sm'
-          : 'border-border/60 dark:border-gray-700'
+        'border-l-4 bg-card transition-shadow duration-200 hover:shadow-md',
+        isLarge ? 'border-warning shadow-sm' : 'border-border/60'
       )}
     >
       <CardContent className={cn(isLarge ? 'p-6 sm:p-8' : 'p-4 sm:p-5')}>
         <div className="flex items-center justify-between gap-4">
           <div className="flex-1 min-w-0">
             <p
-              className={cn(
-                'mb-2 text-sm font-medium text-gray-500 dark:text-gray-400'
-              )}
+              className="mb-2 text-sm font-medium text-muted-foreground"
             >
               {title}
             </p>
@@ -83,7 +79,7 @@ export function StatsCard({
             {description && (
               <p
                 className={cn(
-                  'mt-2 text-gray-500 dark:text-gray-400',
+                  'mt-2 text-muted-foreground',
                   isLarge ? 'text-sm' : 'text-xs'
                 )}
               >

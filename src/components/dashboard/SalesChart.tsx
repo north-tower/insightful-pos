@@ -47,7 +47,7 @@ export function SalesChart({ data, dailyData, weeklyData, monthlyData }: SalesCh
   const isEmpty = chartData.length === 0 || !hasMeaningfulRevenue(chartData);
 
   return (
-    <Card className="bg-card dark:bg-gray-800 dark:border-gray-700">
+    <Card className="bg-card">
       <CardHeader className="space-y-0 pb-4">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -65,10 +65,10 @@ export function SalesChart({ data, dailyData, weeklyData, monthlyData }: SalesCh
                 type="button"
                 onClick={() => setTimeRange(range)}
                 className={cn(
-                  'px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-all',
+                  'focus-ring px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors duration-200',
                   timeRange === range
                     ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted text-muted-foreground hover:bg-muted/80 dark:bg-gray-700 dark:text-gray-300'
+                    : 'bg-muted text-muted-foreground hover:text-foreground'
                 )}
               >
                 {range}
@@ -80,9 +80,9 @@ export function SalesChart({ data, dailyData, weeklyData, monthlyData }: SalesCh
       <CardContent>
         {isEmpty ? (
           <div className="flex h-[300px] flex-col items-center justify-center text-center px-4">
-            <TrendingUp className="mb-3 h-10 w-10 text-gray-400 dark:text-gray-500" strokeWidth={1.5} />
+            <TrendingUp className="mb-3 h-10 w-10 text-muted-foreground/70" strokeWidth={1.5} />
             <p className="text-sm font-medium text-foreground">No sales recorded yet</p>
-            <p className="mt-1 max-w-xs text-sm text-gray-500 dark:text-gray-400">
+            <p className="mt-1 max-w-xs text-sm text-muted-foreground">
               Revenue trends will appear here once you make your first transaction
             </p>
           </div>
@@ -116,7 +116,7 @@ export function SalesChart({ data, dailyData, weeklyData, monthlyData }: SalesCh
                   content={({ active, payload }) => {
                     if (active && payload && payload.length) {
                       return (
-                        <div className="rounded-lg border bg-background p-2 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                        <div className="rounded-lg border border-border bg-popover p-2 shadow-sm">
                           <div className="grid gap-2">
                             <div className="font-medium">{payload[0].payload.date}</div>
                             <div className="flex items-center gap-2">

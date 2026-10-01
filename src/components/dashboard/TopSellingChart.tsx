@@ -25,7 +25,7 @@ export function TopSellingChart({ data }: TopSellingChartProps) {
   const isEmpty = chartData.length === 0;
 
   return (
-    <Card className="bg-card dark:bg-gray-800 dark:border-gray-700">
+    <Card className="bg-card">
       <CardHeader className="pb-4">
         <CardTitle className="text-lg font-semibold">Top Selling Items</CardTitle>
         <CardDescription>Most ordered items today</CardDescription>
@@ -33,9 +33,9 @@ export function TopSellingChart({ data }: TopSellingChartProps) {
       <CardContent>
         {isEmpty ? (
           <div className="flex h-[300px] flex-col items-center justify-center text-center px-4">
-            <Package className="mb-3 h-10 w-10 text-gray-400 dark:text-gray-500" strokeWidth={1.5} />
+            <Package className="mb-3 h-10 w-10 text-muted-foreground/70" strokeWidth={1.5} />
             <p className="text-sm font-medium text-foreground">No top sellers yet today</p>
-            <p className="mt-1 max-w-xs text-sm text-gray-500 dark:text-gray-400">
+            <p className="mt-1 max-w-xs text-sm text-muted-foreground">
               Best-selling items will show up here after your first sales
             </p>
           </div>
@@ -67,7 +67,7 @@ export function TopSellingChart({ data }: TopSellingChartProps) {
                   if (active && payload && payload.length) {
                     const point = payload[0].payload;
                     return (
-                      <div className="rounded-lg border bg-background p-2 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                      <div className="rounded-lg border border-border bg-popover p-2 shadow-sm">
                         <div className="grid gap-2">
                           <div className="flex items-center justify-between gap-2">
                             <span className="text-sm font-medium">{point.fullName}</span>

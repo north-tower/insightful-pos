@@ -752,11 +752,19 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
       {/* Summary Cards */}
       <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-4">
         <Card
+          role="button"
+          tabIndex={0}
           className={cn(
-            'cursor-pointer transition-all hover:shadow-sm',
+            'focus-ring cursor-pointer transition-all duration-200 hover:shadow-sm hover:border-primary/30',
             stockFilter === 'all' && 'ring-2 ring-primary bg-primary/5 shadow-sm',
           )}
           onClick={() => setStockFilter('all')}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              setStockFilter('all');
+            }
+          }}
         >
           <CardContent className="p-3">
             <div className="flex items-center justify-between">
@@ -773,11 +781,19 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
         </Card>
 
         <Card
+          role="button"
+          tabIndex={0}
           className={cn(
-            'cursor-pointer transition-all hover:shadow-sm',
+            'focus-ring cursor-pointer transition-all duration-200 hover:shadow-sm hover:border-success/30',
             stockFilter === 'in-stock' && 'ring-2 ring-success bg-success/5 shadow-sm',
           )}
           onClick={() => setStockFilter('in-stock')}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              setStockFilter('in-stock');
+            }
+          }}
         >
           <CardContent className="p-3">
             <div className="flex items-center justify-between">
@@ -794,11 +810,19 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
         </Card>
 
         <Card
+          role="button"
+          tabIndex={0}
           className={cn(
-            'cursor-pointer transition-all hover:shadow-sm',
+            'focus-ring cursor-pointer transition-all duration-200 hover:shadow-sm hover:border-destructive/30',
             stockFilter === 'out' && 'ring-2 ring-destructive bg-destructive/5 shadow-sm',
           )}
           onClick={() => setStockFilter('out')}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              setStockFilter('out');
+            }
+          }}
         >
           <CardContent className="p-3">
             <div className="flex items-center justify-between">
@@ -876,7 +900,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                     key={btn.id}
                     onClick={() => setStockFilter(btn.id)}
                     className={cn(
-                      'px-3 py-1.5 rounded-full text-xs font-medium transition-colors',
+                      'focus-ring min-h-8 px-3 py-1.5 rounded-full text-xs font-medium transition-colors duration-200',
                       stockFilter === btn.id
                         ? 'bg-primary text-primary-foreground shadow-sm'
                         : 'bg-muted text-muted-foreground hover:text-foreground',
@@ -920,21 +944,21 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                     </div>
                     <button
                       onClick={() => toggleSort('name')}
-                      className="flex items-center gap-1 hover:text-foreground text-left"
+                      className="focus-ring flex items-center gap-1 rounded transition-colors duration-200 hover:text-foreground text-left"
                     >
                       Product <SortIcon field="name" />
                     </button>
                     {!hideSkuColumn && (
                       <button
                         onClick={() => toggleSort('sku')}
-                        className="flex items-center gap-1 hover:text-foreground text-left"
+                        className="focus-ring flex items-center gap-1 rounded transition-colors duration-200 hover:text-foreground text-left"
                       >
                         SKU <SortIcon field="sku" />
                       </button>
                     )}
                     <button
                       onClick={() => toggleSort('stock')}
-                      className="flex items-center justify-center gap-1 hover:text-foreground"
+                      className="focus-ring flex items-center justify-center gap-1 rounded transition-colors duration-200 hover:text-foreground"
                     >
                       Stock <SortIcon field="stock" />
                     </button>

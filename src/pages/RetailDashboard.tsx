@@ -51,7 +51,7 @@ const paymentIcons = {
 
 function StatsCardSkeleton({ large = false }: { large?: boolean }) {
   return (
-    <Card className={cn('border-l-4 bg-card dark:bg-gray-800 dark:border-gray-700', large ? 'border-warning' : 'border-border/60')}>
+    <Card className={cn('border-l-4 bg-card', large ? 'border-warning' : 'border-border/60')}>
       <CardContent className={cn(large ? 'p-6 sm:p-8' : 'p-4 sm:p-5')}>
         <div className="flex items-center justify-between gap-4">
           <div className="flex-1 space-y-3">
@@ -69,14 +69,14 @@ function StatsCardSkeleton({ large = false }: { large?: boolean }) {
 
 function PanelSkeleton({ rows = 4 }: { rows?: number }) {
   return (
-    <Card className="bg-card dark:bg-gray-800 dark:border-gray-700">
+    <Card className="bg-card">
       <CardHeader className="pb-4">
         <Skeleton className="h-5 w-32" />
         <Skeleton className="mt-2 h-4 w-48" />
       </CardHeader>
       <CardContent className="space-y-3">
         {Array.from({ length: rows }).map((_, i) => (
-          <div key={i} className="flex items-center justify-between gap-3 rounded border border-border/60 p-3 dark:border-gray-700">
+          <div key={i} className="flex items-center justify-between gap-3 rounded border border-border/60 p-3">
             <div className="flex flex-1 items-center gap-3">
               <Skeleton className="h-4 w-4 rounded-full" />
               <div className="space-y-2 flex-1">
@@ -94,7 +94,7 @@ function PanelSkeleton({ rows = 4 }: { rows?: number }) {
 
 function ChartSkeleton() {
   return (
-    <Card className="bg-card dark:bg-gray-800 dark:border-gray-700">
+    <Card className="bg-card">
       <CardHeader className="pb-4">
         <div className="flex items-center justify-between gap-4">
           <div className="space-y-2">
@@ -181,7 +181,7 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
               </>
             ) : (
               <>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
+                <p className="text-sm text-muted-foreground">
                   {retailStats.todaySales} sales today
                   {(lowStockProducts.length > 0 || outOfStockProducts.length > 0) && (
                     <span className="ml-2 text-warning">
@@ -189,7 +189,7 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
                     </span>
                   )}
                 </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
+                <p className="text-xs text-muted-foreground">
                   Last synced at{' '}
                   {lastSyncedAt ? new Date(lastSyncedAt).toLocaleString() : 'Not synced yet'}
                 </p>
@@ -203,7 +203,6 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
               variant="outline"
               size="sm"
               onClick={() => onNavigate('shop-day')}
-              className="dark:border-gray-700 dark:bg-gray-800"
             >
               <CalendarDays className="h-4 w-4 mr-1.5" />
               <span className="hidden sm:inline">Shop Day Close</span>
@@ -214,7 +213,7 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
             size="icon"
             onClick={refetch}
             disabled={statsLoading}
-            className="shrink-0 dark:border-gray-700 dark:bg-gray-800"
+            className="shrink-0"
             title="Refresh dashboard"
           >
             <RefreshCw className={`h-4 w-4 ${statsLoading ? 'animate-spin' : ''}`} />
@@ -278,7 +277,7 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
         ) : (
           <>
             {/* Stock Alerts Panel */}
-            <Card className="bg-card dark:bg-gray-800 dark:border-gray-700">
+            <Card className="bg-card">
               <CardHeader className="pb-4">
                 <div className="flex items-center justify-between gap-4">
                   <div>
@@ -309,7 +308,7 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
                           ? 'border-destructive/30 bg-destructive/10 text-destructive'
                           : lowStockProducts.length > 0
                             ? 'border-warning/30 bg-warning/10 text-warning'
-                            : 'border-border bg-muted text-muted-foreground dark:border-gray-600',
+                            : 'border-border bg-muted text-muted-foreground',
                       )}
                     >
                       {stockAlertCount} alerts
@@ -333,7 +332,7 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
                               {product.name}
                             </p>
                             {displaySku ? (
-                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                              <p className="text-xs text-muted-foreground">
                                 SKU: {displaySku}
                               </p>
                             ) : null}
@@ -369,7 +368,7 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
                             <p className="truncate text-sm font-semibold text-foreground">
                               {product.name}
                             </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                            <p className="text-xs text-muted-foreground">
                               {displaySku ? (
                                 <>
                                   SKU: {displaySku} • {product.stock} left
@@ -400,11 +399,11 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
                   {lowStockProducts.length === 0 && outOfStockProducts.length === 0 && (
                     <div className="flex flex-col items-center justify-center px-4 py-12 text-center">
                       <Package
-                        className="mb-3 h-10 w-10 text-gray-400 dark:text-gray-500"
+                        className="mb-3 h-10 w-10 text-muted-foreground/70"
                         strokeWidth={1.5}
                       />
                       <p className="text-sm font-medium text-foreground">All stock levels healthy</p>
-                      <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                      <p className="mt-1 text-sm text-muted-foreground">
                         Low and out-of-stock products will appear here
                       </p>
                     </div>
@@ -414,7 +413,7 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
             </Card>
 
             {/* Recent Sales */}
-            <Card className="bg-card dark:bg-gray-800 dark:border-gray-700">
+            <Card className="bg-card">
               <CardHeader className="pb-4">
                 <div>
                   <CardTitle className="text-lg font-semibold">Recent Sales</CardTitle>
@@ -426,13 +425,13 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
                   {recentSales.length === 0 ? (
                     <div className="flex flex-col items-center justify-center px-4 py-12 text-center">
                       <ShoppingCart
-                        className="mb-3 h-10 w-10 text-gray-400 dark:text-gray-500"
+                        className="mb-3 h-10 w-10 text-muted-foreground/70"
                         strokeWidth={1.5}
                       />
                       <p className="text-sm font-medium text-foreground">
                         No sales recorded yet today
                       </p>
-                      <p className="mt-1 max-w-xs text-sm text-gray-500 dark:text-gray-400">
+                      <p className="mt-1 max-w-xs text-sm text-muted-foreground">
                         Sales will appear here once you make your first transaction
                       </p>
                       <Button className="mt-4" onClick={() => onNavigate('pos')}>
@@ -448,25 +447,25 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
                       return (
                         <div
                           key={sale.id}
-                          className="flex items-center justify-between gap-3 rounded border border-border p-3 transition-colors hover:bg-muted/50 dark:border-gray-700 dark:hover:bg-gray-700/50"
+                          className="flex items-center justify-between gap-3 rounded border border-border p-3 transition-colors duration-200 hover:bg-muted/50"
                         >
                           <div className="min-w-0 flex-1">
                             <div className="mb-1 flex items-center gap-2">
                               <span className="text-sm font-semibold text-foreground">
                                 #{sale.saleNumber}
                               </span>
-                              <span className="text-xs text-gray-500 dark:text-gray-400">
+                              <span className="text-xs text-muted-foreground">
                                 {sale.items} items
                               </span>
                             </div>
-                            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
                               {sale.customerName && <span>{sale.customerName}</span>}
                               <span>•</span>
                               <span>{sale.time}</span>
                             </div>
                           </div>
                           <div className="flex shrink-0 items-center gap-3">
-                            <PayIcon className="h-4 w-4 text-gray-400 dark:text-gray-500" />
+                            <PayIcon className="h-4 w-4 text-muted-foreground/70" />
                             <span className="text-sm font-bold text-foreground">
                               {formatCurrency(sale.total)}
                             </span>

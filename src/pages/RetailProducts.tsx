@@ -763,7 +763,7 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
                                 )}
                               />
                               {isOutOfStock && (
-                                <div className="absolute inset-0 bg-gray-500/25 pointer-events-none" />
+                                <div className="absolute inset-0 bg-muted-foreground/25 pointer-events-none" />
                               )}
                               <div className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2">
                                 <StockPillBadge product={product} />
