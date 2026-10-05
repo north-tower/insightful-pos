@@ -368,6 +368,8 @@ export function useOrders() {
           p_assignment_id:    params.assignment_id || null,
           p_created_at:       orderCreatedAt,
           p_completed_at:     saleType === 'cash' ? orderCreatedAt : null,
+          // Disambiguates 050 vs 059 create_order_atomic overloads until 060 is applied
+          p_store_id:         activeBranch?.id ?? null,
         },
       );
       if (atomicErr) throw atomicErr;
@@ -491,7 +493,7 @@ export function useOrders() {
         })),
       };
     },
-    [mode, user?.id, user?.full_name, resolveProductCosts],
+    [mode, user?.id, user?.full_name, activeBranch?.id, resolveProductCosts],
   );
 
   // ── Fetch orders ────────────────────────────────────────────────────────
