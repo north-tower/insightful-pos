@@ -957,6 +957,20 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
   const [lastOrderCustomer, setLastOrderCustomer] = useState<Customer | null>(null);
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
   const [productViewMode, setProductViewMode] = useState<ProductViewMode>(getInitialProductViewMode);
+  const [searchPlaceholder, setSearchPlaceholder] = useState('Search or scan');
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(min-width: 768px)');
+    const apply = () => {
+      setSearchPlaceholder(
+        mq.matches ? 'Search name, SKU or barcode' : 'Search or scan',
+      );
+    };
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
 
   useEffect(() => {
     if (!mobileCartOpen) return;
@@ -1511,14 +1525,13 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
             {/* Search + scan + view mode */}
             <div className="flex gap-2 p-2 pb-2 sm:gap-3 sm:p-3 lg:p-4 lg:pb-2">
               <div className="relative min-w-0 flex-1">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-2" aria-hidden />
                 <Input
-                  placeholder="Search name, SKU, or barcode…"
+                  placeholder={searchPlaceholder}
+                  aria-label="Search name, SKU or barcode"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  // Keep text keyboard so cashiers can search by product name;
-                  // barcode wedges still type into this field. Quantity fields use inputMode=numeric.
-                  className="min-h-11 pl-10 text-base"
+                  className="min-h-[var(--tap-min)] border-hairline bg-surface pl-10 text-base"
                 />
               </div>
               {/*
@@ -1528,36 +1541,19 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
               <button
                 type="button"
                 aria-label="Scan barcode"
-                title="Scan barcode"
                 onClick={() => {
                   // TODO: Implement camera-based barcode scanning
                   console.log('[RetailPOS] Barcode scan button tapped — scanner not implemented yet');
                 }}
-                className="focus-ring flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-foreground transition-colors duration-200 hover:bg-muted/60 active:scale-95 active:bg-muted"
+                className="focus-ring flex min-h-[var(--tap-min)] min-w-[var(--tap-min)] shrink-0 items-center justify-center rounded-[var(--radius)] border border-hairline bg-surface text-ink active:scale-95"
               >
                 <ScanBarcode className="h-5 w-5" />
               </button>
-              <div className="flex shrink-0 items-center gap-1 rounded-lg border border-border bg-card p-1">
-                <button
-                  type="button"
-                  onClick={toggleShowOutOfStock}
-                  className={cn(
-                    'focus-ring flex min-h-11 items-center justify-center gap-1 rounded-md px-2 text-xs font-medium transition-colors duration-200 active:scale-95',
-                    showOutOfStock
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:text-foreground',
-                  )}
-                  title={
-                    showOutOfStock
-                      ? 'Hide out-of-stock products'
-                      : `Show out-of-stock products (${hiddenOutOfStockCount})`
-                  }
-                >
-                  <Package className="h-4 w-4" />
-                  <span className="hidden sm:inline">
-                    {showOutOfStock ? 'Hide OOS' : 'Show OOS'}
-                  </span>
-                </button>
+              <div
+                className="flex h-[var(--tap-min)] shrink-0 items-stretch overflow-hidden rounded-[var(--radius)] border border-hairline bg-surface p-0.5"
+                role="group"
+                aria-label="Product view"
+              >
                 <button
                   type="button"
                   onClick={() => {
@@ -1567,15 +1563,16 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                     }
                   }}
                   className={cn(
-                    'focus-ring flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-md px-2 text-xs font-medium transition-colors duration-200 active:scale-95',
+                    'focus-ring flex min-h-[var(--tap-min)] min-w-[var(--tap-min)] items-center justify-center gap-1 rounded-[calc(var(--radius)-2px)] px-2 text-xs font-semibold active:scale-95',
                     productViewMode === 'card'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:text-foreground'
+                      ? 'border-2 border-primary bg-[hsl(var(--accent-soft))] text-ink'
+                      : 'border border-transparent text-ink-2',
                   )}
+                  aria-pressed={productViewMode === 'card'}
                   title="Card view"
                 >
-                  <LayoutGrid className="h-4 w-4" />
-                  <span className="hidden sm:inline">Card</span>
+                  <LayoutGrid className="h-4 w-4" aria-hidden />
+                  <span className="sr-only">Card</span>
                 </button>
                 <button
                   type="button"
@@ -1586,24 +1583,25 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                     }
                   }}
                   className={cn(
-                    'focus-ring flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-md px-2 text-xs font-medium transition-colors duration-200 active:scale-95',
+                    'focus-ring flex min-h-[var(--tap-min)] min-w-[var(--tap-min)] items-center justify-center gap-1 rounded-[calc(var(--radius)-2px)] px-2 text-xs font-semibold active:scale-95',
                     productViewMode === 'list'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:text-foreground'
+                      ? 'border-2 border-primary bg-[hsl(var(--accent-soft))] text-ink'
+                      : 'border border-transparent text-ink-2',
                   )}
+                  aria-pressed={productViewMode === 'list'}
                   title="List view"
                 >
-                  <List className="h-4 w-4" />
-                  <span className="hidden sm:inline">List</span>
+                  <List className="h-4 w-4" aria-hidden />
+                  <span className="sr-only">List</span>
                 </button>
               </div>
             </div>
 
-            {/* Browse: All / Recent / Favorites / categories */}
-            <div className="flex gap-2 overflow-x-auto px-2 pb-2 sm:px-3 lg:px-4 scrollbar-hide">
+            {/* Browse: All / Recent / Favorites / categories + OOS */}
+            <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto px-2 pb-2 sm:flex-wrap sm:overflow-visible sm:px-3 lg:px-4 scrollbar-hide">
               {(
                 [
-                  { key: 'all', label: 'All' },
+                  { key: 'all', label: 'All', icon: Layers },
                   { key: 'recent', label: 'Recent', icon: Clock },
                   { key: 'favorites', label: 'Favorites', icon: Star },
                 ] as const
@@ -1612,34 +1610,56 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                   key={key}
                   type="button"
                   onClick={() => setActiveBrowseKey(key)}
+                  aria-pressed={activeBrowseKey === key}
                   className={cn(
-                    'focus-ring flex min-h-8 shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium transition-colors duration-200',
+                    'focus-ring flex min-h-[var(--tap-min)] shrink-0 snap-start items-center gap-1.5 rounded-[var(--radius)] border px-3 text-sm font-semibold active:scale-[0.98]',
                     activeBrowseKey === key
-                      ? 'bg-primary text-primary-foreground shadow-sm'
-                      : 'bg-muted text-muted-foreground hover:text-foreground',
+                      ? 'border-primary bg-[hsl(var(--accent-soft))] text-ink'
+                      : 'border-hairline bg-surface text-ink-2',
                   )}
                 >
-                  {Icon && <Icon className="h-3 w-3" />}
-                  {label}
+                  <Icon className="h-4 w-4 shrink-0" aria-hidden />
+                  <span className="sr-only">{label}</span>
                 </button>
               ))}
-              {posCategoryChips.map((chip) => (
-                <button
-                  key={chip.slug}
-                  type="button"
-                  onClick={() => setActiveBrowseKey(chip.slug)}
-                  className={cn(
-                    'focus-ring flex min-h-8 shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium transition-colors duration-200',
-                    activeBrowseKey === chip.slug
-                      ? 'bg-primary text-primary-foreground shadow-sm'
-                      : 'bg-muted text-muted-foreground hover:text-foreground',
-                  )}
-                >
-                  <span>{chip.icon}</span>
-                  <span>{chip.name}</span>
-                  <span className="opacity-70">({chip.count})</span>
-                </button>
-              ))}
+              {categoryChipsVisible &&
+                posCategoryChips.map((chip) => (
+                  <button
+                    key={chip.slug}
+                    type="button"
+                    onClick={() => setActiveBrowseKey(chip.slug)}
+                    aria-pressed={activeBrowseKey === chip.slug}
+                    className={cn(
+                      'focus-ring flex min-h-[var(--tap-min)] shrink-0 snap-start items-center gap-1.5 rounded-[var(--radius)] border px-3 text-sm font-semibold active:scale-[0.98]',
+                      activeBrowseKey === chip.slug
+                        ? 'border-primary bg-[hsl(var(--accent-soft))] text-ink'
+                        : 'border-hairline bg-surface text-ink-2',
+                    )}
+                  >
+                    <Package className="h-4 w-4 shrink-0" aria-hidden />
+                    <span>{chip.name}</span>
+                    <span className="font-mono text-xs text-ink-2 num">({chip.count})</span>
+                  </button>
+                ))}
+              <button
+                type="button"
+                onClick={toggleShowOutOfStock}
+                aria-pressed={showOutOfStock}
+                className={cn(
+                  'focus-ring flex min-h-[var(--tap-min)] shrink-0 snap-start items-center gap-1.5 rounded-[var(--radius)] border px-3 text-sm font-semibold active:scale-[0.98]',
+                  showOutOfStock
+                    ? 'border-primary bg-[hsl(var(--accent-soft))] text-ink'
+                    : 'border-hairline bg-surface text-ink-2',
+                )}
+                title={
+                  showOutOfStock
+                    ? 'Hide out-of-stock products'
+                    : `Include out-of-stock products (${hiddenOutOfStockCount})`
+                }
+              >
+                <Package className="h-4 w-4 shrink-0" aria-hidden />
+                Out of stock
+              </button>
             </div>
 
             {/* Product Grid */}
@@ -1647,7 +1667,8 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
               className={cn(
                 'flex-1 overflow-y-auto p-2 sm:p-3 lg:p-4',
                 // Clear sticky mini-cart + action bar on mobile while shopping
-                totalItems > 0 && 'pb-28 lg:pb-4',
+                totalItems > 0 &&
+                  'pb-[calc(var(--tap-primary)+5rem+env(safe-area-inset-bottom,0px))] lg:pb-4',
               )}
             >
               {/* Dev-only offline cache banner — stripped from production builds via Vite */}
@@ -1666,127 +1687,29 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
               ) : (
               <>
               {productViewMode === 'card' ? (
-                <div className="grid auto-rows-min content-start gap-2 sm:gap-3 [grid-template-columns:repeat(auto-fill,minmax(9.5rem,1fr))] sm:[grid-template-columns:repeat(auto-fill,minmax(11rem,1fr))] lg:[grid-template-columns:repeat(auto-fill,minmax(10.5rem,1fr))] xl:[grid-template-columns:repeat(auto-fill,minmax(12rem,1fr))]">
+                <div className="grid auto-rows-min content-start gap-2 sm:gap-3 [grid-template-columns:repeat(auto-fill,minmax(10rem,1fr))]">
                   {filteredProducts.map((product) => {
-                    const cartItem = cart.find(
-                      (c) => c.product.id === product.id
-                    );
+                    const cartItem = cart.find((c) => c.product.id === product.id);
                     const inCart = cartItem ? cartItem.quantity : 0;
-                    const isOutOfStock = product.stock <= 0;
                     const stockChipStatus = getStockStatus(product);
-                    const mainStock = getMainStock(product);
-                    const showsAllocatedStock = mainStock !== product.stock;
+                    const showsImage = hasProductImage(product);
                     const isFavorite = favoriteProductIds.includes(product.id);
 
                     return (
                       <div
                         key={product.id}
                         role="button"
-                        tabIndex={isOutOfStock ? -1 : 0}
-                        onClick={() => {
-                          if (!isOutOfStock) addToCart(product);
-                        }}
+                        tabIndex={0}
+                        onClick={() => addToCart(product)}
                         onKeyDown={(e) => {
-                          if (isOutOfStock) return;
                           if (e.key === 'Enter' || e.key === ' ') {
                             e.preventDefault();
                             addToCart(product);
                           }
                         }}
                         className={cn(
-                          'focus-ring group relative min-h-[7.5rem] cursor-pointer rounded-lg border bg-card p-2 text-left transition-all duration-200 active:scale-[0.98] sm:min-h-0 sm:p-3',
-                          inCart > 0
-                            ? 'border-primary shadow-md'
-                            : 'border-border hover:border-primary/40',
-                          isOutOfStock && 'cursor-not-allowed opacity-50',
-                        )}
-                      >
-                        <div className="relative aspect-square rounded overflow-hidden bg-muted mb-2">
-                          <button
-                            type="button"
-                            aria-label={
-                              isFavorite ? 'Remove from favorites' : 'Add to favorites'
-                            }
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleFavorite(product.id);
-                            }}
-                            className="focus-ring absolute top-1 right-1 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-background/85 shadow-sm transition-transform duration-200 active:scale-95"
-                          >
-                            <Star
-                              className={cn(
-                                'h-3.5 w-3.5',
-                                isFavorite
-                                  ? 'fill-warning text-warning'
-                                  : 'text-muted-foreground',
-                              )}
-                            />
-                          </button>
-                          <img
-                            src={product.image || generatePlaceholderUrl(product.name)}
-                            alt={product.name}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                          />
-                          {isOutOfStock && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-background/60" aria-hidden />
-                          )}
-                          {inCart > 0 && (
-                            <div className="absolute top-1 left-1 bg-primary text-primary-foreground text-[10px] sm:text-xs font-bold w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center">
-                              {inCart}
-                            </div>
-                          )}
-                          {product.discount && (
-                            <div className="absolute bottom-1 left-1">
-                              <Badge className="bg-destructive text-destructive-foreground text-[10px]">
-                                {product.discount}% OFF
-                              </Badge>
-                            </div>
-                          )}
-                        </div>
-
-                        <p className="text-xs sm:text-sm font-semibold text-foreground line-clamp-1 sm:line-clamp-2 mb-0.5">
-                          {product.name}
-                        </p>
-                        <div className="flex items-center justify-between gap-1">
-                          <span className="text-sm font-bold text-foreground">
-                            {fc(product.price)}
-                          </span>
-                          <div className="flex min-w-0 flex-col items-end gap-0.5">
-                            {stockChipStatus && (
-                              <StatusChip status={stockChipStatus} size="sm" />
-                            )}
-                            <span className="font-mono text-[10px] text-ink-2 num sm:text-xs">
-                              {product.stock} {product.unit}
-                            </span>
-                          </div>
-                        </div>
-                        {showsAllocatedStock && (
-                          <p className="text-[10px] text-muted-foreground mt-0.5">
-                            Main: {mainStock} {product.unit}
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="space-y-1">
-                  {filteredProducts.map((product) => {
-                    const cartItem = cart.find((c) => c.product.id === product.id);
-                    const inCart = cartItem ? cartItem.quantity : 0;
-                    const isOutOfStock = product.stock <= 0;
-                    const stockChipStatus = getStockStatus(product);
-                    const mainStock = getMainStock(product);
-                    const showsAllocatedStock = mainStock !== product.stock;
-                    const isFavorite = favoriteProductIds.includes(product.id);
-
-                    return (
-                      <div
-                        key={product.id}
-                        className={cn(
-                          'flex items-center gap-2 rounded-md border bg-card py-1.5 pl-1.5 pr-2',
-                          inCart > 0 ? 'border-primary' : 'border-border',
-                          isOutOfStock && 'opacity-60',
+                          'focus-ring relative flex cursor-pointer flex-col rounded-[var(--radius)] border border-hairline bg-surface p-2 text-left active:scale-[0.98]',
+                          inCart > 0 && 'border-2 border-primary',
                         )}
                       >
                         <button
@@ -1794,62 +1717,167 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                           aria-label={
                             isFavorite ? 'Remove from favorites' : 'Add to favorites'
                           }
-                          onClick={() => toggleFavorite(product.id)}
-                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md active:scale-95"
+                          aria-pressed={isFavorite}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleFavorite(product.id);
+                          }}
+                          className="focus-ring absolute right-1 top-1 z-10 flex min-h-[var(--tap-min)] min-w-[var(--tap-min)] items-center justify-center rounded-[var(--radius)] border border-hairline bg-paper active:scale-95"
                         >
                           <Star
                             className={cn(
-                              'h-3.5 w-3.5',
-                              isFavorite
-                                ? 'fill-warning text-warning'
-                                : 'text-muted-foreground',
+                              'h-4 w-4',
+                              isFavorite ? 'fill-ink text-ink' : 'text-ink-2',
                             )}
                           />
                         </button>
-                        <img
-                          src={product.image || generatePlaceholderUrl(product.name)}
-                          alt={product.name}
-                          className="h-9 w-9 shrink-0 rounded object-cover"
-                        />
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5">
-                            <p className="truncate text-xs font-semibold text-foreground sm:text-sm">
+                        {inCart > 0 && (
+                          <span className="absolute left-2 top-2 rounded-[var(--radius)] border border-hairline bg-paper px-2 py-0.5 font-mono text-xs font-semibold text-ink num">
+                            {inCart}
+                          </span>
+                        )}
+                        {showsImage && (
+                          <div className="relative mb-2 aspect-square overflow-hidden rounded-[calc(var(--radius)-2px)]">
+                            <img
+                              src={product.image}
+                              alt=""
+                              className="h-full w-full object-cover"
+                            />
+                          </div>
+                        )}
+                        <p
+                          className="line-clamp-2 min-h-[2.5rem] pr-8 text-sm font-semibold leading-snug text-ink"
+                          title={product.name}
+                        >
+                          {product.name}
+                        </p>
+                        {stockChipStatus && (
+                          <div className="mt-1">
+                            <StatusChip status={stockChipStatus} size="sm" />
+                          </div>
+                        )}
+                        <div className="mt-auto flex items-baseline justify-between gap-2 pt-2">
+                          <span className="font-mono text-sm font-semibold text-ink num">
+                            {formatKES(product.price)}
+                          </span>
+                          <span className="font-mono text-xs text-ink-2 num">
+                            {product.stock} {product.unit}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="divide-y divide-hairline border-y border-hairline">
+                  {filteredProducts.map((product) => {
+                    const cartItem = cart.find((c) => c.product.id === product.id);
+                    const inCart = cartItem ? cartItem.quantity : 0;
+                    const isOutOfStock = product.stock <= 0;
+                    const stockChipStatus = getStockStatus(product);
+                    const showsImage = hasProductImage(product);
+                    const isFavorite = favoriteProductIds.includes(product.id);
+                    const showStockChip =
+                      stockChipStatus === 'low' || stockChipStatus === 'out';
+
+                    const handleListQtyStep = (productId: string, nextQty: number) => {
+                      setEditingQty((prev) => {
+                        const n = { ...prev };
+                        delete n[productId];
+                        return n;
+                      });
+                      updateCartQuantity(productId, nextQty);
+                    };
+
+                    return (
+                      <div
+                        key={product.id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => addToCart(product)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            addToCart(product);
+                          }
+                        }}
+                        className="focus-ring flex min-h-16 cursor-pointer items-center gap-1 py-1 pl-0 pr-1 active:bg-[hsl(var(--accent-soft))]/40 md:min-h-14"
+                      >
+                        <button
+                          type="button"
+                          aria-label={
+                            isFavorite ? 'Remove from favorites' : 'Add to favorites'
+                          }
+                          aria-pressed={isFavorite}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleFavorite(product.id);
+                          }}
+                          className="focus-ring flex min-h-[var(--tap-min)] min-w-[var(--tap-min)] shrink-0 items-center justify-center rounded-[var(--radius)] border border-hairline bg-paper active:scale-95"
+                        >
+                          <Star
+                            className={cn(
+                              'h-4 w-4',
+                              isFavorite ? 'fill-ink text-ink' : 'text-ink-2',
+                            )}
+                          />
+                        </button>
+                        {showsImage && (
+                          <img
+                            src={product.image}
+                            alt=""
+                            className="h-12 w-12 shrink-0 rounded-[calc(var(--radius)-2px)] object-cover md:h-10 md:w-10"
+                          />
+                        )}
+                        <div className="min-w-0 flex-1 py-1">
+                          <div className="flex items-start gap-1.5">
+                            <p
+                              className="line-clamp-2 flex-1 text-sm font-semibold leading-snug text-ink"
+                              title={product.name}
+                            >
                               {product.name}
                             </p>
-                            {stockChipStatus && (
-                              <StatusChip status={stockChipStatus} size="sm" className="shrink-0" />
-                            )}
-                            {product.discount && (
-                              <Badge className="bg-destructive px-1 py-0 text-[9px] text-destructive-foreground">
-                                {product.discount}% OFF
-                              </Badge>
+                            {showStockChip && stockChipStatus && (
+                              <StatusChip
+                                status={stockChipStatus}
+                                size="sm"
+                                className="shrink-0"
+                              />
                             )}
                           </div>
-                          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0 text-[11px]">
-                            <span className="font-bold text-foreground">{fc(product.price)}</span>
-                            <span className="font-mono text-ink-2 num">
+                          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0">
+                            <span className="font-mono text-sm text-ink num">
+                              {formatKES(product.price)}
+                            </span>
+                            <span className="font-mono text-xs text-ink-2 num">
                               {product.stock} {product.unit}
                             </span>
-                            {showsAllocatedStock && (
-                              <span className="text-muted-foreground">
-                                Main: {mainStock}
-                              </span>
-                            )}
-                            {inCart > 0 && (
-                              <Badge variant="secondary" className="px-1 py-0 text-[9px]">
-                                ×{inCart}
-                              </Badge>
-                            )}
                           </div>
                         </div>
-                        <Button
-                          size="sm"
-                          onClick={() => addToCart(product)}
-                          disabled={isOutOfStock}
-                          className="h-8 min-h-8 shrink-0 px-2.5 text-xs font-semibold active:scale-95"
-                        >
-                          {isOutOfStock ? 'Out' : 'Add'}
-                        </Button>
+                        {inCart > 0 ? (
+                          <ProductListQtyStepper
+                            productId={product.id}
+                            quantity={inCart}
+                            onStep={handleListQtyStep}
+                          />
+                        ) : (
+                          <button
+                            type="button"
+                            aria-label={`Add ${product.name}`}
+                            aria-disabled={isOutOfStock}
+                            disabled={isOutOfStock}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              addToCart(product);
+                            }}
+                            className={cn(
+                              'focus-ring flex min-h-[var(--tap-min)] min-w-[var(--tap-min)] shrink-0 items-center justify-center rounded-[var(--radius)] border border-hairline bg-paper text-ink active:scale-95',
+                              isOutOfStock && 'cursor-not-allowed opacity-100',
+                            )}
+                          >
+                            <Plus className="h-5 w-5" aria-hidden />
+                          </button>
+                        )}
                       </div>
                     );
                   })}
@@ -1869,24 +1897,22 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
 
           {/* ── Mobile sticky mini-cart + checkout bar (always visible while cart has items) ── */}
           {totalItems > 0 && !mobileCartOpen && (
-            <div
-              className="lg:hidden fixed inset-x-0 z-50 flex h-[var(--tap-primary)] items-center gap-3 border-t border-hairline bg-surface px-3 shadow-float"
+            <button
+              type="button"
+              onClick={() => setMobileCartOpen(true)}
+              aria-label={`Open cart, ${totalItems} items, total ${formatKES(total)}`}
+              className="focus-ring lg:hidden fixed inset-x-0 z-50 flex h-[var(--tap-primary)] items-center justify-between gap-3 border-t border-hairline bg-surface px-4 shadow-float active:scale-[0.99]"
               style={{
-                bottom: 'calc(3.5rem + env(safe-area-inset-bottom, 0px))',
+                bottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))',
               }}
             >
-              <p className="min-w-0 flex-1 truncate font-mono text-sm text-ink num">
-                {totalItems} item{totalItems === 1 ? '' : 's'} · {formatKES(total)}
-              </p>
-              <button
-                type="button"
-                onClick={() => setMobileCartOpen(true)}
-                className="focus-ring flex min-h-[var(--tap-min)] shrink-0 items-center justify-center gap-1.5 rounded-[var(--radius)] bg-primary px-3 text-sm font-semibold text-primary-foreground active:scale-95"
-              >
-                <ShoppingCart className="h-4 w-4" aria-hidden />
-                Review Cart &amp; Checkout
-              </button>
-            </div>
+              <span className="font-sans text-lg font-bold tabular-nums text-ink">
+                {formatKES(total)}
+              </span>
+              <span className="text-sm text-ink-2">
+                {totalItems} item{totalItems === 1 ? '' : 's'}
+              </span>
+            </button>
           )}
 
           {/* Extra scroll padding removed — product list uses pb-28 when cart has items */}
@@ -1900,10 +1926,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                 onClick={() => { if (!isProcessing) setMobileCartOpen(false); }}
               />
               {/* Panel — fills above home indicator; Complete Sale sticks to bottom */}
-              <div
-                className="receipt-panel receipt-torn-bottom relative mt-auto flex max-h-[90vh] flex-col animate-in slide-in-from-bottom duration-200"
-                style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
-              >
+              <div className="relative mt-auto flex max-h-[90vh] flex-col bg-paper shadow-float motion-safe:animate-in motion-safe:slide-in-from-bottom motion-safe:duration-200">
                 <div className="shrink-0 border-b border-hairline px-3 py-2">
                   <div className="flex items-start gap-1">
                     <button
@@ -1976,16 +1999,16 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                         <button
                           type="button"
                           onClick={() => setShowCustomerPicker(true)}
-                          className="flex w-full min-h-9 items-center justify-center gap-1.5 rounded border border-dashed border-border p-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/50"
+                          className="focus-ring flex min-h-[var(--tap-min)] w-full items-center justify-center gap-2 rounded-[var(--radius)] border border-hairline bg-surface px-3 text-sm font-semibold text-ink active:scale-[0.98]"
                         >
-                          <UserPlus className="h-3.5 w-3.5" />
+                          <UserPlus className="h-4 w-4" aria-hidden />
                           Select Customer
                         </button>
                       )}
                     </>
                   )}
                   {showCustomerPicker && (
-                    <div className="max-h-48 overflow-hidden rounded border border-border bg-card shadow-lg">
+                    <div className="max-h-48 overflow-hidden rounded-[var(--radius)] border border-hairline bg-surface">
                       <div className="border-b border-border p-2">
                         <Input
                           placeholder="Search customers..."
@@ -2061,102 +2084,108 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                   )}
                 </div>
 
-                {/* Scrollable body: items + totals + credit form (whole cart, not items-only) */}
-                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-                  <div className="px-3 pt-1">
-                  {cart.map((item) => {
-                    const unitPrice = getUnitPrice(item);
-                    return (
-                      <CartReceiptLine
-                        key={item.product.id}
-                        item={item}
-                        unitPrice={unitPrice}
-                        editingPrice={editingPrice[item.product.id]}
-                        editingQty={editingQty[item.product.id]}
-                        onPriceChange={(id, value) =>
-                          setEditingPrice((prev) => ({ ...prev, [id]: value }))
-                        }
-                        onPriceCommit={commitPrice}
-                        onQtyEditingChange={(id, value) =>
-                          setEditingQty((prev) => ({ ...prev, [id]: value }))
-                        }
-                        onQtyCommit={commitQty}
-                        onQtyStep={(id, next) => {
-                          setEditingQty((prev) => {
-                            const n = { ...prev };
-                            delete n[id];
-                            return n;
-                          });
-                          updateCartQuantity(id, next);
-                        }}
-                        onRemove={removeFromCart}
-                      />
-                    );
-                  })}
-                  </div>
-
-                  <div className="space-y-3 border-t border-hairline p-3">
-                  <CartTotalsSection
-                    subtotal={subtotal}
-                    discountMode={discountMode}
-                    onDiscountModeChange={setDiscountMode}
-                    discountInput={discountInput}
-                    onDiscountInputChange={setDiscountInput}
-                    discountAmount={discountAmount}
-                    total={total}
-                  />
-
-                  {saleType === 'cash' && (
-                    <CartPaymentMethodSection
-                      method={cashPaymentMethod}
-                      onMethodChange={setCashPaymentMethod}
-                      reference={cashPaymentReference}
-                      onReferenceChange={setCashPaymentReference}
-                    />
-                  )}
-
-                  {saleType === 'credit' && (
-                    <CreditSaleExtras
-                      total={total}
-                      recordDepositNow={recordDepositNow}
-                      onRecordDepositNowChange={setRecordDepositNow}
-                      creditDeposit={creditDeposit}
-                      onCreditDepositChange={setCreditDeposit}
-                      creditPaymentDescription={creditPaymentDescription}
-                      onCreditPaymentDescriptionChange={setCreditPaymentDescription}
-                      creditPaymentMethod={creditPaymentMethod}
-                      onCreditPaymentMethodChange={setCreditPaymentMethod}
-                      consignmentInfo={consignmentInfo}
-                      onConsignmentInfoChange={setConsignmentInfo}
-                      invoiceDate={invoiceDate}
-                      onInvoiceDateChange={setInvoiceDate}
-                    />
-                  )}
-                  </div>
-
-                  <CartCheckoutFooter
-                    saleType={saleType}
-                    total={total}
-                    isProcessing={isProcessing}
-                    disabled={isProcessing || (saleType === 'credit' && !selectedCustomer)}
-                    disabledHint={cartCheckoutDisabledHint(
-                      isProcessing,
-                      saleType,
-                      selectedCustomer,
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-2">
+                  <div className="receipt-paper-block receipt-torn-bottom mx-3 mt-2 px-3 pb-3 pt-1">
+                    {cart.map((item) => {
+                      const unitPrice = getUnitPrice(item);
+                      return (
+                        <CartReceiptLine
+                          key={item.product.id}
+                          item={item}
+                          unitPrice={unitPrice}
+                          editingPrice={editingPrice[item.product.id]}
+                          editingQty={editingQty[item.product.id]}
+                          onPriceChange={(id, value) =>
+                            setEditingPrice((prev) => ({ ...prev, [id]: value }))
+                          }
+                          onPriceCommit={commitPrice}
+                          onQtyEditingChange={(id, value) =>
+                            setEditingQty((prev) => ({ ...prev, [id]: value }))
+                          }
+                          onQtyCommit={commitQty}
+                          onQtyStep={(id, next) => {
+                            setEditingQty((prev) => {
+                              const n = { ...prev };
+                              delete n[id];
+                              return n;
+                            });
+                            updateCartQuantity(id, next);
+                          }}
+                          onRemove={removeFromCart}
+                        />
+                      );
+                    })}
+                    {cart.length > 0 && (
+                      <div className="pt-2">
+                        <CartTotalsSection
+                          subtotal={subtotal}
+                          discountMode={discountMode}
+                          onDiscountModeChange={setDiscountMode}
+                          discountInput={discountInput}
+                          onDiscountInputChange={setDiscountInput}
+                          discountAmount={discountAmount}
+                          total={total}
+                        />
+                      </div>
                     )}
-                    onClick={async () => {
-                      await handleCompleteSale();
-                      setMobileCartOpen(false);
-                    }}
-                  />
+                  </div>
+
+                  {saleType === 'credit' && cart.length > 0 && (
+                    <div className="px-3 pb-4 pt-3">
+                      <CreditSaleExtras
+                        total={total}
+                        recordDepositNow={recordDepositNow}
+                        onRecordDepositNowChange={setRecordDepositNow}
+                        creditDeposit={creditDeposit}
+                        onCreditDepositChange={setCreditDeposit}
+                        creditPaymentDescription={creditPaymentDescription}
+                        onCreditPaymentDescriptionChange={setCreditPaymentDescription}
+                        creditPaymentMethod={creditPaymentMethod}
+                        onCreditPaymentMethodChange={setCreditPaymentMethod}
+                        consignmentInfo={consignmentInfo}
+                        onConsignmentInfoChange={setConsignmentInfo}
+                        invoiceDate={invoiceDate}
+                        onInvoiceDateChange={setInvoiceDate}
+                      />
+                    </div>
+                  )}
                 </div>
-                <div className="receipt-torn-edge shrink-0 pb-2" aria-hidden />
+
+                {cart.length > 0 && (
+                  <div className="shrink-0 bg-paper">
+                    {saleType === 'cash' && (
+                      <div className="border-t border-hairline px-3 pt-3">
+                        <CartPaymentMethodSection
+                          method={cashPaymentMethod}
+                          onMethodChange={setCashPaymentMethod}
+                          reference={cashPaymentReference}
+                          onReferenceChange={setCashPaymentReference}
+                        />
+                      </div>
+                    )}
+                    <CartCheckoutFooter
+                      saleType={saleType}
+                      total={total}
+                      isProcessing={isProcessing}
+                      disabled={isProcessing || (saleType === 'credit' && !selectedCustomer)}
+                      disabledHint={cartCheckoutDisabledHint(
+                        isProcessing,
+                        saleType,
+                        selectedCustomer,
+                      )}
+                      onClick={async () => {
+                        await handleCompleteSale();
+                        setMobileCartOpen(false);
+                      }}
+                    />
+                  </div>
+                )}
               </div>
             </div>
           )}
 
           {/* ── Desktop Cart Sidebar (hidden on mobile) ── */}
-          <div className="receipt-panel receipt-torn-bottom hidden h-full w-96 shrink-0 flex-col lg:flex">
+          <div className="hidden h-full w-[380px] min-w-[360px] max-w-[380px] shrink-0 flex-col border-l border-hairline bg-paper lg:flex">
             <div className="shrink-0 border-b border-hairline">
               <CartReceiptHeader
                 totalItems={totalItems}
@@ -2219,9 +2248,9 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                     <button
                       type="button"
                       onClick={() => setShowCustomerPicker(true)}
-                      className="flex w-full min-h-9 items-center justify-center gap-1.5 rounded border border-dashed border-border p-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/50"
+                      className="focus-ring flex min-h-[var(--tap-min)] w-full items-center justify-center gap-2 rounded-[var(--radius)] border border-hairline bg-surface px-3 text-sm font-semibold text-ink active:scale-[0.98]"
                     >
-                      <UserPlus className="h-3.5 w-3.5" />
+                      <UserPlus className="h-4 w-4" aria-hidden />
                       Select Customer
                     </button>
                   )}
@@ -2230,7 +2259,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
 
               {/* Customer picker dropdown */}
               {showCustomerPicker && (
-                <div className="mt-2 max-h-48 overflow-hidden rounded border border-border bg-card shadow-lg">
+                <div className="mt-2 max-h-48 overflow-hidden rounded-[var(--radius)] border border-hairline bg-surface">
                   <div className="border-b border-border p-2">
                     <Input
                       placeholder="Search customers..."
@@ -2309,71 +2338,62 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
               )}
             </div>
 
-            {/* Scrollable body: items + totals + credit form (whole cart, not items-only) */}
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-              <div className="px-4 pt-1">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-2">
               {cart.length === 0 && (
-                <div className="py-12 text-center text-ink-2">
-                  <ShoppingCart className="mx-auto mb-3 h-10 w-10 opacity-50" />
+                <div className="px-4 py-12 text-center text-ink-2">
+                  <ShoppingCart className="mx-auto mb-3 h-10 w-10 opacity-50" aria-hidden />
                   <p className="text-sm">Cart is empty</p>
                   <p className="mt-1 text-xs">Tap a product or scan barcode</p>
                 </div>
               )}
 
-              {cart.map((item) => {
-                const unitPrice = getUnitPrice(item);
-                return (
-                  <CartReceiptLine
-                    key={item.product.id}
-                    item={item}
-                    unitPrice={unitPrice}
-                    editingPrice={editingPrice[item.product.id]}
-                    editingQty={editingQty[item.product.id]}
-                    onPriceChange={(id, value) =>
-                      setEditingPrice((prev) => ({ ...prev, [id]: value }))
-                    }
-                    onPriceCommit={commitPrice}
-                    onQtyEditingChange={(id, value) =>
-                      setEditingQty((prev) => ({ ...prev, [id]: value }))
-                    }
-                    onQtyCommit={commitQty}
-                    onQtyStep={(id, next) => {
-                      setEditingQty((prev) => {
-                        const n = { ...prev };
-                        delete n[id];
-                        return n;
-                      });
-                      updateCartQuantity(id, next);
-                    }}
-                    onRemove={removeFromCart}
-                  />
-                );
-              })}
-              </div>
-
               {cart.length > 0 && (
                 <>
-                  <div className="space-y-4 border-t border-hairline p-4">
-                    <CartTotalsSection
-                      subtotal={subtotal}
-                      discountMode={discountMode}
-                      onDiscountModeChange={setDiscountMode}
-                      discountInput={discountInput}
-                      onDiscountInputChange={setDiscountInput}
-                      discountAmount={discountAmount}
-                      total={total}
-                    />
-
-                    {saleType === 'cash' && (
-                      <CartPaymentMethodSection
-                        method={cashPaymentMethod}
-                        onMethodChange={setCashPaymentMethod}
-                        reference={cashPaymentReference}
-                        onReferenceChange={setCashPaymentReference}
+                  <div className="receipt-paper-block receipt-torn-bottom mx-4 mt-2 px-3 pb-3 pt-1">
+                    {cart.map((item) => {
+                      const unitPrice = getUnitPrice(item);
+                      return (
+                        <CartReceiptLine
+                          key={item.product.id}
+                          item={item}
+                          unitPrice={unitPrice}
+                          editingPrice={editingPrice[item.product.id]}
+                          editingQty={editingQty[item.product.id]}
+                          onPriceChange={(id, value) =>
+                            setEditingPrice((prev) => ({ ...prev, [id]: value }))
+                          }
+                          onPriceCommit={commitPrice}
+                          onQtyEditingChange={(id, value) =>
+                            setEditingQty((prev) => ({ ...prev, [id]: value }))
+                          }
+                          onQtyCommit={commitQty}
+                          onQtyStep={(id, next) => {
+                            setEditingQty((prev) => {
+                              const n = { ...prev };
+                              delete n[id];
+                              return n;
+                            });
+                            updateCartQuantity(id, next);
+                          }}
+                          onRemove={removeFromCart}
+                        />
+                      );
+                    })}
+                    <div className="pt-2">
+                      <CartTotalsSection
+                        subtotal={subtotal}
+                        discountMode={discountMode}
+                        onDiscountModeChange={setDiscountMode}
+                        discountInput={discountInput}
+                        onDiscountInputChange={setDiscountInput}
+                        discountAmount={discountAmount}
+                        total={total}
                       />
-                    )}
+                    </div>
+                  </div>
 
-                    {saleType === 'credit' && (
+                  {saleType === 'credit' && (
+                    <div className="px-4 pb-4 pt-3">
                       <CreditSaleExtras
                         total={total}
                         recordDepositNow={recordDepositNow}
@@ -2389,27 +2409,40 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                         invoiceDate={invoiceDate}
                         onInvoiceDateChange={setInvoiceDate}
                       />
-                    )}
-                  </div>
-
-                  <CartCheckoutFooter
-                    saleType={saleType}
-                    total={total}
-                    isProcessing={isProcessing}
-                    disabled={isProcessing || (saleType === 'credit' && !selectedCustomer)}
-                    disabledHint={cartCheckoutDisabledHint(
-                      isProcessing,
-                      saleType,
-                      selectedCustomer,
-                    )}
-                    onClick={handleCompleteSale}
-                    lastOrder={lastOrder}
-                    onReprint={() => setIsInvoiceOpen(true)}
-                  />
+                    </div>
+                  )}
                 </>
               )}
             </div>
-            <div className="receipt-torn-edge shrink-0 pb-2" aria-hidden />
+
+            {cart.length > 0 && (
+              <div className="shrink-0 bg-paper">
+                {saleType === 'cash' && (
+                  <div className="border-t border-hairline px-4 pt-3">
+                    <CartPaymentMethodSection
+                      method={cashPaymentMethod}
+                      onMethodChange={setCashPaymentMethod}
+                      reference={cashPaymentReference}
+                      onReferenceChange={setCashPaymentReference}
+                    />
+                  </div>
+                )}
+                <CartCheckoutFooter
+                  saleType={saleType}
+                  total={total}
+                  isProcessing={isProcessing}
+                  disabled={isProcessing || (saleType === 'credit' && !selectedCustomer)}
+                  disabledHint={cartCheckoutDisabledHint(
+                    isProcessing,
+                    saleType,
+                    selectedCustomer,
+                  )}
+                  onClick={handleCompleteSale}
+                  lastOrder={lastOrder}
+                  onReprint={() => setIsInvoiceOpen(true)}
+                />
+              </div>
+            )}
           </div>
 
       {/* Invoice/Receipt Dialog */}
