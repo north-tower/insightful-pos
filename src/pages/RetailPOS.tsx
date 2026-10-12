@@ -27,7 +27,6 @@ import {
   Banknote,
   ShoppingCart,
   Package,
-  AlertTriangle,
   Loader2,
   Printer,
   FileText,
@@ -47,10 +46,15 @@ import {
   Info,
   Star,
   Clock,
+  Check,
 } from 'lucide-react';
 import { useSyncStatus } from '@/hooks/useSyncStatus';
 import { generatePlaceholderUrl } from '@/lib/product-images';
 import { fc, CURRENCY_SYMBOL } from '@/lib/currency';
+import { formatKES } from '@/lib/formatKES';
+import { formatDate } from '@/lib/formatDate';
+import { getStockStatus } from '@/lib/stockStatus';
+import { StatusChip } from '@/components/ui/StatusChip';
 import { toast } from 'sonner';
 import { useCompanySettings } from '@/context/BusinessSettingsContext';
 import { notifyInvoiceCreated } from '@/lib/sendSms';
@@ -233,24 +237,31 @@ function CartPaymentMethodSection({
 }) {
   return (
     <div className="space-y-2">
-      <p className="text-xs font-medium text-muted-foreground">Payment method</p>
+      <p className="text-xs font-medium text-ink-2">Payment method</p>
       <div className="grid grid-cols-3 gap-2">
-        {cashPaymentOptions.map(({ id, label, icon: Icon }) => (
+        {cashPaymentOptions.map(({ id, label, icon: Icon }) => {
+          const selected = method === id;
+          return (
           <button
             key={id}
             type="button"
             onClick={() => onMethodChange(id)}
+            aria-pressed={selected}
             className={cn(
-              'focus-ring flex min-h-11 flex-col items-center justify-center gap-1 rounded-lg border-2 px-1 py-2 text-center transition-all duration-200 active:scale-95',
-              method === id
-                ? 'border-primary bg-primary/5 text-primary'
-                : 'border-border bg-card text-muted-foreground hover:border-primary/30',
+              'focus-ring relative flex min-h-[var(--tap-min)] flex-col items-center justify-center gap-1 rounded-[var(--radius)] border-2 px-1 py-2 text-center active:scale-95',
+              selected
+                ? 'border-primary bg-[hsl(var(--accent-soft))] text-ink'
+                : 'border-hairline bg-surface text-ink-2 hover:border-primary/40',
             )}
           >
-            <Icon className="h-4 w-4" />
-            <span className="text-[10px] font-medium leading-tight">{label}</span>
+            {selected && (
+              <Check className="absolute right-1 top-1 h-3.5 w-3.5 text-primary" aria-hidden />
+            )}
+            <Icon className={cn('h-4 w-4', selected ? 'text-primary' : 'text-ink-2')} />
+            <span className="text-[10px] font-semibold leading-tight">{label}</span>
           </button>
-        ))}
+          );
+        })}
       </div>
       {(method === 'mpesa' || method === 'card') && (
         <Input
@@ -290,7 +301,7 @@ function CartQtyControl({
         type="button"
         aria-label="Decrease quantity"
         onClick={() => onStep(productId, quantity - 1)}
-        className="focus-ring flex min-h-9 min-w-9 items-center justify-center rounded-lg border border-border bg-muted/50 text-foreground transition-colors duration-200 hover:bg-muted active:scale-95 active:bg-muted"
+        className="focus-ring flex min-h-[var(--tap-min)] min-w-[var(--tap-min)] items-center justify-center rounded-[var(--radius)] border border-hairline bg-paper text-ink active:scale-95"
       >
         <Minus className="h-4 w-4" />
       </button>
@@ -305,13 +316,13 @@ function CartQtyControl({
         onKeyDown={(e) => {
           if (e.key === 'Enter') onCommit(productId);
         }}
-        className="h-9 min-h-9 w-12 rounded-lg border border-border bg-muted/50 text-center text-sm font-semibold text-foreground tabular-nums focus:outline-none focus:ring-1 focus:ring-primary"
+        className="h-[var(--tap-min)] min-h-[var(--tap-min)] w-12 rounded-[var(--radius)] border border-hairline bg-paper text-center font-mono text-sm font-semibold text-ink num focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       />
       <button
         type="button"
         aria-label="Increase quantity"
         onClick={() => onStep(productId, quantity + 1)}
-        className="focus-ring flex min-h-9 min-w-9 items-center justify-center rounded-lg border border-border bg-muted/50 text-foreground transition-colors duration-200 hover:bg-muted active:scale-95 active:bg-muted"
+        className="focus-ring flex min-h-[var(--tap-min)] min-w-[var(--tap-min)] items-center justify-center rounded-[var(--radius)] border border-hairline bg-paper text-ink active:scale-95"
       >
         <Plus className="h-4 w-4" />
       </button>
@@ -330,35 +341,35 @@ function SaleTypeTabs({
   onCredit: () => void;
 }) {
   return (
-    <div className="flex rounded-lg border border-border bg-muted/60 p-1">
-      <button
-        type="button"
-        onClick={onCash}
-        aria-pressed={saleType === 'cash'}
-        className={cn(
-          'focus-ring flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-md px-3 text-xs font-medium transition-all duration-200 active:scale-[0.98]',
-          saleType === 'cash'
-            ? 'bg-primary font-semibold text-primary-foreground shadow-sm'
-            : 'text-muted-foreground hover:bg-background/70 hover:text-foreground',
-        )}
-      >
-        <Banknote className="h-3.5 w-3.5" />
-        Cash Sale
-      </button>
-      <button
-        type="button"
-        onClick={onCredit}
-        aria-pressed={saleType === 'credit'}
-        className={cn(
-          'focus-ring flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-md px-3 text-xs font-medium transition-all duration-200 active:scale-[0.98]',
-          saleType === 'credit'
-            ? 'bg-primary font-semibold text-primary-foreground shadow-sm'
-            : 'text-muted-foreground hover:bg-background/70 hover:text-foreground',
-        )}
-      >
-        <FileText className="h-3.5 w-3.5" />
-        Credit Sale
-      </button>
+    <div className="flex gap-2">
+      {(
+        [
+          { id: 'cash' as const, label: 'Cash Sale', icon: Banknote, onClick: onCash },
+          { id: 'credit' as const, label: 'Credit Sale', icon: FileText, onClick: onCredit },
+        ] as const
+      ).map(({ id, label, icon: Icon, onClick }) => {
+        const selected = saleType === id;
+        return (
+          <button
+            key={id}
+            type="button"
+            onClick={onClick}
+            aria-pressed={selected}
+            className={cn(
+              'focus-ring relative flex min-h-[var(--tap-min)] flex-1 items-center justify-center gap-1.5 rounded-[var(--radius)] border-2 px-2 text-xs font-semibold active:scale-[0.98]',
+              selected
+                ? 'border-primary bg-[hsl(var(--accent-soft))] text-ink'
+                : 'border-hairline bg-surface text-ink-2',
+            )}
+          >
+            {selected && (
+              <Check className="absolute right-1.5 top-1.5 h-3.5 w-3.5 text-primary" aria-hidden />
+            )}
+            <Icon className={cn('h-3.5 w-3.5', selected ? 'text-primary' : 'text-ink-2')} />
+            {label}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -446,22 +457,29 @@ function CreditSaleExtras({
                   { id: 'card' as const, icon: CreditCard, label: 'Card' },
                   { id: 'qr' as const, icon: QrCode, label: 'QR' },
                 ]
-              ).map(({ id, icon: Icon, label }) => (
+              ).map(({ id, icon: Icon, label }) => {
+                const selected = creditPaymentMethod === id;
+                return (
                 <button
                   key={id}
                   type="button"
                   onClick={() => onCreditPaymentMethodChange(id)}
+                  aria-pressed={selected}
                   className={cn(
-                    'focus-ring flex min-h-9 items-center justify-center gap-1 rounded-md border text-[11px] font-medium transition-all duration-200 active:scale-95',
-                    creditPaymentMethod === id
-                      ? 'border-primary/40 bg-primary/10 text-primary'
-                      : 'border-border/60 bg-background text-muted-foreground hover:bg-muted/60',
+                    'focus-ring relative flex min-h-[var(--tap-min)] items-center justify-center gap-1 rounded-[var(--radius)] border-2 text-[11px] font-semibold active:scale-95',
+                    selected
+                      ? 'border-primary bg-[hsl(var(--accent-soft))] text-ink'
+                      : 'border-hairline bg-surface text-ink-2',
                   )}
                 >
-                  <Icon className="h-3.5 w-3.5" />
+                  {selected && (
+                    <Check className="absolute right-1 top-1 h-3 w-3 text-primary" aria-hidden />
+                  )}
+                  <Icon className={cn('h-3.5 w-3.5', selected ? 'text-primary' : 'text-ink-2')} />
                   {label}
                 </button>
-              ))}
+                );
+              })}
             </div>
 
             <div className="space-y-1.5 pt-1">
@@ -528,24 +546,19 @@ function CartTotalsSection({
   total: number;
 }) {
   return (
-    <div className="space-y-2 text-sm">
-      <div className="flex justify-between text-muted-foreground">
-        <span>Subtotal</span>
-        <span className="tabular-nums">{fc(subtotal)}</span>
-      </div>
-
-      <div className="space-y-1.5">
+    <div className="space-y-3 text-sm">
+      <div className="space-y-1.5 border-b border-hairline pb-3">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-xs text-muted-foreground">Discount</span>
+          <span className="text-xs text-ink-2">Discount</span>
           <div className="flex gap-2">
             <button
               type="button"
               onClick={() => onDiscountModeChange('amount')}
               className={cn(
-                'focus-ring min-h-11 min-w-11 rounded-lg px-3 text-xs font-medium transition-colors duration-200 active:scale-95',
+                'focus-ring min-h-[var(--tap-min)] min-w-[var(--tap-min)] rounded-[var(--radius)] px-3 text-xs font-semibold active:scale-95',
                 discountMode === 'amount'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-muted-foreground',
+                  ? 'border-2 border-primary bg-[hsl(var(--accent-soft))] text-ink'
+                  : 'border border-hairline bg-surface text-ink-2',
               )}
             >
               {CURRENCY_SYMBOL}
@@ -554,10 +567,10 @@ function CartTotalsSection({
               type="button"
               onClick={() => onDiscountModeChange('percent')}
               className={cn(
-                'focus-ring min-h-11 min-w-11 rounded-lg px-3 text-xs font-medium transition-colors duration-200 active:scale-95',
+                'focus-ring min-h-[var(--tap-min)] min-w-[var(--tap-min)] rounded-[var(--radius)] px-3 text-xs font-semibold active:scale-95',
                 discountMode === 'percent'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-muted-foreground',
+                  ? 'border-2 border-primary bg-[hsl(var(--accent-soft))] text-ink'
+                  : 'border border-hairline bg-surface text-ink-2',
               )}
             >
               %
@@ -573,22 +586,223 @@ function CartTotalsSection({
             placeholder={discountMode === 'percent' ? '0' : '0.00'}
             value={discountInput}
             onChange={(e) => onDiscountInputChange(e.target.value)}
-            className="min-h-11 text-sm"
+            className="min-h-[var(--tap-min)] border-hairline bg-surface text-sm"
           />
-          {discountAmount > 0 && (
-            <span className="whitespace-nowrap text-xs font-medium tabular-nums text-destructive">
-              −{fc(discountAmount)}
-            </span>
-          )}
         </div>
       </div>
 
-      <div className="flex items-baseline justify-between border-t border-border pt-3">
-        <span className="text-base font-semibold text-foreground">Total</span>
-        <span className="text-2xl font-bold tabular-nums tracking-tight text-foreground">
-          {fc(total)}
+      <div className="space-y-2 font-sans text-sm text-ink-2">
+        <div className="flex justify-between">
+          <span>Subtotal</span>
+          <span className="font-mono text-ink num">{formatKES(subtotal)}</span>
+        </div>
+        {discountAmount > 0 && (
+          <div className="flex justify-between">
+            <span>Discount</span>
+            <span className="font-mono text-ink num">−{formatKES(discountAmount)}</span>
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-baseline justify-between border-t border-hairline pt-3">
+        <span className="text-base font-semibold text-ink">Total</span>
+        <span className="font-mono text-[2rem] font-bold leading-none text-ink num">
+          {formatKES(total)}
         </span>
       </div>
+    </div>
+  );
+}
+
+function cartCheckoutDisabledHint(
+  isProcessing: boolean,
+  saleType: SaleType,
+  selectedCustomer: Customer | null,
+): string | null {
+  if (isProcessing) return null;
+  if (saleType === 'credit' && !selectedCustomer) {
+    return 'Select a customer to continue';
+  }
+  return null;
+}
+
+function CartReceiptHeader({
+  totalItems,
+  onClear,
+  showClear,
+}: {
+  totalItems: number;
+  onClear?: () => void;
+  showClear: boolean;
+}) {
+  const itemLabel = `${totalItems} item${totalItems === 1 ? '' : 's'}`;
+  return (
+    <div className="shrink-0 px-4 py-3">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
+            <ShoppingCart className="h-5 w-5" aria-hidden />
+            Cart
+          </h2>
+          <p className="mt-0.5 text-sm text-ink-2">
+            {totalItems > 0 ? (
+              <>
+                {itemLabel}
+                <span aria-hidden> · </span>
+                {formatDate(new Date())}
+              </>
+            ) : (
+              formatDate(new Date())
+            )}
+          </p>
+        </div>
+        {showClear && onClear && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onClear}
+            className="text-xs text-fail hover:text-fail"
+          >
+            Clear
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CartReceiptLine({
+  item,
+  unitPrice,
+  editingPrice,
+  editingQty,
+  onPriceChange,
+  onPriceCommit,
+  onQtyEditingChange,
+  onQtyCommit,
+  onQtyStep,
+  onRemove,
+}: {
+  item: CartItem;
+  unitPrice: number;
+  editingPrice: string | undefined;
+  editingQty: string | undefined;
+  onPriceChange: (productId: string, value: string) => void;
+  onPriceCommit: (productId: string) => void;
+  onQtyEditingChange: (productId: string, value: string) => void;
+  onQtyCommit: (productId: string) => void;
+  onQtyStep: (productId: string, nextQty: number) => void;
+  onRemove: (productId: string) => void;
+}) {
+  const lineTotal = unitPrice * item.quantity;
+  const productId = item.product.id;
+
+  return (
+    <div className="border-b border-hairline py-3 last:border-b-0">
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold leading-snug text-ink">{item.product.name}</p>
+          <p className="mt-1 font-mono text-xs text-ink-2 num">
+            {item.quantity} × {formatKES(unitPrice)}
+          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <div className="relative w-[5.5rem]">
+              <span className="pointer-events-none absolute left-1.5 top-1/2 -translate-y-1/2 text-[10px] text-ink-2">
+                {CURRENCY_SYMBOL}
+              </span>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={editingPrice ?? unitPrice}
+                onChange={(e) => onPriceChange(productId, e.target.value)}
+                onBlur={() => onPriceCommit(productId)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') onPriceCommit(productId);
+                }}
+                className="h-[var(--tap-min)] min-h-[var(--tap-min)] w-full rounded-[var(--radius)] border border-hairline bg-paper pl-7 pr-1 font-mono text-xs text-ink num focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label={`Unit price for ${item.product.name}`}
+              />
+            </div>
+            <CartQtyControl
+              productId={productId}
+              quantity={item.quantity}
+              editingValue={editingQty}
+              onEditingChange={onQtyEditingChange}
+              onCommit={onQtyCommit}
+              onStep={onQtyStep}
+            />
+          </div>
+        </div>
+        <div className="flex shrink-0 flex-col items-end gap-2">
+          <span className="font-mono text-sm font-semibold text-ink num">
+            {formatKES(lineTotal)}
+          </span>
+          <button
+            type="button"
+            aria-label={`Remove ${item.product.name}`}
+            onClick={() => onRemove(productId)}
+            className="focus-ring flex min-h-[var(--tap-min)] min-w-[var(--tap-min)] items-center justify-center rounded-[var(--radius)] text-fail active:scale-95"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CartCheckoutFooter({
+  saleType,
+  total,
+  isProcessing,
+  disabled,
+  disabledHint,
+  onClick,
+  lastOrder,
+  onReprint,
+}: {
+  saleType: SaleType;
+  total: number;
+  isProcessing: boolean;
+  disabled: boolean;
+  disabledHint: string | null;
+  onClick: () => void;
+  lastOrder?: SaleOrder | null;
+  onReprint?: () => void;
+}) {
+  return (
+    <div className="sticky bottom-0 z-10 shrink-0 border-t border-hairline bg-surface p-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] shadow-float">
+      {disabledHint && (
+        <p className="mb-2 text-center text-xs text-ink-2">{disabledHint}</p>
+      )}
+      <Button
+        className={cn(
+          'min-h-[var(--tap-primary)] w-full text-base font-bold active:scale-95',
+          saleType === 'credit' && 'bg-warning text-warning-foreground hover:bg-warning/90',
+        )}
+        onClick={onClick}
+        disabled={disabled}
+      >
+        {isProcessing ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Processing…
+          </>
+        ) : saleType === 'credit' ? (
+          <>
+            <FileText className="mr-2 h-4 w-4" />
+            Create Invoice — {formatKES(total)}
+          </>
+        ) : (
+          `Complete Sale — ${formatKES(total)}`
+        )}
+      </Button>
+      {lastOrder && onReprint && (
+        <Button variant="outline" className="mt-2 w-full gap-2" size="sm" onClick={onReprint}>
+          <Printer className="h-4 w-4" />
+          Reprint #{lastOrder.invoice_number || lastOrder.order_number}
+        </Button>
+      )}
     </div>
   );
 }
@@ -1386,9 +1600,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                     );
                     const inCart = cartItem ? cartItem.quantity : 0;
                     const isOutOfStock = product.stock <= 0;
-                    const isLowStock =
-                      product.stock > 0 &&
-                      product.stock <= product.lowStockThreshold;
+                    const stockChipStatus = getStockStatus(product);
                     const mainStock = getMainStock(product);
                     const showsAllocatedStock = mainStock !== product.stock;
                     const isFavorite = favoriteProductIds.includes(product.id);
@@ -1443,16 +1655,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                           />
                           {isOutOfStock && (
-                            <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
-                              <Badge className="bg-destructive text-destructive-foreground text-[10px] sm:text-xs">
-                                Out of Stock
-                              </Badge>
-                            </div>
-                          )}
-                          {isLowStock && !isOutOfStock && (
-                            <div className="absolute top-1 right-1">
-                              <AlertTriangle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-warning" />
-                            </div>
+                            <div className="absolute inset-0 flex items-center justify-center bg-background/60" aria-hidden />
                           )}
                           {inCart > 0 && (
                             <div className="absolute top-1 left-1 bg-primary text-primary-foreground text-[10px] sm:text-xs font-bold w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center">
@@ -1471,22 +1674,18 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                         <p className="text-xs sm:text-sm font-semibold text-foreground line-clamp-1 sm:line-clamp-2 mb-0.5">
                           {product.name}
                         </p>
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between gap-1">
                           <span className="text-sm font-bold text-foreground">
                             {fc(product.price)}
                           </span>
-                          <span
-                            className={cn(
-                              'text-[10px] sm:text-xs',
-                              isOutOfStock
-                                ? 'text-destructive'
-                                : isLowStock
-                                ? 'text-warning'
-                                : 'text-muted-foreground'
+                          <div className="flex min-w-0 flex-col items-end gap-0.5">
+                            {stockChipStatus && (
+                              <StatusChip status={stockChipStatus} size="sm" />
                             )}
-                          >
-                            {product.stock} {product.unit}
-                          </span>
+                            <span className="font-mono text-[10px] text-ink-2 num sm:text-xs">
+                              {product.stock} {product.unit}
+                            </span>
+                          </div>
                         </div>
                         {showsAllocatedStock && (
                           <p className="text-[10px] text-muted-foreground mt-0.5">
@@ -1503,7 +1702,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                     const cartItem = cart.find((c) => c.product.id === product.id);
                     const inCart = cartItem ? cartItem.quantity : 0;
                     const isOutOfStock = product.stock <= 0;
-                    const isLowStock = product.stock > 0 && product.stock <= product.lowStockThreshold;
+                    const stockChipStatus = getStockStatus(product);
                     const mainStock = getMainStock(product);
                     const showsAllocatedStock = mainStock !== product.stock;
                     const isFavorite = favoriteProductIds.includes(product.id);
@@ -1544,8 +1743,8 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                             <p className="truncate text-xs font-semibold text-foreground sm:text-sm">
                               {product.name}
                             </p>
-                            {isLowStock && !isOutOfStock && (
-                              <AlertTriangle className="h-3 w-3 shrink-0 text-warning" />
+                            {stockChipStatus && (
+                              <StatusChip status={stockChipStatus} size="sm" className="shrink-0" />
                             )}
                             {product.discount && (
                               <Badge className="bg-destructive px-1 py-0 text-[9px] text-destructive-foreground">
@@ -1555,15 +1754,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                           </div>
                           <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0 text-[11px]">
                             <span className="font-bold text-foreground">{fc(product.price)}</span>
-                            <span
-                              className={cn(
-                                isOutOfStock
-                                  ? 'text-destructive'
-                                  : isLowStock
-                                  ? 'text-warning'
-                                  : 'text-muted-foreground',
-                              )}
-                            >
+                            <span className="font-mono text-ink-2 num">
                               {product.stock} {product.unit}
                             </span>
                             {showsAllocatedStock && (
@@ -1606,33 +1797,22 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
           {/* ── Mobile sticky mini-cart + checkout bar (always visible while cart has items) ── */}
           {totalItems > 0 && !mobileCartOpen && (
             <div
-              className="lg:hidden fixed inset-x-0 z-50 border-t border-border bg-card shadow-[0_-4px_24px_-4px_rgba(0,0,0,0.12)]"
+              className="lg:hidden fixed inset-x-0 z-50 flex h-[var(--tap-primary)] items-center gap-3 border-t border-hairline bg-surface px-3 shadow-float"
               style={{
                 bottom: 'calc(3.5rem + env(safe-area-inset-bottom, 0px))',
               }}
             >
-              {/* Persistent summary: item count, discount, total */}
-              <div className="flex items-center justify-between gap-3 border-b border-border/60 px-4 py-2 text-sm">
-                <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-muted-foreground">
-                  <span className="font-medium text-foreground">{totalItems} item{totalItems === 1 ? '' : 's'}</span>
-                  {discountAmount > 0 && (
-                    <span className="text-xs text-destructive">−{fc(discountAmount)}</span>
-                  )}
-                </div>
-                <span className="shrink-0 text-base font-bold tabular-nums text-foreground">
-                  {fc(total)}
-                </span>
-              </div>
-              <div className="p-3">
-                <button
-                  type="button"
-                  onClick={() => setMobileCartOpen(true)}
-                  className="focus-ring flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 text-base font-semibold text-primary-foreground transition-colors duration-200 hover:bg-primary/90 active:scale-95 active:bg-primary/90"
-                >
-                  <ShoppingCart className="h-5 w-5" />
-                  Review Cart &amp; Checkout
-                </button>
-              </div>
+              <p className="min-w-0 flex-1 truncate font-mono text-sm text-ink num">
+                {totalItems} item{totalItems === 1 ? '' : 's'} · {formatKES(total)}
+              </p>
+              <button
+                type="button"
+                onClick={() => setMobileCartOpen(true)}
+                className="focus-ring flex min-h-[var(--tap-min)] shrink-0 items-center justify-center gap-1.5 rounded-[var(--radius)] bg-primary px-3 text-sm font-semibold text-primary-foreground active:scale-95"
+              >
+                <ShoppingCart className="h-4 w-4" aria-hidden />
+                Review Cart &amp; Checkout
+              </button>
             </div>
           )}
 
@@ -1648,52 +1828,31 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
               />
               {/* Panel — fills above home indicator; Complete Sale sticks to bottom */}
               <div
-                className="relative mt-auto flex max-h-[90vh] flex-col rounded-t-2xl border-t border-border bg-card animate-in slide-in-from-bottom duration-200"
+                className="receipt-panel receipt-torn-bottom relative mt-auto flex max-h-[90vh] flex-col animate-in slide-in-from-bottom duration-200"
                 style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
               >
-                {/* Drag handle + header */}
-                <div className="flex items-center justify-between border-b border-border p-3">
-                  <div className="flex items-center gap-2">
+                <div className="shrink-0 border-b border-hairline px-3 py-2">
+                  <div className="flex items-start gap-1">
                     <button
                       type="button"
                       onClick={() => { if (!isProcessing) setMobileCartOpen(false); }}
-                      className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted active:scale-95"
+                      className="focus-ring flex min-h-[var(--tap-min)] min-w-[var(--tap-min)] shrink-0 items-center justify-center rounded-[var(--radius)] text-ink-2 active:scale-95"
                       disabled={isProcessing}
                       aria-label="Close cart"
                     >
                       <ChevronDown className="h-5 w-5" />
                     </button>
-                    <h2 className="flex items-center gap-2 text-base font-bold text-foreground">
-                      <ShoppingCart className="h-4 w-4" />
-                      Cart
-                      <Badge variant="secondary" className="ml-1 text-xs">{totalItems}</Badge>
-                    </h2>
+                    <div className="min-w-0 flex-1">
+                      <CartReceiptHeader
+                        totalItems={totalItems}
+                        showClear={cart.length > 0}
+                        onClear={clearCart}
+                      />
+                    </div>
                   </div>
-                  {cart.length > 0 && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={clearCart}
-                      className="min-h-11 text-xs text-destructive hover:text-destructive"
-                    >
-                      Clear
-                    </Button>
-                  )}
                 </div>
 
-                {/* Mini summary pinned under header while scrolling items */}
-                <div className="flex items-center justify-between gap-3 border-b border-border bg-muted/30 px-4 py-2 text-sm">
-                  <span className="text-muted-foreground">
-                    {totalItems} item{totalItems === 1 ? '' : 's'}
-                    {discountAmount > 0 && (
-                      <span className="ml-2 text-destructive">−{fc(discountAmount)}</span>
-                    )}
-                  </span>
-                  <span className="font-bold tabular-nums text-foreground">{fc(total)}</span>
-                </div>
-
-                {/* Sale Type Toggle */}
-                <div className="space-y-2 border-b border-border px-3 py-2">
+                <div className="space-y-2 border-b border-hairline px-3 py-2">
                   <SaleTypeTabs
                     saleType={saleType}
                     onCash={() => {
@@ -1831,84 +1990,39 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
 
                 {/* Scrollable body: items + totals + credit form (whole cart, not items-only) */}
                 <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-                  <div className="space-y-3 p-3">
+                  <div className="px-3 pt-1">
                   {cart.map((item) => {
                     const unitPrice = getUnitPrice(item);
                     return (
-                      <div
+                      <CartReceiptLine
                         key={item.product.id}
-                        className="flex gap-3 rounded-lg border border-border p-4"
-                      >
-                        <img
-                          src={item.product.image || generatePlaceholderUrl(item.product.name)}
-                          alt={item.product.name}
-                          className="h-12 w-12 shrink-0 rounded object-cover"
-                        />
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-start justify-between gap-2">
-                            <p className="text-sm font-semibold leading-snug text-foreground">
-                              {item.product.name}
-                            </p>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="min-h-9 min-w-9 shrink-0 text-destructive hover:text-destructive"
-                              onClick={() => removeFromCart(item.product.id)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                          <div className="mt-3 flex flex-wrap items-center gap-2">
-                            <div className="relative w-24">
-                              <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">
-                                {CURRENCY_SYMBOL}
-                              </span>
-                              <input
-                                type="text"
-                                inputMode="decimal"
-                                value={editingPrice[item.product.id] ?? unitPrice}
-                                onChange={(e) =>
-                                  setEditingPrice((prev) => ({
-                                    ...prev,
-                                    [item.product.id]: e.target.value,
-                                  }))
-                                }
-                                onBlur={() => commitPrice(item.product.id)}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') commitPrice(item.product.id);
-                                }}
-                                className="h-9 min-h-9 w-full rounded-lg border border-border bg-muted/50 pl-8 pr-1 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                              />
-                            </div>
-                            <span className="text-xs text-muted-foreground">×</span>
-                            <CartQtyControl
-                              productId={item.product.id}
-                              quantity={item.quantity}
-                              editingValue={editingQty[item.product.id]}
-                              onEditingChange={(id, value) =>
-                                setEditingQty((prev) => ({ ...prev, [id]: value }))
-                              }
-                              onCommit={commitQty}
-                              onStep={(id, next) => {
-                                setEditingQty((prev) => {
-                                  const n = { ...prev };
-                                  delete n[id];
-                                  return n;
-                                });
-                                updateCartQuantity(id, next);
-                              }}
-                            />
-                            <span className="ml-auto text-right text-base font-bold tabular-nums text-foreground">
-                              {fc(unitPrice * item.quantity)}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
+                        item={item}
+                        unitPrice={unitPrice}
+                        editingPrice={editingPrice[item.product.id]}
+                        editingQty={editingQty[item.product.id]}
+                        onPriceChange={(id, value) =>
+                          setEditingPrice((prev) => ({ ...prev, [id]: value }))
+                        }
+                        onPriceCommit={commitPrice}
+                        onQtyEditingChange={(id, value) =>
+                          setEditingQty((prev) => ({ ...prev, [id]: value }))
+                        }
+                        onQtyCommit={commitQty}
+                        onQtyStep={(id, next) => {
+                          setEditingQty((prev) => {
+                            const n = { ...prev };
+                            delete n[id];
+                            return n;
+                          });
+                          updateCartQuantity(id, next);
+                        }}
+                        onRemove={removeFromCart}
+                      />
                     );
                   })}
                   </div>
 
-                  <div className="space-y-3 border-t border-border p-3">
+                  <div className="space-y-3 border-t border-hairline p-3">
                   <CartTotalsSection
                     subtotal={subtotal}
                     discountMode={discountMode}
@@ -1947,66 +2061,39 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                   )}
                   </div>
 
-                  {/* Sticky CTA inside scroll area — always reachable after expanding deposit */}
-                  <div className="sticky bottom-0 z-10 border-t border-border bg-card p-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] shadow-[0_-4px_12px_-4px_rgba(0,0,0,0.08)]">
-                  <Button
-                    className={cn(
-                      'min-h-12 w-full text-base font-bold shadow-sm active:scale-95',
-                      saleType === 'credit'
-                        ? 'bg-warning text-warning-foreground hover:bg-warning/90 active:bg-warning/80'
-                        : 'active:bg-primary/90',
+                  <CartCheckoutFooter
+                    saleType={saleType}
+                    total={total}
+                    isProcessing={isProcessing}
+                    disabled={isProcessing || (saleType === 'credit' && !selectedCustomer)}
+                    disabledHint={cartCheckoutDisabledHint(
+                      isProcessing,
+                      saleType,
+                      selectedCustomer,
                     )}
                     onClick={async () => {
                       await handleCompleteSale();
                       setMobileCartOpen(false);
                     }}
-                    disabled={isProcessing || (saleType === 'credit' && !selectedCustomer)}
-                  >
-                    {isProcessing ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Processing…
-                      </>
-                    ) : saleType === 'credit' ? (
-                      <>
-                        <FileText className="mr-2 h-4 w-4" />
-                        Create Invoice — {fc(total)}
-                      </>
-                    ) : (
-                      `Complete Sale — ${fc(total)}`
-                    )}
-                  </Button>
-                  </div>
+                  />
                 </div>
+                <div className="receipt-torn-edge shrink-0 pb-2" aria-hidden />
               </div>
             </div>
           )}
 
           {/* ── Desktop Cart Sidebar (hidden on mobile) ── */}
-          <div className="hidden h-full w-96 shrink-0 flex-col border-l border-border bg-card lg:flex">
-            {/* Cart Header */}
-            <div className="shrink-0 border-b border-border p-4">
-              <div className="mb-1 flex items-center justify-between">
-                <h2 className="flex items-center gap-2 text-lg font-bold text-foreground">
-                  <ShoppingCart className="h-5 w-5" />
-                  Cart
-                </h2>
-                {cart.length > 0 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={clearCart}
-                    className="text-xs text-destructive hover:text-destructive"
-                  >
-                    Clear
-                  </Button>
-                )}
-              </div>
-              {totalItems > 0 && (
-                <p className="text-sm text-muted-foreground">{totalItems} items</p>
-              )}
+          <div className="receipt-panel receipt-torn-bottom hidden h-full w-96 shrink-0 flex-col lg:flex">
+            <div className="shrink-0 border-b border-hairline">
+              <CartReceiptHeader
+                totalItems={totalItems}
+                showClear={cart.length > 0}
+                onClear={clearCart}
+              />
+            </div>
 
-              <div className="mt-3">
+            <div className="shrink-0 border-b border-hairline px-4 pb-3 pt-1">
+              <div className="mt-1">
                 <SaleTypeTabs
                   saleType={saleType}
                   onCash={() => {
@@ -2151,9 +2238,9 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
 
             {/* Scrollable body: items + totals + credit form (whole cart, not items-only) */}
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-              <div className="space-y-3 p-4">
+              <div className="px-4 pt-1">
               {cart.length === 0 && (
-                <div className="py-12 text-center text-muted-foreground">
+                <div className="py-12 text-center text-ink-2">
                   <ShoppingCart className="mx-auto mb-3 h-10 w-10 opacity-50" />
                   <p className="text-sm">Cart is empty</p>
                   <p className="mt-1 text-xs">Tap a product or scan barcode</p>
@@ -2163,82 +2250,37 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
               {cart.map((item) => {
                 const unitPrice = getUnitPrice(item);
                 return (
-                  <div
+                  <CartReceiptLine
                     key={item.product.id}
-                    className="flex gap-3 rounded-lg border border-border p-4"
-                  >
-                    <img
-                      src={item.product.image || generatePlaceholderUrl(item.product.name)}
-                      alt={item.product.name}
-                      className="h-12 w-12 shrink-0 rounded object-cover"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="text-sm font-semibold leading-snug text-foreground">
-                          {item.product.name}
-                        </p>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="min-h-9 min-w-9 shrink-0 text-destructive hover:text-destructive"
-                          onClick={() => removeFromCart(item.product.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <div className="mt-3 flex flex-wrap items-center gap-2">
-                        <div className="relative min-w-0 flex-1 basis-20">
-                          <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">
-                            {CURRENCY_SYMBOL}
-                          </span>
-                          <input
-                            type="text"
-                            inputMode="decimal"
-                            value={editingPrice[item.product.id] ?? unitPrice}
-                            onChange={(e) =>
-                              setEditingPrice((prev) => ({
-                                ...prev,
-                                [item.product.id]: e.target.value,
-                              }))
-                            }
-                            onBlur={() => commitPrice(item.product.id)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') commitPrice(item.product.id);
-                            }}
-                            className="h-9 min-h-9 w-full rounded-lg border border-border bg-muted/50 pl-7 pr-1 text-xs font-medium tabular-nums text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                          />
-                        </div>
-                        <span className="shrink-0 text-xs text-muted-foreground">×</span>
-                        <CartQtyControl
-                          productId={item.product.id}
-                          quantity={item.quantity}
-                          editingValue={editingQty[item.product.id]}
-                          onEditingChange={(id, value) =>
-                            setEditingQty((prev) => ({ ...prev, [id]: value }))
-                          }
-                          onCommit={commitQty}
-                          onStep={(id, next) => {
-                            setEditingQty((prev) => {
-                              const n = { ...prev };
-                              delete n[id];
-                              return n;
-                            });
-                            updateCartQuantity(id, next);
-                          }}
-                        />
-                        <span className="ml-auto min-w-[4.5rem] text-right text-base font-bold tabular-nums text-foreground">
-                          {fc(unitPrice * item.quantity)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
+                    item={item}
+                    unitPrice={unitPrice}
+                    editingPrice={editingPrice[item.product.id]}
+                    editingQty={editingQty[item.product.id]}
+                    onPriceChange={(id, value) =>
+                      setEditingPrice((prev) => ({ ...prev, [id]: value }))
+                    }
+                    onPriceCommit={commitPrice}
+                    onQtyEditingChange={(id, value) =>
+                      setEditingQty((prev) => ({ ...prev, [id]: value }))
+                    }
+                    onQtyCommit={commitQty}
+                    onQtyStep={(id, next) => {
+                      setEditingQty((prev) => {
+                        const n = { ...prev };
+                        delete n[id];
+                        return n;
+                      });
+                      updateCartQuantity(id, next);
+                    }}
+                    onRemove={removeFromCart}
+                  />
                 );
               })}
               </div>
 
               {cart.length > 0 && (
                 <>
-                  <div className="space-y-4 border-t border-border p-4">
+                  <div className="space-y-4 border-t border-hairline p-4">
                     <CartTotalsSection
                       subtotal={subtotal}
                       discountMode={discountMode}
@@ -2277,48 +2319,24 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                     )}
                   </div>
 
-                  {/* Sticky CTA — stays visible while scrolling deposit fields */}
-                  <div className="sticky bottom-0 z-10 space-y-2 border-t border-border bg-card p-4 shadow-[0_-4px_12px_-4px_rgba(0,0,0,0.08)]">
-                    <Button
-                      className={cn(
-                        'min-h-12 w-full text-base font-bold shadow-sm active:scale-95',
-                        saleType === 'credit'
-                          ? 'bg-warning text-warning-foreground hover:bg-warning/90 active:bg-warning/80'
-                          : 'active:bg-primary/90',
-                      )}
-                      onClick={handleCompleteSale}
-                      disabled={isProcessing || (saleType === 'credit' && !selectedCustomer)}
-                    >
-                      {isProcessing ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Processing…
-                        </>
-                      ) : saleType === 'credit' ? (
-                        <>
-                          <FileText className="mr-2 h-4 w-4" />
-                          Create Invoice — {fc(total)}
-                        </>
-                      ) : (
-                        `Complete Sale — ${fc(total)}`
-                      )}
-                    </Button>
-
-                    {lastOrder && (
-                      <Button
-                        variant="outline"
-                        className="w-full gap-2"
-                        size="sm"
-                        onClick={() => setIsInvoiceOpen(true)}
-                      >
-                        <Printer className="h-4 w-4" />
-                        Reprint #{lastOrder.invoice_number || lastOrder.order_number}
-                      </Button>
+                  <CartCheckoutFooter
+                    saleType={saleType}
+                    total={total}
+                    isProcessing={isProcessing}
+                    disabled={isProcessing || (saleType === 'credit' && !selectedCustomer)}
+                    disabledHint={cartCheckoutDisabledHint(
+                      isProcessing,
+                      saleType,
+                      selectedCustomer,
                     )}
-                  </div>
+                    onClick={handleCompleteSale}
+                    lastOrder={lastOrder}
+                    onReprint={() => setIsInvoiceOpen(true)}
+                  />
                 </>
               )}
             </div>
+            <div className="receipt-torn-edge shrink-0 pb-2" aria-hidden />
           </div>
 
       {/* Invoice/Receipt Dialog */}

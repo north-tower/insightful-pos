@@ -185,6 +185,34 @@
     @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background;
   }
 
+  .receipt-panel {
+    @apply bg-surface border border-hairline shadow-float;
+    border-radius: var(--radius-panel);
+  }
+
+  .receipt-torn-bottom {
+    position: relative;
+    padding-bottom: 0.375rem;
+  }
+
+  .receipt-torn-bottom::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 0.625rem;
+    pointer-events: none;
+    background: hsl(var(--surface));
+    -webkit-mask-image: radial-gradient(circle at 0.625rem 0, transparent 0.45rem, black 0.46rem);
+    mask-image: radial-gradient(circle at 0.625rem 0, transparent 0.45rem, black 0.46rem);
+    -webkit-mask-size: 1.25rem 0.625rem;
+    mask-size: 1.25rem 0.625rem;
+    -webkit-mask-repeat: repeat-x;
+    mask-repeat: repeat-x;
+    transform: translateY(50%);
+  }
+
   .glass-card {
     @apply bg-card/80 backdrop-blur-sm border border-border/50;
   }
