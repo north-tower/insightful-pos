@@ -6,8 +6,12 @@ import { cn } from '@/lib/utils';
 import { useProducts } from '@/hooks/useProducts';
 import { useDashboardStats } from '@/hooks/useDashboardStats';
 import { RefreshCw, AlertCircle } from 'lucide-react';
-import { formatKES } from '@/lib/formatKES';
-import { formatDateWithWeekday, formatSyncedDateTime } from '@/lib/formatDate';
+import { formatKES, formatKESAmount } from '@/lib/formatKES';
+import {
+  formatDateWithWeekday,
+  formatRecentSaleTime,
+  formatSyncedDateTime,
+} from '@/lib/formatDate';
 import { useAuth } from '@/context/AuthContext';
 import { getStockStatus } from '@/lib/stockStatus';
 import {
@@ -56,7 +60,7 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
   const { user } = useAuth();
   const canManage = user?.role === 'admin' || user?.role === 'manager';
   const { retailProducts, loading: productsLoading } = useProducts();
-  const [purchaseDraftCount, setPurchaseDraftCount] = useState(() => getPurchaseDraftCount());
+  const [, setPurchaseDraftCount] = useState(() => getPurchaseDraftCount());
   const [markedProductIds, setMarkedProductIds] = useState<Set<string>>(() => new Set());
   const {
     loading: statsLoading,
@@ -104,92 +108,83 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
     onNavigate('purchases');
   };
 
-  const revenueComparison =
-    retailStats.revenueChange !== 0 && Math.abs(retailStats.revenueChange) >= 0.05
-      ? `${retailStats.revenueChange >= 0 ? '+' : ''}${Math.round(retailStats.revenueChange)}% vs yesterday`
-      : null;
+  const revenueComparison = useMemo(() => {
+    if (loading) return null;
+    const current = retailStats.todayRevenue;
+    const previous = retailStats.yesterdayRevenue;
+    if (typeof previous === 'number') {
+      return `${formatKES(previous)} yesterday`;
+    }
+    const change = retailStats.revenueChange;
+    if (change === 0 || Math.abs(change) < 0.05) return null;
+    const estimatedPrevious =
+      change !== -100 ? current / (1 + change / 100) : 0;
+    if (estimatedPrevious > 0 && estimatedPrevious < current * 0.1) return null;
+    return `${change >= 0 ? '+' : ''}${Math.round(change)}% vs yesterday`;
+  }, [loading, retailStats]);
 
   const topFiveItems: TopSellingItem[] = topSellingItems.slice(0, 5);
   const topFiveTotalQty = topFiveItems.reduce((s, i) => s + i.quantity, 0);
 
   const recentFive = recentSales.slice(0, 5);
 
-  const createPoLabel =
-    purchaseDraftCount > 0 ? `Create PO (${purchaseDraftCount})` : 'Create PO';
+  const dashboardActions = (
+    <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end sm:gap-2">
+      <button
+        type="button"
+        className={cn(ACCENT_BTN, 'col-span-2')}
+        onClick={() => onNavigate('pos')}
+      >
+        New sale
+      </button>
+      {canManage ? (
+        <button
+          type="button"
+          className={cn(OUTLINED_BTN, 'col-span-1 w-full sm:w-auto')}
+          onClick={() => onNavigate('shop-day')}
+        >
+          Shop Day Close
+        </button>
+      ) : null}
+    </div>
+  );
 
   return (
     <PageLayout activeTab="dashboard" onNavigate={onNavigate}>
-      <div className="mx-auto w-full max-w-[1280px] space-y-6">
-        {/* Page header */}
-        <header className="space-y-4 border-b border-hairline pb-6">
-          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-            <div className="min-w-0 space-y-1">
-              <h1 className="text-2xl font-bold text-ink md:text-3xl">Today</h1>
-              {loading ? (
-                <>
-                  <div className="h-4 w-40 rounded-sm bg-hairline/80" aria-hidden />
-                  <div className="h-3 w-52 rounded-sm bg-hairline/60" aria-hidden />
-                </>
-              ) : (
-                <>
-                  <p className="text-sm text-ink-2">{formatDateWithWeekday(today)}</p>
-                  <p className="text-sm text-ink-2">
-                    Synced{' '}
-                    {lastSyncedAt
-                      ? formatSyncedDateTime(lastSyncedAt)
-                      : 'Not synced yet'}
-                  </p>
-                </>
-              )}
-            </div>
-
-            <div className="flex shrink-0 items-start gap-2 md:pt-1">
-              <button
-                type="button"
-                onClick={refetch}
-                disabled={statsLoading}
-                className={cn(OUTLINED_BTN, 'min-w-[var(--tap-min)] px-3')}
-                title="Refresh dashboard"
-                aria-label="Refresh dashboard"
-              >
-                <RefreshCw
-                  className={cn('h-5 w-5 text-ink', statsLoading && 'motion-safe:animate-spin')}
-                  aria-hidden
-                />
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end sm:gap-2">
+      <div className="mx-auto flex w-full max-w-[1280px] flex-col gap-6">
+        {/* Page header: title + date (actions/takings reordered on phone via flex order) */}
+        <header className="order-1 space-y-4 border-b border-hairline pb-6">
+          <div className="flex items-start justify-between gap-3">
+            <h1 className="min-w-0 text-2xl font-bold text-ink md:text-3xl">Today</h1>
             <button
               type="button"
-              className={cn(ACCENT_BTN, 'col-span-2')}
-              onClick={() => onNavigate('pos')}
+              onClick={refetch}
+              disabled={statsLoading}
+              className={cn(OUTLINED_BTN, 'min-h-[var(--tap-min)] min-w-[var(--tap-min)] shrink-0 px-3')}
+              title="Refresh dashboard"
+              aria-label="Refresh dashboard"
             >
-              New sale
-            </button>
-            {canManage ? (
-              <button
-                type="button"
-                className={cn(OUTLINED_BTN, 'col-span-1 w-full sm:w-auto')}
-                onClick={() => onNavigate('shop-day')}
-              >
-                Shop Day Close
-              </button>
-            ) : null}
-            <button
-              type="button"
-              className={cn(OUTLINED_BTN, 'col-span-1 w-full sm:w-auto')}
-              onClick={handleOpenPurchases}
-            >
-              {createPoLabel}
+              <RefreshCw
+                className={cn('h-5 w-5 text-ink', statsLoading && 'motion-safe:animate-spin')}
+                aria-hidden
+              />
             </button>
           </div>
+          {loading ? (
+            <div className="h-4 w-full max-w-xs rounded-sm bg-hairline/80" aria-hidden />
+          ) : (
+            <p className="text-sm text-ink-2">
+              {formatDateWithWeekday(today)}
+              {' · '}
+              Synced{' '}
+              {lastSyncedAt ? formatSyncedDateTime(lastSyncedAt) : 'Not synced yet'}
+            </p>
+          )}
         </header>
 
         {error && !loading ? (
           <div
-            className="flex flex-wrap items-center gap-3 border-b border-hairline pb-4 text-sm text-ink"
+            className="order-2 flex flex-wrap items-center gap-3 border-b border-hairline pb-4 text-sm text-ink"
             role="alert"
           >
             <span className="inline-flex items-center gap-2">
@@ -202,8 +197,11 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
           </div>
         ) : null}
 
-        {/* Takings hero */}
-        <section aria-labelledby="takings-heading" className="border-b border-hairline pb-6">
+        {/* Takings hero — before actions on phone */}
+        <section
+          aria-labelledby="takings-heading"
+          className="order-3 border-b border-hairline pb-6 md:order-4"
+        >
           {loading ? (
             <div className="space-y-3">
               <div className="h-4 w-28 rounded-sm bg-hairline/80" aria-hidden />
@@ -216,10 +214,13 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
                 <p id="takings-heading" className="text-sm font-semibold text-ink-2">
                   Takings today
                 </p>
-                <p className="font-mono text-[2.5rem] font-semibold leading-tight text-ink num md:text-[3.5rem]">
-                  {formatKES(retailStats.todayRevenue)}
-                </p>
-                <p className="mt-1 text-sm text-ink-2">
+                <div className="mt-1 flex items-baseline gap-2">
+                  <span className="text-sm font-semibold text-ink-2 md:text-base">KES</span>
+                  <span className="font-sans text-[40px] font-semibold leading-none tracking-tight text-ink tabular-nums md:text-[56px]">
+                    {formatKESAmount(retailStats.todayRevenue)}
+                  </span>
+                </div>
+                <p className="mt-2 text-sm text-ink-2">
                   {retailStats.todaySales} sales · {retailStats.itemsSold} items sold
                 </p>
                 {revenueComparison ? (
@@ -230,7 +231,9 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
           )}
         </section>
 
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 md:gap-8 lg:gap-8">
+        <div className="order-4 md:order-3">{dashboardActions}</div>
+
+        <div className="order-5 grid grid-cols-1 gap-6 md:grid-cols-2 md:gap-8 lg:gap-8">
           {/* Left column */}
           <div className="space-y-6 md:rounded-[var(--radius-panel)] md:border md:border-hairline md:bg-surface md:p-6">
             {/* Needs attention */}
@@ -262,26 +265,50 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
                   {visibleAlerts.map((product) => {
                     const status = getStockStatus(product);
                     return (
-                      <li
-                        key={product.id}
-                        className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold text-ink">{product.name}</p>
-                          <p className="font-mono text-xs text-ink-2 num">
-                            {formatStockLeft(product)}
+                      <li key={product.id}>
+                        <div className="grid min-h-[72px] grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto] items-center gap-x-3 gap-y-1 py-2 md:hidden">
+                          <p
+                            className="col-start-1 row-start-1 truncate text-sm font-semibold text-ink"
+                            title={product.name}
+                          >
+                            {product.name}
                           </p>
-                        </div>
-                        <div className="flex shrink-0 flex-wrap items-center gap-2">
-                          {status ? <StatusChip status={status} size="sm" /> : null}
                           <button
                             type="button"
-                            className={cn(OUTLINED_BTN, 'px-3 text-xs')}
+                            className={cn(
+                              OUTLINED_BTN,
+                              'col-start-2 row-span-2 row-start-1 self-center px-3 text-xs',
+                            )}
                             onClick={() => handleMarkForPurchase(product)}
                             disabled={markedProductIds.has(product.id)}
                           >
                             {markedProductIds.has(product.id) ? 'Added' : 'Mark for PO'}
                           </button>
+                          <div className="col-start-1 row-start-2 flex min-w-0 flex-wrap items-center gap-2">
+                            <span className="font-mono text-xs text-ink-2 num">
+                              {formatStockLeft(product)}
+                            </span>
+                            {status ? <StatusChip status={status} size="sm" /> : null}
+                          </div>
+                        </div>
+                        <div className="hidden min-h-[var(--tap-min)] flex-row items-center justify-between gap-2 py-3 md:flex">
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold text-ink">{product.name}</p>
+                            <p className="font-mono text-xs text-ink-2 num">
+                              {formatStockLeft(product)}
+                            </p>
+                          </div>
+                          <div className="flex shrink-0 flex-wrap items-center gap-2">
+                            {status ? <StatusChip status={status} size="sm" /> : null}
+                            <button
+                              type="button"
+                              className={cn(OUTLINED_BTN, 'px-3 text-xs')}
+                              onClick={() => handleMarkForPurchase(product)}
+                              disabled={markedProductIds.has(product.id)}
+                            >
+                              {markedProductIds.has(product.id) ? 'Added' : 'Mark for PO'}
+                            </button>
+                          </div>
                         </div>
                       </li>
                     );

@@ -57,14 +57,37 @@ export function RetailSalesRevenueSection({
     return `${best.date} had the most revenue at ${formatKES(best.revenue)}`;
   }, [chartData, isEmpty]);
 
+  const xAxisTicks = useMemo(() => {
+    const len = chartData.length;
+    if (len === 0) return undefined;
+    const datesAt = (indices: number[]) =>
+      [...new Set(indices.filter((i) => i >= 0 && i < len))].map((i) => chartData[i].date);
+
+    if (timeRange === 'daily') {
+      const step = len > 10 ? 3 : 2;
+      const indices: number[] = [];
+      for (let i = 0; i < len; i += step) indices.push(i);
+      if (indices[indices.length - 1] !== len - 1) indices.push(len - 1);
+      return datesAt(indices);
+    }
+
+    if (timeRange === 'monthly') {
+      if (len <= 4) return datesAt(Array.from({ length: len }, (_, i) => i));
+      const mid = Math.round((len - 1) / 2);
+      return datesAt([0, mid, len - 1]);
+    }
+
+    return undefined;
+  }, [chartData, timeRange]);
+
   return (
     <section aria-labelledby="sales-revenue-heading">
-      <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h2 id="sales-revenue-heading" className="text-lg font-semibold text-ink">
+      <div className="mb-4 flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <h2 id="sales-revenue-heading" className="min-w-0 text-lg font-semibold text-ink">
           Sales revenue
         </h2>
         <div
-          className="grid grid-cols-3 gap-1 rounded-[var(--radius)] border border-hairline p-1"
+          className="grid min-w-0 max-w-full grid-cols-3 gap-1 rounded-[var(--radius)] border border-hairline p-1 sm:shrink-0"
           role="tablist"
           aria-label="Sales revenue period"
         >
@@ -100,11 +123,11 @@ export function RetailSalesRevenueSection({
       ) : (
         <ChartContainer
           config={chartConfig}
-          className="aspect-auto h-[160px] w-full md:h-[240px] [&_.recharts-cartesian-axis-tick_text]:fill-[hsl(var(--ink-2))] [&_.recharts-cartesian-axis-tick_text]:text-xs"
+          className="relative block aspect-auto h-[160px] min-h-[160px] min-w-0 max-w-full overflow-hidden md:h-[240px] md:min-h-[240px] [&_.recharts-cartesian-axis-tick_text]:fill-[hsl(var(--ink-2))] [&_.recharts-cartesian-axis-tick_text]:text-[10px] sm:[&_.recharts-cartesian-axis-tick_text]:text-xs [&_.recharts-responsive-container]:!absolute [&_.recharts-responsive-container]:inset-0 [&_.recharts-responsive-container]:!h-full [&_.recharts-responsive-container]:!max-w-full [&_.recharts-responsive-container]:!w-full"
         >
           <BarChart
             data={chartData}
-            margin={{ left: 4, right: 8, top: 8, bottom: 0 }}
+            margin={{ left: 0, right: 4, top: 8, bottom: 0 }}
           >
             <CartesianGrid
               vertical={false}
@@ -113,16 +136,18 @@ export function RetailSalesRevenueSection({
             />
             <XAxis
               dataKey="date"
+              ticks={xAxisTicks}
+              interval={xAxisTicks ? 0 : undefined}
               tickLine={false}
               axisLine={{ stroke: 'hsl(var(--hairline))' }}
               tickMargin={8}
-              minTickGap={8}
+              minTickGap={16}
             />
             <YAxis
               tickLine={false}
               axisLine={false}
               tickMargin={4}
-              width={72}
+              width={56}
               tickFormatter={(v) => formatKESAxis(Number(v))}
             />
             <ChartTooltip

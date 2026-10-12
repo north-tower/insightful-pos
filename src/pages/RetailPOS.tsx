@@ -606,7 +606,7 @@ function CartTotalsSection({
 
       <div className="flex items-baseline justify-between border-t border-hairline pt-3">
         <span className="text-base font-semibold text-ink">Total</span>
-        <span className="font-mono text-[2rem] font-bold leading-none text-ink num">
+        <span className="font-sans text-[2rem] font-bold leading-none tracking-tight text-ink tabular-nums">
           {formatKES(total)}
         </span>
       </div>

@@ -525,6 +525,7 @@ export function useDashboardStats() {
       itemsSold,
       lowStockItems: 0, // filled from useProducts in the page
       outOfStockItems: 0,
+      yesterdayRevenue,
       revenueChange,
       salesChange,
     };
@@ -540,6 +541,7 @@ export function useDashboardStats() {
     items: number;
     paymentMethod: 'cash' | 'card' | 'qr' | 'mpesa';
     time: string;
+    createdAt: string;
   }
 
   const recentSales: RecentSale[] = useMemo(() => {
@@ -565,6 +567,7 @@ export function useDashboardStats() {
         items: itemCount || 0,
         paymentMethod,
         time: timeAgo(o.created_at),
+        createdAt: o.created_at,
       };
     });
   }, [todayOrders, todayItems, todayPayments]);
