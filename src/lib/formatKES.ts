@@ -20,23 +20,31 @@ export function formatKES(amount: number): string {
   return `KES ${formatKESAmount(amount)}`;
 }
 
-/** Compact KES for chart axes (K / M abbreviations only). */
-export function formatKESAxis(amount: number): string {
+function formatKESAxisCore(amount: number): string {
   const abs = Math.abs(amount);
   if (abs >= 1_000_000) {
     const v = amount / 1_000_000;
     const decimals = Math.abs(v) >= 10 ? 0 : 1;
-    return `KES ${v.toFixed(decimals)}M`;
+    return `${v.toFixed(decimals)}M`;
   }
   if (abs >= 1_000) {
     const v = amount / 1_000;
     const decimals = Math.abs(v) >= 10 ? 0 : 1;
-    return `KES ${v.toFixed(decimals)}K`;
+    return `${v.toFixed(decimals)}K`;
   }
   const hasFraction = Math.abs(amount % 1) > 1e-9;
-  const formatted = new Intl.NumberFormat('en-KE', {
+  return new Intl.NumberFormat('en-KE', {
     minimumFractionDigits: hasFraction ? 1 : 0,
     maximumFractionDigits: hasFraction ? 1 : 0,
   }).format(amount);
-  return `KES ${formatted}`;
+}
+
+/** Compact KES for chart axes (K / M abbreviations only). */
+export function formatKESAxis(amount: number): string {
+  return `KES ${formatKESAxisCore(amount)}`;
+}
+
+/** Chart Y-axis ticks without currency prefix (narrow viewports). */
+export function formatKESAxisTick(amount: number): string {
+  return formatKESAxisCore(amount);
 }

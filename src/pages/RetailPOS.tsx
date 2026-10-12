@@ -45,8 +45,8 @@ import {
   Star,
   Clock,
   Check,
+  Layers,
 } from 'lucide-react';
-import { generatePlaceholderUrl } from '@/lib/product-images';
 import { fc, CURRENCY_SYMBOL } from '@/lib/currency';
 import { formatKES } from '@/lib/formatKES';
 import { formatDate } from '@/lib/formatDate';
@@ -110,8 +110,23 @@ type PersistedRetailCartLine = {
 };
 
 function getInitialProductViewMode(): ProductViewMode {
-  if (typeof window === 'undefined') return 'card';
-  return window.localStorage.getItem(PRODUCT_VIEW_STORAGE_KEY) === 'list' ? 'list' : 'card';
+  if (typeof window === 'undefined') return 'list';
+  const stored = window.localStorage.getItem(PRODUCT_VIEW_STORAGE_KEY);
+  if (stored === 'list' || stored === 'card') return stored;
+  return window.innerWidth >= 1280 ? 'card' : 'list';
+}
+
+function hasProductImage(product: Product): boolean {
+  return Boolean(product.image?.trim());
+}
+
+function showPosCategoryChips(
+  chips: Array<{ slug: string; name: string; icon: string; count: number }>,
+): boolean {
+  if (chips.length === 0) return false;
+  if (chips.length > 1) return true;
+  const only = chips[0];
+  return only.slug !== 'uncategorized' && only.name !== 'Uncategorized';
 }
 
 /** Snapshot address for credit sales from the linked customer record. */
@@ -245,17 +260,17 @@ function CartPaymentMethodSection({
             onClick={() => onMethodChange(id)}
             aria-pressed={selected}
             className={cn(
-              'focus-ring relative flex min-h-[var(--tap-min)] flex-col items-center justify-center gap-1 rounded-[var(--radius)] border-2 px-1 py-2 text-center active:scale-95',
+              'focus-ring relative flex min-h-[var(--tap-primary)] flex-col items-center justify-center gap-1 rounded-[var(--radius)] border-2 px-1 py-2 text-center active:scale-95',
               selected
                 ? 'border-primary bg-[hsl(var(--accent-soft))] text-ink'
                 : 'border-hairline bg-surface text-ink-2 hover:border-primary/40',
             )}
           >
             {selected && (
-              <Check className="absolute right-1 top-1 h-3.5 w-3.5 text-primary" aria-hidden />
+              <Check className="absolute right-1.5 top-1.5 h-4 w-4 text-primary" aria-hidden />
             )}
-            <Icon className={cn('h-4 w-4', selected ? 'text-primary' : 'text-ink-2')} />
-            <span className="text-[10px] font-semibold leading-tight">{label}</span>
+            <Icon className={cn('h-5 w-5', selected ? 'text-primary' : 'text-ink-2')} />
+            <span className="text-sm font-semibold leading-tight">{label}</span>
           </button>
           );
         })}
@@ -414,12 +429,13 @@ function CreditSaleExtras({
         </p>
       </div>
 
-      <label className="flex cursor-pointer items-center gap-2.5 rounded-md border border-border/60 bg-background/60 px-2.5 py-2">
+      <label className="flex min-h-[var(--tap-min)] cursor-pointer items-center gap-3 rounded-[var(--radius)] border border-hairline bg-surface px-3">
         <Checkbox
           checked={recordDepositNow}
           onCheckedChange={(checked) => onRecordDepositNowChange(checked === true)}
+          className="h-6 w-6"
         />
-        <span className="text-sm font-medium text-foreground">Record a deposit now?</span>
+        <span className="text-sm font-medium text-ink">Record a deposit now?</span>
       </label>
 
       {/* Smooth expand/collapse — UI visibility only; field state is preserved when collapsed */}
@@ -542,51 +558,71 @@ function CartTotalsSection({
   discountAmount: number;
   total: number;
 }) {
+  const [discountOpen, setDiscountOpen] = useState(
+    () => discountAmount > 0 || discountInput.trim().length > 0,
+  );
+
+  useEffect(() => {
+    if (discountAmount > 0 || discountInput.trim().length > 0) {
+      setDiscountOpen(true);
+    }
+  }, [discountAmount, discountInput]);
+
   return (
     <div className="space-y-3 text-sm">
-      <div className="space-y-1.5 border-b border-hairline pb-3">
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-xs text-ink-2">Discount</span>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => onDiscountModeChange('amount')}
-              className={cn(
-                'focus-ring min-h-[var(--tap-min)] min-w-[var(--tap-min)] rounded-[var(--radius)] px-3 text-xs font-semibold active:scale-95',
-                discountMode === 'amount'
-                  ? 'border-2 border-primary bg-[hsl(var(--accent-soft))] text-ink'
-                  : 'border border-hairline bg-surface text-ink-2',
-              )}
-            >
-              {CURRENCY_SYMBOL}
-            </button>
-            <button
-              type="button"
-              onClick={() => onDiscountModeChange('percent')}
-              className={cn(
-                'focus-ring min-h-[var(--tap-min)] min-w-[var(--tap-min)] rounded-[var(--radius)] px-3 text-xs font-semibold active:scale-95',
-                discountMode === 'percent'
-                  ? 'border-2 border-primary bg-[hsl(var(--accent-soft))] text-ink'
-                  : 'border border-hairline bg-surface text-ink-2',
-              )}
-            >
-              %
-            </button>
+      {!discountOpen ? (
+        <button
+          type="button"
+          onClick={() => setDiscountOpen(true)}
+          className="focus-ring min-h-[var(--tap-min)] text-sm font-semibold text-primary underline-offset-2 hover:underline"
+        >
+          Add discount
+        </button>
+      ) : (
+        <div className="space-y-1.5 border-b border-dotted border-hairline pb-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs text-ink-2">Discount</span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => onDiscountModeChange('amount')}
+                className={cn(
+                  'focus-ring min-h-[var(--tap-min)] min-w-[var(--tap-min)] rounded-[var(--radius)] px-3 text-xs font-semibold active:scale-95',
+                  discountMode === 'amount'
+                    ? 'border-2 border-primary bg-[hsl(var(--accent-soft))] text-ink'
+                    : 'border border-hairline bg-paper text-ink-2',
+                )}
+              >
+                {CURRENCY_SYMBOL}
+              </button>
+              <button
+                type="button"
+                onClick={() => onDiscountModeChange('percent')}
+                className={cn(
+                  'focus-ring min-h-[var(--tap-min)] min-w-[var(--tap-min)] rounded-[var(--radius)] px-3 text-xs font-semibold active:scale-95',
+                  discountMode === 'percent'
+                    ? 'border-2 border-primary bg-[hsl(var(--accent-soft))] text-ink'
+                    : 'border border-hairline bg-paper text-ink-2',
+                )}
+              >
+                %
+              </button>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Input
+              type="text"
+              inputMode="decimal"
+              pattern="[0-9]*"
+              min="0"
+              placeholder={discountMode === 'percent' ? '0' : '0.00'}
+              value={discountInput}
+              onChange={(e) => onDiscountInputChange(e.target.value)}
+              className="min-h-[var(--tap-min)] border-hairline bg-paper text-sm"
+            />
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Input
-            type="text"
-            inputMode="decimal"
-            pattern="[0-9]*"
-            min="0"
-            placeholder={discountMode === 'percent' ? '0' : '0.00'}
-            value={discountInput}
-            onChange={(e) => onDiscountInputChange(e.target.value)}
-            className="min-h-[var(--tap-min)] border-hairline bg-surface text-sm"
-          />
-        </div>
-      </div>
+      )}
 
       <div className="space-y-2 font-sans text-sm text-ink-2">
         <div className="flex justify-between">
@@ -601,9 +637,13 @@ function CartTotalsSection({
         )}
       </div>
 
-      <div className="flex items-baseline justify-between border-t border-hairline pt-3">
+      <div
+        className="flex items-baseline justify-between border-t-4 border-double border-hairline pt-3"
+        role="group"
+        aria-label="Order total"
+      >
         <span className="text-base font-semibold text-ink">Total</span>
-        <span className="font-sans text-[2rem] font-bold leading-none tracking-tight text-ink tabular-nums">
+        <span className="font-sans text-[clamp(2rem,5vw,2.5rem)] font-bold leading-none tracking-tight text-ink tabular-nums">
           {formatKES(total)}
         </span>
       </div>
@@ -693,56 +733,62 @@ function CartReceiptLine({
 }) {
   const lineTotal = unitPrice * item.quantity;
   const productId = item.product.id;
+  const [priceExpanded, setPriceExpanded] = useState(false);
 
   return (
-    <div className="border-b border-hairline py-3 last:border-b-0">
-      <div className="flex items-start gap-2">
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold leading-snug text-ink">{item.product.name}</p>
-          <p className="mt-1 font-mono text-xs text-ink-2 num">
-            {item.quantity} × {formatKES(unitPrice)}
-          </p>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <div className="relative w-[5.5rem]">
-              <span className="pointer-events-none absolute left-1.5 top-1/2 -translate-y-1/2 text-[10px] text-ink-2">
-                {CURRENCY_SYMBOL}
-              </span>
-              <input
-                type="text"
-                inputMode="decimal"
-                value={editingPrice ?? unitPrice}
-                onChange={(e) => onPriceChange(productId, e.target.value)}
-                onBlur={() => onPriceCommit(productId)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') onPriceCommit(productId);
-                }}
-                className="h-[var(--tap-min)] min-h-[var(--tap-min)] w-full rounded-[var(--radius)] border border-hairline bg-paper pl-7 pr-1 font-mono text-xs text-ink num focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                aria-label={`Unit price for ${item.product.name}`}
-              />
-            </div>
-            <CartQtyControl
-              productId={productId}
-              quantity={item.quantity}
-              editingValue={editingQty}
-              onEditingChange={onQtyEditingChange}
-              onCommit={onQtyCommit}
-              onStep={onQtyStep}
-            />
-          </div>
-        </div>
-        <div className="flex shrink-0 flex-col items-end gap-2">
-          <span className="font-mono text-sm font-semibold text-ink num">
-            {formatKES(lineTotal)}
+    <div className="border-b border-dotted border-hairline py-3 last:border-b-0">
+      <div className="flex items-start justify-between gap-2">
+        <p className="min-w-0 flex-1 text-sm font-semibold leading-snug text-ink">
+          {item.product.name}
+        </p>
+        <span className="shrink-0 font-mono text-sm font-semibold text-ink num">
+          {formatKES(lineTotal)}
+        </span>
+      </div>
+      {!priceExpanded ? (
+        <button
+          type="button"
+          onClick={() => setPriceExpanded(true)}
+          className="focus-ring mt-1 flex min-h-[var(--tap-min)] w-full items-center rounded-[var(--radius)] px-1 text-left font-mono text-sm text-ink-2 num active:scale-[0.99]"
+        >
+          {item.quantity} × {formatKES(unitPrice)}
+        </button>
+      ) : (
+        <div className="relative mt-1 w-full max-w-[9rem]">
+          <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-ink-2">
+            {CURRENCY_SYMBOL}
           </span>
-          <button
-            type="button"
-            aria-label={`Remove ${item.product.name}`}
-            onClick={() => onRemove(productId)}
-            className="focus-ring flex min-h-[var(--tap-min)] min-w-[var(--tap-min)] items-center justify-center rounded-[var(--radius)] text-fail active:scale-95"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
+          <input
+            type="text"
+            inputMode="decimal"
+            value={editingPrice ?? unitPrice}
+            onChange={(e) => onPriceChange(productId, e.target.value)}
+            onBlur={() => onPriceCommit(productId)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') onPriceCommit(productId);
+            }}
+            className="h-[var(--tap-min)] min-h-[var(--tap-min)] w-full rounded-[var(--radius)] border border-hairline bg-paper pl-7 pr-2 font-mono text-sm text-ink num focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label={`Unit price for ${item.product.name}`}
+          />
         </div>
+      )}
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <CartQtyControl
+          productId={productId}
+          quantity={item.quantity}
+          editingValue={editingQty}
+          onEditingChange={onQtyEditingChange}
+          onCommit={onQtyCommit}
+          onStep={onQtyStep}
+        />
+        <button
+          type="button"
+          aria-label={`Remove ${item.product.name}`}
+          onClick={() => onRemove(productId)}
+          className="focus-ring flex min-h-[var(--tap-min)] min-w-[var(--tap-min)] items-center justify-center rounded-[var(--radius)] border border-hairline bg-paper text-fail active:scale-95"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
       </div>
     </div>
   );
@@ -768,17 +814,21 @@ function CartCheckoutFooter({
   onReprint?: () => void;
 }) {
   return (
-    <div className="sticky bottom-0 z-10 shrink-0 border-t border-hairline bg-surface p-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] shadow-float">
+    <div className="sticky bottom-0 z-10 shrink-0 border-t border-hairline bg-paper p-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]">
       {disabledHint && (
         <p className="mb-2 text-center text-xs text-ink-2">{disabledHint}</p>
       )}
-      <Button
-        className={cn(
-          'min-h-[var(--tap-primary)] w-full text-base font-bold active:scale-95',
-          saleType === 'credit' && 'bg-warning text-warning-foreground hover:bg-warning/90',
-        )}
+      <button
+        type="button"
         onClick={onClick}
         disabled={disabled}
+        aria-disabled={disabled}
+        className={cn(
+          'focus-ring flex min-h-[var(--tap-primary)] w-full items-center justify-center rounded-[var(--radius)] text-base font-bold active:scale-[0.98]',
+          disabled
+            ? 'cursor-not-allowed border border-hairline bg-[hsl(var(--hairline))] text-ink-2'
+            : 'bg-primary text-primary-foreground',
+        )}
       >
         {isProcessing ? (
           <>
@@ -787,19 +837,57 @@ function CartCheckoutFooter({
           </>
         ) : saleType === 'credit' ? (
           <>
-            <FileText className="mr-2 h-4 w-4" />
+            <FileText className="mr-2 h-4 w-4" aria-hidden />
             Create Invoice — {formatKES(total)}
           </>
         ) : (
           `Complete Sale — ${formatKES(total)}`
         )}
-      </Button>
+      </button>
       {lastOrder && onReprint && (
         <Button variant="outline" className="mt-2 w-full gap-2" size="sm" onClick={onReprint}>
           <Printer className="h-4 w-4" />
           Reprint #{lastOrder.invoice_number || lastOrder.order_number}
         </Button>
       )}
+    </div>
+  );
+}
+
+function ProductListQtyStepper({
+  productId,
+  quantity,
+  onStep,
+}: {
+  productId: string;
+  quantity: number;
+  onStep: (productId: string, nextQty: number) => void;
+}) {
+  return (
+    <div
+      className="flex shrink-0 items-center gap-0.5"
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => e.stopPropagation()}
+    >
+      <button
+        type="button"
+        aria-label="Decrease quantity"
+        onClick={() => onStep(productId, quantity - 1)}
+        className="focus-ring flex min-h-[var(--tap-min)] min-w-[var(--tap-min)] items-center justify-center rounded-[var(--radius)] border border-hairline bg-paper text-ink active:scale-95"
+      >
+        <Minus className="h-4 w-4" />
+      </button>
+      <span className="flex min-w-[2rem] justify-center font-mono text-sm font-semibold text-ink num">
+        {quantity}
+      </span>
+      <button
+        type="button"
+        aria-label="Increase quantity"
+        onClick={() => onStep(productId, quantity + 1)}
+        className="focus-ring flex min-h-[var(--tap-min)] min-w-[var(--tap-min)] items-center justify-center rounded-[var(--radius)] border border-hairline bg-paper text-ink active:scale-95"
+      >
+        <Plus className="h-4 w-4" />
+      </button>
     </div>
   );
 }
@@ -830,8 +918,6 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
   const { createOrder, recordPayment } = useOrders();
   const { customers, getCustomerDisplayName, refetch: refetchCustomers } = useCustomers();
   const { companyName } = useCompanySettings();
-  // REVIEW: Connectivity for POS banner — wired to existing useSyncStatus (navigator.onLine + outbox).
-  const { isOnline } = useSyncStatus();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeBrowseKey, setActiveBrowseKey] = useState('all');
   const [showOutOfStock, setShowOutOfStock] = useState(() =>
@@ -871,6 +957,17 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
   const [lastOrderCustomer, setLastOrderCustomer] = useState<Customer | null>(null);
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
   const [productViewMode, setProductViewMode] = useState<ProductViewMode>(getInitialProductViewMode);
+
+  useEffect(() => {
+    if (!mobileCartOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isProcessing) {
+        setMobileCartOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [mobileCartOpen, isProcessing]);
   const [discountMode, setDiscountMode] = useState<DiscountMode>('amount');
   const [discountInput, setDiscountInput] = useState('');
   const [cashPaymentMethod, setCashPaymentMethod] = useState<PaymentMethod>('cash');
@@ -944,6 +1041,11 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
       .map(([slug, meta]) => ({ slug, ...meta }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [sellableRetailProducts, retailCategories]);
+
+  const categoryChipsVisible = useMemo(
+    () => showPosCategoryChips(posCategoryChips),
+    [posCategoryChips],
+  );
 
   const hiddenOutOfStockCount = useMemo(
     () => sellableRetailProducts.filter((p) => p.isActive && p.stock <= 0).length,
@@ -1121,7 +1223,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
     if (!showOutOfStock && hiddenOutOfStockCount > 0) {
       return `No in-stock products. ${hiddenOutOfStockCount} out-of-stock item${
         hiddenOutOfStockCount === 1 ? '' : 's'
-      } hidden — tap "Show OOS" to view them.`;
+      } hidden — turn on Out of stock to view them.`;
     }
     return 'No products found';
   }, [activeBrowseKey, hiddenOutOfStockCount, searchQuery, showOutOfStock]);

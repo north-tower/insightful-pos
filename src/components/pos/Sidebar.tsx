@@ -428,8 +428,16 @@ export function Sidebar({
     </div>
   );
 
-  const footerActions = (compact?: boolean) => (
-    <div className="shrink-0 space-y-0.5 border-t border-hairline px-3 py-3">
+  const drawerFooterRowClass =
+    'focus-ring relative flex w-full h-11 min-h-11 items-center gap-3 rounded-[var(--radius)] px-2.5 text-sm font-medium text-ink-2 hover:bg-muted hover:text-ink motion-reduce:transition-none';
+
+  const footerActions = (compact?: boolean, drawer?: boolean) => (
+    <div
+      className={cn(
+        'shrink-0 space-y-0.5 border-t border-hairline px-3',
+        drawer ? 'py-1.5' : 'py-3',
+      )}
+    >
       {visibleBottomItems.map((item) => {
         const Icon = item.icon;
         if (compact) {
@@ -456,7 +464,7 @@ export function Sidebar({
             key={item.id}
             type="button"
             onClick={() => handleNavClick(item.id)}
-            className={cn(navRowClass, 'text-ink-2 hover:text-ink')}
+            className={cn(drawer ? drawerFooterRowClass : navRowClass, 'text-ink-2 hover:text-ink')}
           >
             <Icon className="h-4 w-4 shrink-0" aria-hidden />
             {item.label}
@@ -483,7 +491,11 @@ export function Sidebar({
         <button
           type="button"
           onClick={() => void handleLogout()}
-          className={cn(navRowClass, 'text-ink hover:text-ink')}
+          className={cn(
+            drawer ? drawerFooterRowClass : navRowClass,
+            'text-ink hover:text-ink',
+            drawer && 'text-ink-2',
+          )}
         >
           <LogOut className="h-4 w-4 shrink-0" aria-hidden />
           Logout
@@ -492,13 +504,14 @@ export function Sidebar({
     </div>
   );
 
-  const navRegion = (compact?: boolean) => (
+  const navRegion = (compact?: boolean, drawer?: boolean) => (
     <nav
       ref={navScrollRef}
       aria-label="Primary"
       onScroll={updateNavScrollEdges}
       className={cn(
         'shell-nav-scroll min-h-0 flex-1 overflow-y-auto px-2 py-2',
+        drawer && 'min-h-[60%]',
         navScrollState.top && 'shell-nav-scroll--top',
         navScrollState.bottom && 'shell-nav-scroll--bottom',
       )}
@@ -522,12 +535,12 @@ export function Sidebar({
         <div className="shrink-0 border-b border-hairline px-4 py-3">{mobileDrawerTop}</div>
       )}
       {logoBlock(true)}
-      {navRegion(false)}
+      {navRegion(false, true)}
       {mobileDrawerFooter && (
-        <div className="shrink-0 border-t border-hairline px-4 py-2">{mobileDrawerFooter}</div>
+        <div className="shrink-0 border-t border-hairline px-3 py-1.5">{mobileDrawerFooter}</div>
       )}
       {userBlock(false)}
-      {footerActions(false)}
+      {footerActions(false, true)}
     </>
   );
 
@@ -572,7 +585,7 @@ export function Sidebar({
           <aside
             className={cn(
               asideClass,
-              'relative z-10 w-64 max-w-[85vw] shadow-float motion-reduce:animate-none animate-in slide-in-from-left duration-300',
+              'relative z-10 h-full max-h-[100dvh] w-[min(320px,85vw)] shadow-float motion-reduce:animate-none animate-in slide-in-from-left duration-300',
             )}
           >
             {drawerInner}

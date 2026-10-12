@@ -1,9 +1,12 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Cell, XAxis, YAxis } from 'recharts';
 import { ChartContainer, ChartTooltip } from '@/components/ui/chart';
 import type { SalesData } from '@/data/dashboardData';
 import { cn } from '@/lib/utils';
-import { formatKES, formatKESAxis } from '@/lib/formatKES';
+import { formatKES, formatKESAxis, formatKESAxisTick } from '@/lib/formatKES';
+
+const Y_AXIS_WIDTH_FULL = 76;
+const Y_AXIS_WIDTH_COMPACT = 44;
 
 type TimeRange = 'daily' | 'weekly' | 'monthly';
 
@@ -30,6 +33,15 @@ export function RetailSalesRevenueSection({
   monthlyData,
 }: RetailSalesRevenueSectionProps) {
   const [timeRange, setTimeRange] = useState<TimeRange>('weekly');
+  const [compactYAxis, setCompactYAxis] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 359px)');
+    const update = () => setCompactYAxis(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
 
   const chartData = useMemo(() => {
     switch (timeRange) {
@@ -123,11 +135,19 @@ export function RetailSalesRevenueSection({
       ) : (
         <ChartContainer
           config={chartConfig}
-          className="relative block aspect-auto h-[160px] min-h-[160px] min-w-0 max-w-full overflow-hidden md:h-[240px] md:min-h-[240px] [&_.recharts-cartesian-axis-tick_text]:fill-[hsl(var(--ink-2))] [&_.recharts-cartesian-axis-tick_text]:text-[10px] sm:[&_.recharts-cartesian-axis-tick_text]:text-xs [&_.recharts-responsive-container]:!absolute [&_.recharts-responsive-container]:inset-0 [&_.recharts-responsive-container]:!h-full [&_.recharts-responsive-container]:!max-w-full [&_.recharts-responsive-container]:!w-full"
+          className="relative block aspect-auto h-[160px] min-h-[160px] min-w-0 max-w-full overflow-hidden md:h-[240px] md:min-h-[240px] [&_.recharts-cartesian-axis-tick_text]:fill-[hsl(var(--ink-2))] [&_.recharts-cartesian-axis-tick_text]:text-[10px] sm:[&_.recharts-cartesian-axis-tick_text]:text-xs [&_.recharts-responsive-container]:!absolute [&_.recharts-responsive-container]:inset-0 [&_.recharts-responsive-container]:!h-full [&_.recharts-responsive-container]:!max-w-full [&_.recharts-responsive-container]:!w-full [&_.recharts-yAxis_.recharts-cartesian-axis-tick_text]:whitespace-nowrap [&_.recharts-yAxis_.recharts-cartesian-axis-tick_text]:text-xs"
         >
+          {compactYAxis ? (
+            <span
+              className="pointer-events-none absolute left-0 top-0 z-[1] text-xs font-medium leading-none text-ink-2"
+              aria-hidden
+            >
+              KES
+            </span>
+          ) : null}
           <BarChart
             data={chartData}
-            margin={{ left: 0, right: 4, top: 8, bottom: 0 }}
+            margin={{ left: 0, right: 4, top: compactYAxis ? 18 : 14, bottom: 0 }}
           >
             <CartesianGrid
               vertical={false}
@@ -147,8 +167,12 @@ export function RetailSalesRevenueSection({
               tickLine={false}
               axisLine={false}
               tickMargin={4}
-              width={56}
-              tickFormatter={(v) => formatKESAxis(Number(v))}
+              width={compactYAxis ? Y_AXIS_WIDTH_COMPACT : Y_AXIS_WIDTH_FULL}
+              tickFormatter={(v) =>
+                compactYAxis
+                  ? formatKESAxisTick(Number(v))
+                  : formatKESAxis(Number(v))
+              }
             />
             <ChartTooltip
               cursor={{ fill: 'hsl(var(--hairline) / 0.35)' }}

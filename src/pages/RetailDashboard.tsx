@@ -170,38 +170,40 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
       <div className="mx-auto flex w-full min-w-0 max-w-[1280px] flex-col gap-6 md:gap-4">
         <header className="order-1 border-b border-hairline pb-6 md:pb-4">
           <div className="flex min-w-0 items-start justify-between gap-3">
-            <h1 className="min-w-0 text-2xl font-bold text-ink md:text-3xl">Today</h1>
+            <div className="min-w-0 flex-1">
+              <h1 className="min-w-0 text-2xl font-bold text-ink md:text-3xl">Today</h1>
+              <div className="mt-1 flex min-w-0 items-center gap-2">
+                {loading ? (
+                  <div className="h-4 min-w-0 max-w-xs flex-1 rounded-sm bg-hairline/80" aria-hidden />
+                ) : (
+                  <p className="min-w-0 text-sm text-ink-2">
+                    {formatDateWithWeekday(today)}
+                    {' · '}
+                    Synced{' '}
+                    {lastSyncedAt ? formatSyncedDateTime(lastSyncedAt) : 'Not synced yet'}
+                  </p>
+                )}
+                <button
+                  type="button"
+                  onClick={refetch}
+                  disabled={statsLoading}
+                  className={cn(
+                    'focus-ring inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius)] border border-hairline bg-surface text-ink active:scale-[0.98]',
+                    '[@media(pointer:coarse)]:h-12 [@media(pointer:coarse)]:w-12',
+                  )}
+                  title="Refresh dashboard"
+                  aria-label="Refresh dashboard"
+                >
+                  <RefreshCw
+                    className={cn('h-5 w-5', statsLoading && 'motion-safe:animate-spin')}
+                    aria-hidden
+                  />
+                </button>
+              </div>
+            </div>
             <div className="hidden shrink-0 flex-wrap items-center justify-end gap-2 md:flex">
               {headerPrimaryActions}
             </div>
-          </div>
-          <div className="mt-4 flex min-w-0 items-center justify-between gap-3 md:mt-2">
-            {loading ? (
-              <div className="h-4 min-w-0 flex-1 max-w-xs rounded-sm bg-hairline/80" aria-hidden />
-            ) : (
-              <p className="min-w-0 flex-1 text-sm text-ink-2">
-                {formatDateWithWeekday(today)}
-                {' · '}
-                Synced{' '}
-                {lastSyncedAt ? formatSyncedDateTime(lastSyncedAt) : 'Not synced yet'}
-              </p>
-            )}
-            <button
-              type="button"
-              onClick={refetch}
-              disabled={statsLoading}
-              className={cn(
-                OUTLINED_BTN,
-                'min-h-[var(--tap-min)] min-w-[var(--tap-min)] shrink-0 px-3',
-              )}
-              title="Refresh dashboard"
-              aria-label="Refresh dashboard"
-            >
-              <RefreshCw
-                className={cn('h-5 w-5 text-ink', statsLoading && 'motion-safe:animate-spin')}
-                aria-hidden
-              />
-            </button>
           </div>
         </header>
 

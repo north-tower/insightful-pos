@@ -74,7 +74,7 @@ export function PageLayout({
         onMobileClose={() => setMobileMenuOpen(false)}
         mobileDrawerTop={!hideHeaderSearch ? <GlobalSearchField /> : undefined}
         mobileDrawerFooter={
-          <div className="flex items-center justify-between gap-2 px-1">
+          <div className="flex h-11 min-h-11 items-center justify-between gap-2">
             <span className="text-sm font-medium text-ink-2">Theme</span>
             <ThemeToggle />
           </div>
