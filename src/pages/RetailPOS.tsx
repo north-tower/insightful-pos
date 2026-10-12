@@ -41,14 +41,11 @@ import {
   Minus,
   Plus,
   ScanBarcode,
-  CloudOff,
-  Wifi,
   Info,
   Star,
   Clock,
   Check,
 } from 'lucide-react';
-import { useSyncStatus } from '@/hooks/useSyncStatus';
 import { generatePlaceholderUrl } from '@/lib/product-images';
 import { fc, CURRENCY_SYMBOL } from '@/lib/currency';
 import { formatKES } from '@/lib/formatKES';
@@ -1409,32 +1406,6 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
     >
           {/* Product Grid Area */}
           <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-            {/*
-              POS connectivity strip — always visible on mobile cashiers.
-              REVIEW: Uses useSyncStatus (navigator.onLine). Replace/extend if a richer sync context lands.
-            */}
-            <div
-              className={cn(
-                'flex items-center gap-2 border-b px-3 py-2 text-xs lg:hidden',
-                isOnline
-                  ? 'border-border bg-muted/40 text-muted-foreground'
-                  : 'border-destructive/20 bg-destructive/10 text-destructive',
-              )}
-              role="status"
-            >
-              {isOnline ? (
-                <>
-                  <Wifi className="h-3.5 w-3.5 shrink-0 text-success" />
-                  <span>Online</span>
-                </>
-              ) : (
-                <>
-                  <CloudOff className="h-3.5 w-3.5 shrink-0" />
-                  <span>Offline — sale will sync when reconnected</span>
-                </>
-              )}
-            </div>
-
             {/* Search + scan + view mode */}
             <div className="flex gap-2 p-2 pb-2 sm:gap-3 sm:p-3 lg:p-4 lg:pb-2">
               <div className="relative min-w-0 flex-1">

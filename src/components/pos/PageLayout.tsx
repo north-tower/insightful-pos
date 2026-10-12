@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Sidebar } from '@/components/pos/Sidebar';
 import { Header } from '@/components/pos/Header';
+import { GlobalSearchField } from '@/components/pos/GlobalSearchField';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -17,14 +19,8 @@ interface PageLayoutProps {
   activeTab: string;
   onNavigate: (tab: string) => void;
   children: React.ReactNode;
-  /** If true, the content area uses flex row layout (e.g. POS with cart panel) */
   flexContent?: boolean;
-  /**
-   * Hide the mobile bottom tab bar (e.g. while the POS cart/checkout sheet is open
-   * so the sticky Complete Sale bar isn't competing for thumb space).
-   */
   hideBottomNav?: boolean;
-  /** Hide the global header search (e.g. POS has its own product search). */
   hideHeaderSearch?: boolean;
 }
 
@@ -48,11 +44,6 @@ const retailBottomNav: BottomNavItem[] = [
   { id: 'customers', label: 'Customers', icon: Users },
 ];
 
-/**
- * Shared page layout: responsive sidebar + header + content area.
- * Desktop: sidebar always visible on the left.
- * Mobile: sidebar hidden behind a hamburger menu overlay + bottom nav bar.
- */
 export function PageLayout({
   activeTab,
   onNavigate,
@@ -68,15 +59,29 @@ export function PageLayout({
   const showBottomNav = !hideBottomNav;
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
+    <div className="flex h-screen overflow-hidden bg-paper">
+      <a
+        href="#main-content"
+        className="focus-ring sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-[var(--radius)] focus:bg-surface focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-ink"
+      >
+        Skip to main content
+      </a>
+
       <Sidebar
         activeTab={activeTab}
         onTabChange={onNavigate}
         mobileOpen={mobileMenuOpen}
         onMobileClose={() => setMobileMenuOpen(false)}
+        mobileDrawerTop={!hideHeaderSearch ? <GlobalSearchField /> : undefined}
+        mobileDrawerFooter={
+          <div className="flex items-center justify-between gap-2 px-1">
+            <span className="text-sm font-medium text-ink-2">Theme</span>
+            <ThemeToggle />
+          </div>
+        }
       />
 
-      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <DemoModeBanner />
         <Header
           onMenuToggle={() => setMobileMenuOpen(true)}
@@ -84,36 +89,40 @@ export function PageLayout({
         />
 
         {flexContent ? (
-          <div
+          <main
+            id="main-content"
+            tabIndex={-1}
             className={cn(
-              'flex-1 flex flex-col lg:flex-row overflow-hidden lg:pb-0',
+              'flex min-h-0 flex-1 flex-col overflow-hidden outline-none lg:flex-row lg:pb-0',
               showBottomNav
-                ? 'pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))]'
+                ? 'pb-[calc(4rem+env(safe-area-inset-bottom,0px))]'
                 : 'pb-[env(safe-area-inset-bottom,0px)]',
             )}
           >
             {children}
-          </div>
+          </main>
         ) : (
-          <div
+          <main
+            id="main-content"
+            tabIndex={-1}
             className={cn(
-              'flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6 lg:pb-6',
+              'min-h-0 flex-1 overflow-y-auto p-3 outline-none sm:p-4 lg:p-6 lg:pb-6',
               showBottomNav
                 ? 'pb-[calc(4rem+env(safe-area-inset-bottom,0px))]'
                 : 'pb-4',
             )}
           >
             {children}
-          </div>
+          </main>
         )}
 
-        {/* Mobile Bottom Navigation — Home / POS / History / Customers */}
         {showBottomNav && (
           <nav
-            className="lg:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-card"
+            aria-label="Quick navigation"
+            className="fixed bottom-0 left-0 right-0 z-40 border-t border-hairline bg-surface md:hidden"
             style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
           >
-            <div className="flex h-14 items-center justify-around">
+            <div className="flex h-16 items-stretch justify-around">
               {bottomNav.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.id;
@@ -122,15 +131,19 @@ export function PageLayout({
                     key={item.id}
                     type="button"
                     onClick={() => onNavigate(item.id)}
+                    aria-current={isActive ? 'page' : undefined}
                     className={cn(
-                      'flex min-h-11 min-w-11 flex-1 flex-col items-center justify-center gap-0.5 transition-colors',
+                      'focus-ring relative flex min-h-[var(--tap-min)] min-w-[var(--tap-min)] flex-1 flex-col items-center justify-center gap-0.5 px-1',
                       isActive
-                        ? 'text-primary'
-                        : 'text-muted-foreground active:text-foreground',
+                        ? 'font-semibold text-ink before:absolute before:left-2 before:right-2 before:top-0 before:h-[3px] before:rounded-full before:bg-primary before:content-[""]'
+                        : 'text-ink-2',
                     )}
                   >
-                    <Icon className={cn('h-5 w-5', isActive && 'scale-110')} />
-                    <span className="text-[10px] font-medium">{item.label}</span>
+                    <Icon
+                      className={cn('h-5 w-5', isActive && 'text-primary')}
+                      aria-hidden
+                    />
+                    <span className="text-xs">{item.label}</span>
                   </button>
                 );
               })}

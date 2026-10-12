@@ -6,9 +6,10 @@ import { cn } from '@/lib/utils';
 
 interface ThemeToggleProps {
   variant?: 'default' | 'primary';
+  className?: string;
 }
 
-export function ThemeToggle({ variant = 'default' }: ThemeToggleProps) {
+export function ThemeToggle({ variant = 'default', className }: ThemeToggleProps) {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
@@ -23,8 +24,9 @@ export function ThemeToggle({ variant = 'default' }: ThemeToggleProps) {
         variant="ghost" 
         size="icon" 
         className={cn(
-          "w-9 h-9",
-          variant === 'primary' && "text-primary-foreground hover:bg-primary-foreground/10"
+          "focus-ring h-12 w-12 min-h-[var(--tap-min)] min-w-[var(--tap-min)]",
+          variant === 'primary' && "text-primary-foreground hover:bg-primary-foreground/10",
+          className,
         )}
       >
         <Sun className="h-4 w-4" />
@@ -32,16 +34,19 @@ export function ThemeToggle({ variant = 'default' }: ThemeToggleProps) {
     );
   }
 
+  const nextMode = theme === 'dark' ? 'light' : 'dark';
+
   return (
     <Button
       variant="ghost"
       size="icon"
-      onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+      onClick={() => setTheme(nextMode)}
       className={cn(
-        "w-9 h-9",
-        variant === 'primary' && "text-primary-foreground hover:bg-primary-foreground/10"
+        "focus-ring h-12 w-12 min-h-[var(--tap-min)] min-w-[var(--tap-min)]",
+        variant === 'primary' && "text-primary-foreground hover:bg-primary-foreground/10",
+        className,
       )}
-      aria-label="Toggle theme"
+      aria-label={nextMode === 'dark' ? 'Switch to dark mode' : 'Switch to light mode'}
     >
       {theme === 'dark' ? (
         <Sun className="h-4 w-4 transition-all" />
