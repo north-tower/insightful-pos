@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import { PageLayout } from '@/components/pos/PageLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -241,11 +241,13 @@ function CartPaymentMethodSection({
   onMethodChange,
   reference,
   onReferenceChange,
+  compact = false,
 }: {
   method: PaymentMethod;
   onMethodChange: (method: PaymentMethod) => void;
   reference: string;
   onReferenceChange: (value: string) => void;
+  compact?: boolean;
 }) {
   return (
     <div className="space-y-2">
@@ -260,7 +262,10 @@ function CartPaymentMethodSection({
             onClick={() => onMethodChange(id)}
             aria-pressed={selected}
             className={cn(
-              'focus-ring relative flex min-h-[var(--tap-primary)] flex-col items-center justify-center gap-1 rounded-[var(--radius)] border-2 px-1 py-2 text-center active:scale-95',
+              'focus-ring relative flex min-h-[var(--tap-min)] rounded-[var(--radius)] border-2 px-2 active:scale-95',
+              compact
+                ? 'flex-row items-center justify-center gap-2 py-1 text-left'
+                : 'min-h-[var(--tap-primary)] flex-col items-center justify-center gap-1 py-2 text-center',
               selected
                 ? 'border-primary bg-[hsl(var(--accent-soft))] text-ink'
                 : 'border-hairline bg-surface text-ink-2 hover:border-primary/40',
@@ -269,8 +274,8 @@ function CartPaymentMethodSection({
             {selected && (
               <Check className="absolute right-1.5 top-1.5 h-4 w-4 text-primary" aria-hidden />
             )}
-            <Icon className={cn('h-5 w-5', selected ? 'text-primary' : 'text-ink-2')} />
-            <span className="text-sm font-semibold leading-tight">{label}</span>
+            <Icon className={cn(compact ? 'h-5 w-5 shrink-0' : 'h-5 w-5', selected ? 'text-primary' : 'text-ink-2')} />
+            <span className={cn('font-semibold leading-tight', compact ? 'text-xs' : 'text-sm')}>{label}</span>
           </button>
           );
         })}
@@ -736,43 +741,19 @@ function CartReceiptLine({
   const [priceExpanded, setPriceExpanded] = useState(false);
 
   return (
-    <div className="border-b border-dotted border-hairline py-3 last:border-b-0">
+    <div className="min-h-[6.25rem] border-b border-dotted border-hairline py-2 last:border-b-0">
       <div className="flex items-start justify-between gap-2">
-        <p className="min-w-0 flex-1 text-sm font-semibold leading-snug text-ink">
+        <p
+          className="line-clamp-2 min-w-0 flex-1 text-sm font-semibold leading-snug text-ink"
+          title={item.product.name}
+        >
           {item.product.name}
         </p>
         <span className="shrink-0 font-mono text-sm font-semibold text-ink num">
           {formatKES(lineTotal)}
         </span>
       </div>
-      {!priceExpanded ? (
-        <button
-          type="button"
-          onClick={() => setPriceExpanded(true)}
-          className="focus-ring mt-1 flex min-h-[var(--tap-min)] w-full items-center rounded-[var(--radius)] px-1 text-left font-mono text-sm text-ink-2 num active:scale-[0.99]"
-        >
-          {item.quantity} × {formatKES(unitPrice)}
-        </button>
-      ) : (
-        <div className="relative mt-1 w-full max-w-[9rem]">
-          <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-ink-2">
-            {CURRENCY_SYMBOL}
-          </span>
-          <input
-            type="text"
-            inputMode="decimal"
-            value={editingPrice ?? unitPrice}
-            onChange={(e) => onPriceChange(productId, e.target.value)}
-            onBlur={() => onPriceCommit(productId)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') onPriceCommit(productId);
-            }}
-            className="h-[var(--tap-min)] min-h-[var(--tap-min)] w-full rounded-[var(--radius)] border border-hairline bg-paper pl-7 pr-2 font-mono text-sm text-ink num focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            aria-label={`Unit price for ${item.product.name}`}
-          />
-        </div>
-      )}
-      <div className="mt-2 flex items-center justify-between gap-2">
+      <div className="mt-1 flex items-center gap-2">
         <CartQtyControl
           productId={productId}
           quantity={item.quantity}
@@ -781,14 +762,65 @@ function CartReceiptLine({
           onCommit={onQtyCommit}
           onStep={onQtyStep}
         />
+        <div className="flex min-h-[var(--tap-min)] min-w-0 flex-1 items-center justify-center">
+          {!priceExpanded ? (
+            <button
+              type="button"
+              onClick={() => setPriceExpanded(true)}
+              className="focus-ring flex min-h-[var(--tap-min)] items-center rounded-[var(--radius)] px-2 font-mono text-sm text-ink-2 num active:scale-[0.99]"
+            >
+              × {formatKES(unitPrice)}
+            </button>
+          ) : (
+            <div className="relative w-full max-w-[9rem]">
+              <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-ink-2">
+                {CURRENCY_SYMBOL}
+              </span>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={editingPrice ?? unitPrice}
+                onChange={(e) => onPriceChange(productId, e.target.value)}
+                onBlur={() => onPriceCommit(productId)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') onPriceCommit(productId);
+                }}
+                className="h-[var(--tap-min)] min-h-[var(--tap-min)] w-full rounded-[var(--radius)] border border-hairline bg-paper pl-7 pr-2 font-mono text-sm text-ink num focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label={`Unit price for ${item.product.name}`}
+              />
+            </div>
+          )}
+        </div>
         <button
           type="button"
           aria-label={`Remove ${item.product.name}`}
           onClick={() => onRemove(productId)}
-          className="focus-ring flex min-h-[var(--tap-min)] min-w-[var(--tap-min)] items-center justify-center rounded-[var(--radius)] border border-hairline bg-paper text-fail active:scale-95"
+          className="focus-ring flex min-h-[var(--tap-min)] min-w-[var(--tap-min)] shrink-0 items-center justify-center rounded-[var(--radius)] border border-hairline bg-paper text-fail active:scale-95"
         >
           <Trash2 className="h-4 w-4" />
         </button>
+      </div>
+    </div>
+  );
+}
+
+/** Scrollable receipt lines inside torn paper; totals render outside via CartPinnedTotalsSection. */
+function CartReceiptPaper({
+  className,
+  children,
+}: {
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      className={cn(
+        'receipt-paper-block receipt-torn-bottom flex min-h-40 min-w-0 flex-1 flex-col overflow-hidden',
+        className,
+      )}
+    >
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3 pt-1">
+        {children}
       </div>
     </div>
   );
@@ -982,6 +1014,20 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [mobileCartOpen, isProcessing]);
+
+  useEffect(() => {
+    if (mobileCartOpen) {
+      setShowCustomerPicker(false);
+      setCustomerSearchQuery('');
+    }
+  }, [mobileCartOpen]);
+
+  useEffect(() => {
+    console.debug('[RetailPOS products cache]', {
+      cache: debugOfflineCacheKey,
+      source: debugLastDataSource,
+    });
+  }, [debugOfflineCacheKey, debugLastDataSource]);
   const [discountMode, setDiscountMode] = useState<DiscountMode>('amount');
   const [discountInput, setDiscountInput] = useState('');
   const [cashPaymentMethod, setCashPaymentMethod] = useState<PaymentMethod>('cash');
@@ -1598,7 +1644,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
             </div>
 
             {/* Browse: All / Recent / Favorites / categories + OOS */}
-            <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto px-2 pb-2 sm:flex-wrap sm:overflow-visible sm:px-3 lg:px-4 scrollbar-hide">
+            <div className="flex flex-nowrap snap-x snap-mandatory gap-2 overflow-x-auto px-2 pb-2 sm:px-3 lg:px-4 scrollbar-hide">
               {(
                 [
                   { key: 'all', label: 'All', icon: Layers },
@@ -1619,7 +1665,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                   )}
                 >
                   <Icon className="h-4 w-4 shrink-0" aria-hidden />
-                  <span className="sr-only">{label}</span>
+                  {label}
                 </button>
               ))}
               {categoryChipsVisible &&
@@ -1668,15 +1714,9 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                 'flex-1 overflow-y-auto p-2 sm:p-3 lg:p-4',
                 // Clear sticky mini-cart + action bar on mobile while shopping
                 totalItems > 0 &&
-                  'pb-[calc(var(--tap-primary)+5rem+env(safe-area-inset-bottom,0px))] lg:pb-4',
+                  'pb-[calc(3.5rem+4rem+env(safe-area-inset-bottom,0px))] lg:pb-4',
               )}
             >
-              {/* Dev-only offline cache banner — stripped from production builds via Vite */}
-              {import.meta.env.DEV && (
-                <div className="mb-2 rounded border border-dashed border-border bg-muted/40 px-2 py-1 text-[10px] text-muted-foreground">
-                  Cache: {debugOfflineCacheKey} | Source: {debugLastDataSource}
-                </div>
-              )}
               {loading ? (
                 <div className="flex items-center justify-center py-20">
                   <div className="text-center">
@@ -1712,6 +1752,14 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                           inCart > 0 && 'border-2 border-primary',
                         )}
                       >
+                        {inCart > 0 && (
+                          <span
+                            className="absolute -left-2 -top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-ink font-sans text-xs font-semibold text-paper num"
+                            aria-hidden
+                          >
+                            {inCart}
+                          </span>
+                        )}
                         <button
                           type="button"
                           aria-label={
@@ -1722,20 +1770,15 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                             e.stopPropagation();
                             toggleFavorite(product.id);
                           }}
-                          className="focus-ring absolute right-1 top-1 z-10 flex min-h-[var(--tap-min)] min-w-[var(--tap-min)] items-center justify-center rounded-[var(--radius)] border border-hairline bg-paper active:scale-95"
+                          className="focus-ring absolute right-0 top-0 z-10 flex min-h-[var(--tap-min)] min-w-[var(--tap-min)] items-center justify-center rounded-[var(--radius)] active:scale-95"
                         >
                           <Star
                             className={cn(
-                              'h-4 w-4',
+                              'h-6 w-6',
                               isFavorite ? 'fill-ink text-ink' : 'text-ink-2',
                             )}
                           />
                         </button>
-                        {inCart > 0 && (
-                          <span className="absolute left-2 top-2 rounded-[var(--radius)] border border-hairline bg-paper px-2 py-0.5 font-mono text-xs font-semibold text-ink num">
-                            {inCart}
-                          </span>
-                        )}
                         {showsImage && (
                           <div className="relative mb-2 aspect-square overflow-hidden rounded-[calc(var(--radius)-2px)]">
                             <img
@@ -1746,7 +1789,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                           </div>
                         )}
                         <p
-                          className="line-clamp-2 min-h-[2.5rem] pr-8 text-sm font-semibold leading-snug text-ink"
+                          className="line-clamp-2 min-h-[2.5rem] w-full min-w-0 pr-[var(--tap-min)] text-sm font-semibold leading-snug text-ink"
                           title={product.name}
                         >
                           {product.name}
@@ -1769,7 +1812,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                   })}
                 </div>
               ) : (
-                <div className="divide-y divide-hairline border-y border-hairline">
+                <div className="divide-y divide-hairline border-y border-hairline min-[1280px]:grid min-[1280px]:gap-x-6 min-[1280px]:divide-y-0 min-[1280px]:[grid-template-columns:repeat(2,minmax(30rem,1fr))]">
                   {filteredProducts.map((product) => {
                     const cartItem = cart.find((c) => c.product.id === product.id);
                     const inCart = cartItem ? cartItem.quantity : 0;
@@ -1801,7 +1844,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                             addToCart(product);
                           }
                         }}
-                        className="focus-ring flex min-h-16 cursor-pointer items-center gap-1 py-1 pl-0 pr-1 active:bg-[hsl(var(--accent-soft))]/40 md:min-h-14"
+                        className="focus-ring flex min-h-16 min-w-0 cursor-pointer items-center gap-1 border-b border-hairline py-1 pl-0 pr-1 active:bg-[hsl(var(--accent-soft))]/40 min-[1280px]:min-h-14 min-[1280px]:min-w-[30rem] md:min-h-14"
                       >
                         <button
                           type="button"
@@ -1901,16 +1944,19 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
               type="button"
               onClick={() => setMobileCartOpen(true)}
               aria-label={`Open cart, ${totalItems} items, total ${formatKES(total)}`}
-              className="focus-ring lg:hidden fixed inset-x-0 z-50 flex h-[var(--tap-primary)] items-center justify-between gap-3 border-t border-hairline bg-surface px-4 shadow-float active:scale-[0.99]"
-              style={{
-                bottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))',
-              }}
+              className="focus-ring lg:hidden fixed inset-x-0 z-50 flex h-14 min-h-14 items-center justify-between gap-3 border-t border-hairline bg-surface px-4 pb-[env(safe-area-inset-bottom,0px)] active:scale-[0.99]"
+              style={{ bottom: '4rem' }}
             >
-              <span className="font-sans text-lg font-bold tabular-nums text-ink">
-                {formatKES(total)}
-              </span>
-              <span className="text-sm text-ink-2">
-                {totalItems} item{totalItems === 1 ? '' : 's'}
+              <div className="text-left">
+                <p className="font-sans text-lg font-bold tabular-nums text-ink">
+                  {formatKES(total)}
+                </p>
+                <p className="text-sm text-ink-2">
+                  {totalItems} item{totalItems === 1 ? '' : 's'}
+                </p>
+              </div>
+              <span className="pointer-events-none flex min-h-[var(--tap-min)] items-center justify-center rounded-[var(--radius)] bg-primary px-4 text-sm font-bold text-primary-foreground">
+                Checkout
               </span>
             </button>
           )}
@@ -1926,29 +1972,41 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                 onClick={() => { if (!isProcessing) setMobileCartOpen(false); }}
               />
               {/* Panel — fills above home indicator; Complete Sale sticks to bottom */}
-              <div className="relative mt-auto flex max-h-[90vh] flex-col bg-paper shadow-float motion-safe:animate-in motion-safe:slide-in-from-bottom motion-safe:duration-200">
-                <div className="shrink-0 border-b border-hairline px-3 py-2">
-                  <div className="flex items-start gap-1">
-                    <button
-                      type="button"
-                      onClick={() => { if (!isProcessing) setMobileCartOpen(false); }}
-                      className="focus-ring flex min-h-[var(--tap-min)] min-w-[var(--tap-min)] shrink-0 items-center justify-center rounded-[var(--radius)] text-ink-2 active:scale-95"
-                      disabled={isProcessing}
-                      aria-label="Close cart"
-                    >
-                      <ChevronDown className="h-5 w-5" />
-                    </button>
-                    <div className="min-w-0 flex-1">
-                      <CartReceiptHeader
-                        totalItems={totalItems}
-                        showClear={cart.length > 0}
-                        onClear={clearCart}
-                      />
-                    </div>
+              <div className="relative mt-auto flex max-h-[90vh] min-h-0 flex-col bg-paper shadow-float motion-safe:animate-in motion-safe:slide-in-from-bottom motion-safe:duration-200">
+                <div className="flex h-14 min-h-14 shrink-0 items-center gap-1 border-b border-hairline px-2">
+                  <button
+                    type="button"
+                    onClick={() => { if (!isProcessing) setMobileCartOpen(false); }}
+                    className="focus-ring flex min-h-[var(--tap-min)] min-w-[var(--tap-min)] shrink-0 items-center justify-center rounded-[var(--radius)] text-ink-2 active:scale-95"
+                    disabled={isProcessing}
+                    aria-label="Close cart"
+                  >
+                    <ChevronDown className="h-5 w-5" />
+                  </button>
+                  <div className="min-w-0 flex-1">
+                    <h2 className="flex items-center gap-2 truncate text-base font-bold text-ink">
+                      <ShoppingCart className="h-5 w-5 shrink-0" aria-hidden />
+                      Cart
+                    </h2>
+                    <p className="truncate text-xs text-ink-2">
+                      {totalItems > 0
+                        ? `${totalItems} item${totalItems === 1 ? '' : 's'} · ${formatDate(new Date())}`
+                        : formatDate(new Date())}
+                    </p>
                   </div>
+                  {cart.length > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearCart}
+                      className="shrink-0 text-xs text-fail hover:text-fail"
+                    >
+                      Clear
+                    </Button>
+                  )}
                 </div>
 
-                <div className="space-y-2 border-b border-hairline px-3 py-2">
+                <div className="shrink-0 space-y-2 border-b border-hairline px-3 py-2">
                   <SaleTypeTabs
                     saleType={saleType}
                     onCash={() => {
@@ -2072,7 +2130,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                       </div>
                     </div>
                   )}
-                  {saleType === 'cash' && (
+                  {saleType === 'cash' && !showCustomerPicker && (
                     <WalkInCustomerFields
                       name={walkInCustomerName}
                       phone={walkInCustomerPhone}
@@ -2084,39 +2142,41 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                   )}
                 </div>
 
-                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-2">
-                  <div className="receipt-paper-block receipt-torn-bottom mx-3 mt-2 px-3 pb-3 pt-1">
-                    {cart.map((item) => {
-                      const unitPrice = getUnitPrice(item);
-                      return (
-                        <CartReceiptLine
-                          key={item.product.id}
-                          item={item}
-                          unitPrice={unitPrice}
-                          editingPrice={editingPrice[item.product.id]}
-                          editingQty={editingQty[item.product.id]}
-                          onPriceChange={(id, value) =>
-                            setEditingPrice((prev) => ({ ...prev, [id]: value }))
-                          }
-                          onPriceCommit={commitPrice}
-                          onQtyEditingChange={(id, value) =>
-                            setEditingQty((prev) => ({ ...prev, [id]: value }))
-                          }
-                          onQtyCommit={commitQty}
-                          onQtyStep={(id, next) => {
-                            setEditingQty((prev) => {
-                              const n = { ...prev };
-                              delete n[id];
-                              return n;
-                            });
-                            updateCartQuantity(id, next);
-                          }}
-                          onRemove={removeFromCart}
-                        />
-                      );
-                    })}
-                    {cart.length > 0 && (
-                      <div className="pt-2">
+                <div className="flex min-h-0 flex-1 flex-col px-3 pt-2">
+                  {cart.length > 0 && (
+                    <>
+                      <CartReceiptPaper className="mt-0">
+                        {cart.map((item) => {
+                          const unitPrice = getUnitPrice(item);
+                          return (
+                            <CartReceiptLine
+                              key={item.product.id}
+                              item={item}
+                              unitPrice={unitPrice}
+                              editingPrice={editingPrice[item.product.id]}
+                              editingQty={editingQty[item.product.id]}
+                              onPriceChange={(id, value) =>
+                                setEditingPrice((prev) => ({ ...prev, [id]: value }))
+                              }
+                              onPriceCommit={commitPrice}
+                              onQtyEditingChange={(id, value) =>
+                                setEditingQty((prev) => ({ ...prev, [id]: value }))
+                              }
+                              onQtyCommit={commitQty}
+                              onQtyStep={(id, next) => {
+                                setEditingQty((prev) => {
+                                  const n = { ...prev };
+                                  delete n[id];
+                                  return n;
+                                });
+                                updateCartQuantity(id, next);
+                              }}
+                              onRemove={removeFromCart}
+                            />
+                          );
+                        })}
+                      </CartReceiptPaper>
+                      <div className="shrink-0 py-2">
                         <CartTotalsSection
                           subtotal={subtotal}
                           discountMode={discountMode}
@@ -2127,35 +2187,35 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                           total={total}
                         />
                       </div>
-                    )}
-                  </div>
-
-                  {saleType === 'credit' && cart.length > 0 && (
-                    <div className="px-3 pb-4 pt-3">
-                      <CreditSaleExtras
-                        total={total}
-                        recordDepositNow={recordDepositNow}
-                        onRecordDepositNowChange={setRecordDepositNow}
-                        creditDeposit={creditDeposit}
-                        onCreditDepositChange={setCreditDeposit}
-                        creditPaymentDescription={creditPaymentDescription}
-                        onCreditPaymentDescriptionChange={setCreditPaymentDescription}
-                        creditPaymentMethod={creditPaymentMethod}
-                        onCreditPaymentMethodChange={setCreditPaymentMethod}
-                        consignmentInfo={consignmentInfo}
-                        onConsignmentInfoChange={setConsignmentInfo}
-                        invoiceDate={invoiceDate}
-                        onInvoiceDateChange={setInvoiceDate}
-                      />
-                    </div>
+                      {saleType === 'credit' && (
+                        <div className="max-h-28 shrink-0 overflow-y-auto pb-1">
+                          <CreditSaleExtras
+                            total={total}
+                            recordDepositNow={recordDepositNow}
+                            onRecordDepositNowChange={setRecordDepositNow}
+                            creditDeposit={creditDeposit}
+                            onCreditDepositChange={setCreditDeposit}
+                            creditPaymentDescription={creditPaymentDescription}
+                            onCreditPaymentDescriptionChange={setCreditPaymentDescription}
+                            creditPaymentMethod={creditPaymentMethod}
+                            onCreditPaymentMethodChange={setCreditPaymentMethod}
+                            consignmentInfo={consignmentInfo}
+                            onConsignmentInfoChange={setConsignmentInfo}
+                            invoiceDate={invoiceDate}
+                            onInvoiceDateChange={setInvoiceDate}
+                          />
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
 
                 {cart.length > 0 && (
                   <div className="shrink-0 bg-paper">
                     {saleType === 'cash' && (
-                      <div className="border-t border-hairline px-3 pt-3">
+                      <div className="border-t border-hairline px-3 pt-2">
                         <CartPaymentMethodSection
+                          compact
                           method={cashPaymentMethod}
                           onMethodChange={setCashPaymentMethod}
                           reference={cashPaymentReference}
@@ -2216,7 +2276,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
               </div>
 
               {/* Customer picker for credit sales */}
-              {saleType === 'credit' && (
+              {saleType === 'credit' && !showCustomerPicker && (
                 <div className="mt-2">
                   {selectedCustomer ? (
                     <div className="flex items-center justify-between rounded border border-border bg-muted/40 p-2 text-sm">
@@ -2323,7 +2383,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                   </div>
                 </div>
               )}
-              {saleType === 'cash' && (
+              {saleType === 'cash' && !showCustomerPicker && (
                 <div className="mt-3">
                   <WalkInCustomerFields
                     compact
@@ -2338,7 +2398,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
               )}
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-2">
+            <div className="flex min-h-0 flex-1 flex-col pb-2">
               {cart.length === 0 && (
                 <div className="px-4 py-12 text-center text-ink-2">
                   <ShoppingCart className="mx-auto mb-3 h-10 w-10 opacity-50" aria-hidden />
@@ -2349,7 +2409,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
 
               {cart.length > 0 && (
                 <>
-                  <div className="receipt-paper-block receipt-torn-bottom mx-4 mt-2 px-3 pb-3 pt-1">
+                  <CartReceiptPaper className="mx-4 mt-2">
                     {cart.map((item) => {
                       const unitPrice = getUnitPrice(item);
                       return (
@@ -2379,21 +2439,21 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                         />
                       );
                     })}
-                    <div className="pt-2">
-                      <CartTotalsSection
-                        subtotal={subtotal}
-                        discountMode={discountMode}
-                        onDiscountModeChange={setDiscountMode}
-                        discountInput={discountInput}
-                        onDiscountInputChange={setDiscountInput}
-                        discountAmount={discountAmount}
-                        total={total}
-                      />
-                    </div>
+                  </CartReceiptPaper>
+                  <div className="shrink-0 px-4 py-2">
+                    <CartTotalsSection
+                      subtotal={subtotal}
+                      discountMode={discountMode}
+                      onDiscountModeChange={setDiscountMode}
+                      discountInput={discountInput}
+                      onDiscountInputChange={setDiscountInput}
+                      discountAmount={discountAmount}
+                      total={total}
+                    />
                   </div>
 
                   {saleType === 'credit' && (
-                    <div className="px-4 pb-4 pt-3">
+                    <div className="max-h-40 shrink-0 overflow-y-auto px-4 pb-2 pt-1">
                       <CreditSaleExtras
                         total={total}
                         recordDepositNow={recordDepositNow}
