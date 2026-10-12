@@ -31,7 +31,10 @@ const OUTLINED_BTN =
   'focus-ring inline-flex min-h-[var(--tap-min)] items-center justify-center rounded-[var(--radius)] border border-hairline bg-surface px-4 text-sm font-semibold text-ink active:scale-[0.98]';
 
 const ACCENT_BTN =
-  'focus-ring inline-flex min-h-[var(--tap-min)] w-full items-center justify-center rounded-[var(--radius)] bg-primary px-4 text-sm font-semibold text-primary-foreground active:scale-[0.98] sm:w-auto';
+  'focus-ring inline-flex min-h-[var(--tap-min)] items-center justify-center rounded-[var(--radius)] bg-primary px-4 text-sm font-semibold text-primary-foreground active:scale-[0.98]';
+
+const ACCENT_BTN_FULL =
+  'focus-ring inline-flex min-h-[var(--tap-min)] w-full items-center justify-center rounded-[var(--radius)] bg-primary px-4 text-sm font-semibold text-primary-foreground active:scale-[0.98]';
 
 function RuledPlaceholderRows({ count = 4 }: { count?: number }) {
   return (
@@ -124,23 +127,36 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
   }, [loading, retailStats]);
 
   const topFiveItems: TopSellingItem[] = topSellingItems.slice(0, 5);
-  const topFiveTotalQty = topFiveItems.reduce((s, i) => s + i.quantity, 0);
+  const topItemQty = topFiveItems[0]?.quantity ?? 0;
 
   const recentFive = recentSales.slice(0, 5);
 
-  const dashboardActions = (
-    <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end sm:gap-2">
-      <button
-        type="button"
-        className={cn(ACCENT_BTN, 'col-span-2')}
-        onClick={() => onNavigate('pos')}
-      >
+  const headerPrimaryActions = (
+    <>
+      <button type="button" className={ACCENT_BTN} onClick={() => onNavigate('pos')}>
         New sale
       </button>
       {canManage ? (
         <button
           type="button"
-          className={cn(OUTLINED_BTN, 'col-span-1 w-full sm:w-auto')}
+          className={OUTLINED_BTN}
+          onClick={() => onNavigate('shop-day')}
+        >
+          Shop Day Close
+        </button>
+      ) : null}
+    </>
+  );
+
+  const mobileDashboardActions = (
+    <div className="flex min-w-0 flex-col gap-3 md:hidden">
+      <button type="button" className={ACCENT_BTN_FULL} onClick={() => onNavigate('pos')}>
+        New sale
+      </button>
+      {canManage ? (
+        <button
+          type="button"
+          className={cn(OUTLINED_BTN, 'w-full')}
           onClick={() => onNavigate('shop-day')}
         >
           Shop Day Close
@@ -151,16 +167,33 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
 
   return (
     <PageLayout activeTab="dashboard" onNavigate={onNavigate}>
-      <div className="mx-auto flex w-full max-w-[1280px] flex-col gap-6">
-        {/* Page header: title + date (actions/takings reordered on phone via flex order) */}
-        <header className="order-1 space-y-4 border-b border-hairline pb-6">
-          <div className="flex items-start justify-between gap-3">
+      <div className="mx-auto flex w-full min-w-0 max-w-[1280px] flex-col gap-6 md:gap-4">
+        <header className="order-1 border-b border-hairline pb-6 md:pb-4">
+          <div className="flex min-w-0 items-start justify-between gap-3">
             <h1 className="min-w-0 text-2xl font-bold text-ink md:text-3xl">Today</h1>
+            <div className="hidden shrink-0 flex-wrap items-center justify-end gap-2 md:flex">
+              {headerPrimaryActions}
+            </div>
+          </div>
+          <div className="mt-4 flex min-w-0 items-center justify-between gap-3 md:mt-2">
+            {loading ? (
+              <div className="h-4 min-w-0 flex-1 max-w-xs rounded-sm bg-hairline/80" aria-hidden />
+            ) : (
+              <p className="min-w-0 flex-1 text-sm text-ink-2">
+                {formatDateWithWeekday(today)}
+                {' · '}
+                Synced{' '}
+                {lastSyncedAt ? formatSyncedDateTime(lastSyncedAt) : 'Not synced yet'}
+              </p>
+            )}
             <button
               type="button"
               onClick={refetch}
               disabled={statsLoading}
-              className={cn(OUTLINED_BTN, 'min-h-[var(--tap-min)] min-w-[var(--tap-min)] shrink-0 px-3')}
+              className={cn(
+                OUTLINED_BTN,
+                'min-h-[var(--tap-min)] min-w-[var(--tap-min)] shrink-0 px-3',
+              )}
               title="Refresh dashboard"
               aria-label="Refresh dashboard"
             >
@@ -170,16 +203,6 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
               />
             </button>
           </div>
-          {loading ? (
-            <div className="h-4 w-full max-w-xs rounded-sm bg-hairline/80" aria-hidden />
-          ) : (
-            <p className="text-sm text-ink-2">
-              {formatDateWithWeekday(today)}
-              {' · '}
-              Synced{' '}
-              {lastSyncedAt ? formatSyncedDateTime(lastSyncedAt) : 'Not synced yet'}
-            </p>
-          )}
         </header>
 
         {error && !loading ? (
@@ -200,7 +223,7 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
         {/* Takings hero — before actions on phone */}
         <section
           aria-labelledby="takings-heading"
-          className="order-3 border-b border-hairline pb-6 md:order-4"
+          className="order-3 border-b border-hairline pb-6 md:order-2 md:pb-4"
         >
           {loading ? (
             <div className="space-y-3">
@@ -231,20 +254,23 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
           )}
         </section>
 
-        <div className="order-4 md:order-3">{dashboardActions}</div>
+        <div className="order-4 min-w-0 md:order-3">{mobileDashboardActions}</div>
 
-        <div className="order-5 grid grid-cols-1 gap-6 md:grid-cols-2 md:gap-8 lg:gap-8">
+        <div className="order-5 grid min-w-0 grid-cols-1 gap-6 md:grid-cols-2 md:gap-8 lg:gap-8">
           {/* Left column */}
-          <div className="space-y-6 md:rounded-[var(--radius-panel)] md:border md:border-hairline md:bg-surface md:p-6">
+          <div className="min-w-0 space-y-6 md:rounded-[var(--radius-panel)] md:border md:border-hairline md:bg-surface md:p-6">
             {/* Needs attention */}
             {!loading && stockAlertCount > 0 ? (
               <section aria-labelledby="needs-attention-heading">
-                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                  <h2 id="needs-attention-heading" className="text-lg font-semibold text-ink">
+                <div className="mb-4 flex min-w-0 flex-col gap-3 md:flex-row md:flex-wrap md:items-center md:justify-between">
+                  <h2
+                    id="needs-attention-heading"
+                    className="min-w-0 text-lg font-semibold text-ink"
+                  >
                     Needs attention{' '}
                     <span className="font-normal text-ink-2">({stockAlertCount} items)</span>
                   </h2>
-                  <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex min-w-0 flex-wrap items-center justify-start gap-3 md:justify-end">
                     <button
                       type="button"
                       className={cn(OUTLINED_BTN, 'px-3 text-xs')}
@@ -266,9 +292,9 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
                     const status = getStockStatus(product);
                     return (
                       <li key={product.id}>
-                        <div className="grid min-h-[72px] grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto] items-center gap-x-3 gap-y-1 py-2 md:hidden">
+                        <div className="grid min-h-[72px] min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,auto)] grid-rows-[auto_auto] items-center gap-x-2 gap-y-1 py-2 md:hidden">
                           <p
-                            className="col-start-1 row-start-1 truncate text-sm font-semibold text-ink"
+                            className="col-start-1 row-start-1 min-w-0 truncate text-sm font-semibold text-ink"
                             title={product.name}
                           >
                             {product.name}
@@ -277,7 +303,7 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
                             type="button"
                             className={cn(
                               OUTLINED_BTN,
-                              'col-start-2 row-span-2 row-start-1 self-center px-3 text-xs',
+                              'col-start-2 row-span-2 row-start-1 max-w-full shrink px-2 text-xs',
                             )}
                             onClick={() => handleMarkForPurchase(product)}
                             disabled={markedProductIds.has(product.id)}
@@ -347,17 +373,18 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
                 <>
                   <ul className="divide-y divide-hairline border-y border-hairline">
                     {recentFive.map((sale) => (
-                      <li
-                        key={sale.id}
-                        className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 py-3 sm:grid-cols-[auto_minmax(0,1fr)_auto]"
-                      >
-                        <span className="text-sm text-ink-2 sm:order-1">{sale.time}</span>
-                        <span className="min-w-0 truncate text-sm font-medium text-ink sm:order-2">
-                          {sale.customerName || 'Walk-in'}
-                        </span>
-                        <span className="font-mono text-sm font-semibold text-ink num sm:order-3 sm:text-right">
-                          {formatKES(sale.total)}
-                        </span>
+                      <li key={sale.id} className="min-w-0 py-3">
+                        <div className="flex min-w-0 items-center justify-between gap-3">
+                          <span className="min-w-0 truncate text-sm font-medium text-ink">
+                            {sale.customerName || 'Walk-in'}
+                          </span>
+                          <span className="shrink-0 font-mono text-sm font-semibold text-ink num">
+                            {formatKES(sale.total)}
+                          </span>
+                        </div>
+                        <p className="mt-0.5 text-sm text-ink-2">
+                          {formatRecentSaleTime(sale.createdAt, today)}
+                        </p>
                       </li>
                     ))}
                   </ul>
@@ -374,7 +401,7 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
           </div>
 
           {/* Right column */}
-          <div className="space-y-6 md:rounded-[var(--radius-panel)] md:border md:border-hairline md:bg-surface md:p-6">
+          <div className="min-w-0 space-y-6 md:rounded-[var(--radius-panel)] md:border md:border-hairline md:bg-surface md:p-6">
             {loading ? (
               <>
                 <div className="space-y-3">
@@ -407,7 +434,7 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
                     <ul className="divide-y divide-hairline border-y border-hairline">
                       {topFiveItems.map((item) => {
                         const share =
-                          topFiveTotalQty > 0 ? (item.quantity / topFiveTotalQty) * 100 : 0;
+                          topItemQty > 0 ? (item.quantity / topItemQty) * 100 : 0;
                         return (
                           <li key={item.id} className="py-3">
                             <div className="mb-2 flex items-baseline justify-between gap-3">
