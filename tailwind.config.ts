@@ -14,8 +14,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['Geist', 'system-ui', 'sans-serif'],
-        mono: ['Geist Mono', 'monospace'],
+        sans: ["var(--font-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
+        mono: ["var(--font-mono)", "ui-monospace", "monospace"],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -73,13 +73,24 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        paper: "hsl(var(--paper))",
+        surface: "hsl(var(--surface))",
+        ink: {
+          DEFAULT: "hsl(var(--ink))",
+          2: "hsl(var(--ink-2))",
+        },
+        hairline: "hsl(var(--hairline))",
+        ok: "hsl(var(--ok))",
+        wait: "hsl(var(--wait))",
+        fail: "hsl(var(--fail))",
       },
       borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
+        lg: "var(--radius-panel)",
+        md: "var(--radius)",
         sm: "calc(var(--radius) - 4px)",
       },
       boxShadow: {
+        float: "var(--shadow-float)",
         card: "var(--shadow-card)",
         "card-hover": "var(--shadow-card-hover)",
         sidebar: "var(--shadow-sidebar)",
