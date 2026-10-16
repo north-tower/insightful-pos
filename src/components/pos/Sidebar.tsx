@@ -203,7 +203,7 @@ export function Sidebar({
   const { user } = useAuth();
   const { activeBranch, branches } = useBranch();
   const { companyName } = useCompanySettings();
-  const { products } = useProducts();
+  const { retailProducts } = useProducts();
   const allNavItems = isRestaurant ? restaurantNavItems : retailNavItems;
   const LogoIcon = isRestaurant ? UtensilsCrossed : Store;
   const [expandedMenus, setExpandedMenus] = useState<Set<string>>(() => new Set());
@@ -221,8 +221,8 @@ export function Sidebar({
 
   const lowStockCount = useMemo(() => {
     if (isRestaurant) return 0;
-    return products.filter((p) => getStockStatus(p) === 'low').length;
-  }, [products, isRestaurant]);
+    return retailProducts.filter((p) => getStockStatus(p) === 'low').length;
+  }, [retailProducts, isRestaurant]);
 
   const storeDisplayName =
     branches.length > 0
