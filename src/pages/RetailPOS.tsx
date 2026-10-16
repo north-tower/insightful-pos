@@ -51,6 +51,12 @@ import { fc, CURRENCY_SYMBOL } from '@/lib/currency';
 import { formatKES } from '@/lib/formatKES';
 import { formatDate } from '@/lib/formatDate';
 import { getStockStatus } from '@/lib/stockStatus';
+import { formatQty, formatQtyAmount, isDecimalUnit } from '@/lib/units';
+import { parseCommittedCartQuantity } from '@/lib/retailCartQty';
+import {
+  QuantityKeypad,
+  type QuantityKeypadMode,
+} from '@/components/pos/QuantityKeypad';
 import { StatusChip } from '@/components/ui/StatusChip';
 import { toast } from 'sonner';
 import { useCompanySettings } from '@/context/BusinessSettingsContext';
@@ -296,22 +302,21 @@ function CartPaymentMethodSection({
   );
 }
 
-/** +/- quantity control — min 36×36 touch target (min-h-9 / min-w-9). */
+/** +/- quantity control with tappable quantity (opens keypad). */
 function CartQtyControl({
   productId,
   quantity,
-  editingValue,
-  onEditingChange,
-  onCommit,
+  unit,
   onStep,
+  onEditQuantity,
 }: {
   productId: string;
   quantity: number;
-  editingValue: string | undefined;
-  onEditingChange: (productId: string, value: string) => void;
-  onCommit: (productId: string) => void;
+  unit: string;
   onStep: (productId: string, nextQty: number) => void;
+  onEditQuantity: (productId: string) => void;
 }) {
+  const qtyLabel = formatQty(quantity, unit);
   return (
     <div className="flex items-center gap-2">
       <button
@@ -322,19 +327,15 @@ function CartQtyControl({
       >
         <Minus className="h-4 w-4" />
       </button>
-      <input
-        type="text"
-        inputMode="numeric"
-        pattern="[0-9]*"
-        aria-label="Quantity"
-        value={editingValue ?? quantity}
-        onChange={(e) => onEditingChange(productId, e.target.value)}
-        onBlur={() => onCommit(productId)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') onCommit(productId);
-        }}
-        className="h-[var(--tap-min)] min-h-[var(--tap-min)] w-12 rounded-[var(--radius)] border border-hairline bg-paper text-center font-mono text-sm font-semibold text-ink num focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      />
+      <button
+        type="button"
+        data-testid={`cart-qty-edit-${productId}`}
+        aria-label={`Quantity ${qtyLabel}, tap to edit`}
+        onClick={() => onEditQuantity(productId)}
+        className="focus-ring flex min-h-[var(--tap-min)] min-w-[var(--tap-min)] items-center justify-center rounded-[var(--radius)] border border-hairline bg-paper px-2 font-mono text-sm font-semibold text-ink num active:scale-95"
+      >
+        {formatQtyAmount(quantity)}
+      </button>
       <button
         type="button"
         aria-label="Increase quantity"
@@ -717,23 +718,19 @@ function CartReceiptLine({
   item,
   unitPrice,
   editingPrice,
-  editingQty,
   onPriceChange,
   onPriceCommit,
-  onQtyEditingChange,
-  onQtyCommit,
   onQtyStep,
+  onEditQuantity,
   onRemove,
 }: {
   item: CartItem;
   unitPrice: number;
   editingPrice: string | undefined;
-  editingQty: string | undefined;
   onPriceChange: (productId: string, value: string) => void;
   onPriceCommit: (productId: string) => void;
-  onQtyEditingChange: (productId: string, value: string) => void;
-  onQtyCommit: (productId: string) => void;
   onQtyStep: (productId: string, nextQty: number) => void;
+  onEditQuantity: (productId: string) => void;
   onRemove: (productId: string) => void;
 }) {
   const lineTotal = unitPrice * item.quantity;
@@ -753,14 +750,16 @@ function CartReceiptLine({
           {formatKES(lineTotal)}
         </span>
       </div>
+      <p className="mt-0.5 font-mono text-xs text-ink-2 num">
+        {formatQty(item.quantity, item.product.unit)} × {formatKES(unitPrice)}
+      </p>
       <div className="mt-1 flex items-center gap-2">
         <CartQtyControl
           productId={productId}
           quantity={item.quantity}
-          editingValue={editingQty}
-          onEditingChange={onQtyEditingChange}
-          onCommit={onQtyCommit}
+          unit={item.product.unit}
           onStep={onQtyStep}
+          onEditQuantity={onEditQuantity}
         />
         <div className="flex min-h-[var(--tap-min)] min-w-0 flex-1 items-center justify-center">
           {!priceExpanded ? (
@@ -889,12 +888,17 @@ function CartCheckoutFooter({
 function ProductListQtyStepper({
   productId,
   quantity,
+  unit,
   onStep,
+  onEditQuantity,
 }: {
   productId: string;
   quantity: number;
+  unit: string;
   onStep: (productId: string, nextQty: number) => void;
+  onEditQuantity: (productId: string) => void;
 }) {
+  const qtyLabel = formatQty(quantity, unit);
   return (
     <div
       className="flex shrink-0 items-center gap-0.5"
@@ -909,9 +913,15 @@ function ProductListQtyStepper({
       >
         <Minus className="h-4 w-4" />
       </button>
-      <span className="flex min-w-[2rem] justify-center font-mono text-sm font-semibold text-ink num">
-        {quantity}
-      </span>
+      <button
+        type="button"
+        data-testid={`list-qty-edit-${productId}`}
+        aria-label={`Quantity ${qtyLabel}, tap to edit`}
+        onClick={() => onEditQuantity(productId)}
+        className="focus-ring flex min-h-[var(--tap-min)] min-w-[var(--tap-min)] items-center justify-center rounded-[var(--radius)] border border-hairline bg-paper px-1.5 font-mono text-sm font-semibold text-ink num active:scale-95"
+      >
+        {formatQtyAmount(quantity)}
+      </button>
       <button
         type="button"
         aria-label="Increase quantity"
@@ -1150,10 +1160,14 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
         const p = sellableRetailProducts.find((x) => x.id === line.productId);
         if (!p || !p.isActive) continue;
         const stock = p.stock;
-        const q = Math.floor(Number(line.quantity));
-        if (!Number.isFinite(q) || q < 1) continue;
-        const qty = Math.min(q, Math.max(stock, 0));
-        if (qty < 1) continue;
+        const q = Number(line.quantity);
+        if (!Number.isFinite(q) || q <= 0) continue;
+        const qtyRaw = isDecimalUnit(p.unit)
+          ? Math.round(q * 1000) / 1000
+          : Math.floor(q);
+        if (qtyRaw <= 0) continue;
+        const qty = Math.min(qtyRaw, Math.max(stock, 0));
+        if (qty <= 0) continue;
         const entry: CartItem = { product: p, quantity: qty };
         if (
           typeof line.overridePrice === 'number' &&
@@ -1191,23 +1205,16 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
     }
   }, [cart, retailCartPersistenceReady, retailCartStorageKey]);
 
-  // Local editing state so inputs can be cleared / partially typed before committing
-  const [editingQty, setEditingQty] = useState<Record<string, string>>({});
   const [editingPrice, setEditingPrice] = useState<Record<string, string>>({});
 
-  const commitQty = (productId: string) => {
-    const raw = editingQty[productId];
-    if (raw !== undefined) {
-      const val = parseInt(raw, 10);
-      if (!isNaN(val) && val > 0) {
-        updateCartQuantity(productId, val);
-      } else if (raw === '' || val <= 0) {
-        // Treat empty or zero as remove
-        updateCartQuantity(productId, 0);
-      }
-      setEditingQty((prev) => { const n = { ...prev }; delete n[productId]; return n; });
-    }
-  };
+  type QtyKeypadSession = {
+    product: Product;
+    mode: QuantityKeypadMode;
+  } | null;
+  const [qtyKeypadSession, setQtyKeypadSession] = useState<QtyKeypadSession>(null);
+  const [qtyKeypadInput, setQtyKeypadInput] = useState('');
+  const qtyKeypadReturnFocusRef = useRef<HTMLElement | null>(null);
+  const productRowFocusRefs = useRef<Map<string, HTMLElement>>(new Map());
 
   const commitPrice = (productId: string) => {
     const raw = editingPrice[productId];
@@ -1322,6 +1329,89 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
         )
       );
     }
+  };
+
+  /** Set line quantity with the same positive-qty rules as commit / keypad confirm. */
+  const setCartLineQuantity = (product: Product, quantity: number) => {
+    const unit = product.unit;
+    const normalized = isDecimalUnit(unit)
+      ? Math.round(quantity * 1000) / 1000
+      : Math.floor(quantity);
+    if (!Number.isFinite(normalized) || normalized <= 0) {
+      updateCartQuantity(product.id, 0);
+      return;
+    }
+    updateCartQuantity(product.id, normalized);
+  };
+
+  const openQtyKeypadForProduct = (
+    product: Product,
+    mode: QuantityKeypadMode,
+    returnFocus?: HTMLElement | null,
+  ) => {
+    qtyKeypadReturnFocusRef.current = returnFocus ?? null;
+    const existing = cart.find((c) => c.product.id === product.id);
+    const initialQty =
+      mode === 'edit' && existing
+        ? existing.quantity
+        : mode === 'add' && existing
+          ? existing.quantity
+          : null;
+    setQtyKeypadInput(
+      initialQty !== null && initialQty > 0 ? formatQtyAmount(initialQty) : '',
+    );
+    setQtyKeypadSession({ product, mode });
+  };
+
+  const closeQtyKeypad = () => {
+    setQtyKeypadSession(null);
+    setQtyKeypadInput('');
+  };
+
+  const confirmQtyKeypad = (quantity: number) => {
+    if (!qtyKeypadSession) return;
+    const { product, mode } = qtyKeypadSession;
+    const parsed = parseCommittedCartQuantity(String(quantity), product.unit);
+    if (parsed === null) return;
+
+    if (mode === 'add') {
+      if (product.stock <= 0) {
+        toast.error(`${product.name} is out of stock`);
+        return;
+      }
+      pushRecentProduct(product.id);
+      setCart((prev) => {
+        const existing = prev.find((item) => item.product.id === product.id);
+        if (existing) {
+          return prev.map((item) =>
+            item.product.id === product.id ? { ...item, quantity: parsed } : item,
+          );
+        }
+        return [...prev, { product, quantity: parsed }];
+      });
+    } else {
+      setCartLineQuantity(product, parsed);
+    }
+    closeQtyKeypad();
+    requestAnimationFrame(() => qtyKeypadReturnFocusRef.current?.focus());
+  };
+
+  const handleProductRowActivate = (product: Product, rowEl?: HTMLElement | null) => {
+    if (product.stock <= 0) {
+      toast.error(`${product.name} is out of stock`);
+      return;
+    }
+    if (isDecimalUnit(product.unit)) {
+      openQtyKeypadForProduct(product, 'add', rowEl ?? null);
+      return;
+    }
+    addToCart(product);
+  };
+
+  const openQtyKeypadFromCartLine = (productId: string) => {
+    const item = cart.find((c) => c.product.id === productId);
+    if (!item) return;
+    openQtyKeypadForProduct(item.product, 'edit', null);
   };
 
   const updateCartPrice = (productId: string, price: number) => {
@@ -1738,13 +1828,26 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                     return (
                       <div
                         key={product.id}
+                        ref={(el) => {
+                          if (el) productRowFocusRefs.current.set(product.id, el);
+                          else productRowFocusRefs.current.delete(product.id);
+                        }}
                         role="button"
                         tabIndex={0}
-                        onClick={() => addToCart(product)}
+                        data-testid={`product-row-${product.id}`}
+                        onClick={() =>
+                          handleProductRowActivate(
+                            product,
+                            productRowFocusRefs.current.get(product.id),
+                          )
+                        }
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' || e.key === ' ') {
                             e.preventDefault();
-                            addToCart(product);
+                            handleProductRowActivate(
+                              product,
+                              productRowFocusRefs.current.get(product.id),
+                            );
                           }
                         }}
                         className={cn(
@@ -1757,7 +1860,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                             className="absolute -left-2 -top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-ink font-sans text-xs font-semibold text-paper num"
                             aria-hidden
                           >
-                            {inCart}
+                            {formatQtyAmount(inCart)}
                           </span>
                         )}
                         <button
@@ -1804,7 +1907,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                             {formatKES(product.price)}
                           </span>
                           <span className="font-mono text-xs text-ink-2 num">
-                            {product.stock} {product.unit}
+                            {formatQty(product.stock, product.unit)}
                           </span>
                         </div>
                       </div>
@@ -1824,24 +1927,32 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                       stockChipStatus === 'low' || stockChipStatus === 'out';
 
                     const handleListQtyStep = (productId: string, nextQty: number) => {
-                      setEditingQty((prev) => {
-                        const n = { ...prev };
-                        delete n[productId];
-                        return n;
-                      });
                       updateCartQuantity(productId, nextQty);
                     };
 
                     return (
                       <div
                         key={product.id}
+                        ref={(el) => {
+                          if (el) productRowFocusRefs.current.set(product.id, el);
+                          else productRowFocusRefs.current.delete(product.id);
+                        }}
                         role="button"
                         tabIndex={0}
-                        onClick={() => addToCart(product)}
+                        data-testid={`product-row-${product.id}`}
+                        onClick={() =>
+                          handleProductRowActivate(
+                            product,
+                            productRowFocusRefs.current.get(product.id),
+                          )
+                        }
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' || e.key === ' ') {
                             e.preventDefault();
-                            addToCart(product);
+                            handleProductRowActivate(
+                              product,
+                              productRowFocusRefs.current.get(product.id),
+                            );
                           }
                         }}
                         className="focus-ring flex min-h-16 min-w-0 cursor-pointer items-center gap-1 border-b border-hairline py-1 pl-0 pr-1 active:bg-[hsl(var(--accent-soft))]/40 min-[1280px]:min-h-14 min-[1280px]:min-w-[30rem] md:min-h-14"
@@ -1893,7 +2004,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                               {formatKES(product.price)}
                             </span>
                             <span className="font-mono text-xs text-ink-2 num">
-                              {product.stock} {product.unit}
+                              {formatQty(product.stock, product.unit)}
                             </span>
                           </div>
                         </div>
@@ -1901,7 +2012,15 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                           <ProductListQtyStepper
                             productId={product.id}
                             quantity={inCart}
+                            unit={product.unit}
                             onStep={handleListQtyStep}
+                            onEditQuantity={(id) => {
+                              openQtyKeypadForProduct(
+                                product,
+                                'edit',
+                                productRowFocusRefs.current.get(id),
+                              );
+                            }}
                           />
                         ) : (
                           <button
@@ -1911,7 +2030,10 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                             disabled={isOutOfStock}
                             onClick={(e) => {
                               e.stopPropagation();
-                              addToCart(product);
+                              handleProductRowActivate(
+                                product,
+                                productRowFocusRefs.current.get(product.id),
+                              );
                             }}
                             className={cn(
                               'focus-ring flex min-h-[var(--tap-min)] min-w-[var(--tap-min)] shrink-0 items-center justify-center rounded-[var(--radius)] border border-hairline bg-paper text-ink active:scale-95',
@@ -2154,23 +2276,12 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                               item={item}
                               unitPrice={unitPrice}
                               editingPrice={editingPrice[item.product.id]}
-                              editingQty={editingQty[item.product.id]}
                               onPriceChange={(id, value) =>
                                 setEditingPrice((prev) => ({ ...prev, [id]: value }))
                               }
                               onPriceCommit={commitPrice}
-                              onQtyEditingChange={(id, value) =>
-                                setEditingQty((prev) => ({ ...prev, [id]: value }))
-                              }
-                              onQtyCommit={commitQty}
-                              onQtyStep={(id, next) => {
-                                setEditingQty((prev) => {
-                                  const n = { ...prev };
-                                  delete n[id];
-                                  return n;
-                                });
-                                updateCartQuantity(id, next);
-                              }}
+                              onQtyStep={(id, next) => updateCartQuantity(id, next)}
+                              onEditQuantity={openQtyKeypadFromCartLine}
                               onRemove={removeFromCart}
                             />
                           );
@@ -2418,23 +2529,12 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                           item={item}
                           unitPrice={unitPrice}
                           editingPrice={editingPrice[item.product.id]}
-                          editingQty={editingQty[item.product.id]}
                           onPriceChange={(id, value) =>
                             setEditingPrice((prev) => ({ ...prev, [id]: value }))
                           }
                           onPriceCommit={commitPrice}
-                          onQtyEditingChange={(id, value) =>
-                            setEditingQty((prev) => ({ ...prev, [id]: value }))
-                          }
-                          onQtyCommit={commitQty}
-                          onQtyStep={(id, next) => {
-                            setEditingQty((prev) => {
-                              const n = { ...prev };
-                              delete n[id];
-                              return n;
-                            });
-                            updateCartQuantity(id, next);
-                          }}
+                          onQtyStep={(id, next) => updateCartQuantity(id, next)}
+                          onEditQuantity={openQtyKeypadFromCartLine}
                           onRemove={removeFromCart}
                         />
                       );
@@ -2520,6 +2620,36 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
           customer={lastOrderCustomer}
           receiptData={generateReceiptData(lastOrder)}
           defaultView={lastOrder.sale_type === 'credit' ? 'invoice' : 'receipt'}
+        />
+      )}
+
+      {qtyKeypadSession && (
+        <QuantityKeypad
+          open
+          onOpenChange={(open) => {
+            if (!open) closeQtyKeypad();
+          }}
+          product={qtyKeypadSession.product}
+          mode={qtyKeypadSession.mode}
+          unitPrice={
+            cart.find((c) => c.product.id === qtyKeypadSession.product.id)
+              ? getUnitPrice(
+                  cart.find((c) => c.product.id === qtyKeypadSession.product.id)!,
+                )
+              : qtyKeypadSession.product.price
+          }
+          inputValue={qtyKeypadInput}
+          onInputChange={setQtyKeypadInput}
+          onConfirm={confirmQtyKeypad}
+          onRemove={
+            qtyKeypadSession.mode === 'edit'
+              ? () => {
+                  removeFromCart(qtyKeypadSession.product.id);
+                  closeQtyKeypad();
+                }
+              : undefined
+          }
+          returnFocusRef={qtyKeypadReturnFocusRef}
         />
       )}
 
