@@ -1,17 +1,27 @@
-import { Bell, Menu } from 'lucide-react';
+import { Bell, HelpCircle, LogOut, Menu, Settings } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { useAuth } from '@/context/AuthContext';
 import { SyncStatusIndicator } from '@/components/pos/SyncStatusIndicator';
 import { GlobalSearchField } from '@/components/pos/GlobalSearchField';
 import { StoreSwitcher } from '@/components/pos/StoreSwitcher';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+
 interface HeaderProps {
   onMenuToggle?: () => void;
   hideSearch?: boolean;
+  onNavigate?: (tab: string) => void;
 }
 
-export function Header({ onMenuToggle, hideSearch = false }: HeaderProps) {
-  const { user } = useAuth();
+export function Header({ onMenuToggle, hideSearch = false, onNavigate }: HeaderProps) {
+  const { user, signOut } = useAuth();
 
   const initials = user?.full_name
     ? user.full_name
@@ -62,16 +72,51 @@ export function Header({ onMenuToggle, hideSearch = false }: HeaderProps) {
           <span className="sr-only">Notifications</span>
         </button>
 
-        <button
-          type="button"
-          className="focus-ring rounded-full"
-          aria-label={user?.full_name ? `Account menu, ${user.full_name}` : 'Account menu'}
-        >
-          <Avatar className="h-10 w-10 border border-hairline bg-surface">
-            {user?.avatar_url && <AvatarImage src={user.avatar_url} alt="" />}
-            <AvatarFallback className="bg-muted text-sm font-medium text-ink">{initials}</AvatarFallback>
-          </Avatar>
-        </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="focus-ring rounded-full"
+              aria-label={user?.full_name ? `Account menu, ${user.full_name}` : 'Account menu'}
+            >
+              <Avatar className="h-10 w-10 border border-hairline bg-surface">
+                {user?.avatar_url && <AvatarImage src={user.avatar_url} alt="" />}
+                <AvatarFallback className="bg-muted text-sm font-medium text-ink">{initials}</AvatarFallback>
+              </Avatar>
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56 shadow-float">
+            <DropdownMenuLabel className="font-normal">
+              <p className="truncate text-sm font-semibold text-ink">{user?.full_name || 'User'}</p>
+              {user?.email && (
+                <p className="truncate text-xs font-normal text-ink-2">{user.email}</p>
+              )}
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onSelect={() => onNavigate?.('settings')}
+              className="gap-2 cursor-pointer"
+            >
+              <Settings className="h-4 w-4" aria-hidden />
+              Settings
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() => onNavigate?.('help')}
+              className="gap-2 cursor-pointer"
+            >
+              <HelpCircle className="h-4 w-4" aria-hidden />
+              Help Center
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onSelect={() => void signOut()}
+              className="gap-2 cursor-pointer text-ink"
+            >
+              <LogOut className="h-4 w-4" aria-hidden />
+              Logout
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </header>
   );

@@ -86,6 +86,7 @@ export function PageLayout({
         <Header
           onMenuToggle={() => setMobileMenuOpen(true)}
           hideSearch={hideHeaderSearch}
+          onNavigate={onNavigate}
         />
 
         {flexContent ? (

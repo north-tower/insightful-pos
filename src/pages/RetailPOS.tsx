@@ -47,12 +47,15 @@ import {
   Check,
   Layers,
 } from 'lucide-react';
-import { fc, CURRENCY_SYMBOL } from '@/lib/currency';
+import { CURRENCY_SYMBOL } from '@/lib/currency';
 import { formatKES } from '@/lib/formatKES';
+import {
+  ProductTile,
+  getProductCategoryDisplayName,
+} from '@/components/pos/ProductTile';
 import { formatDate } from '@/lib/formatDate';
 import { getStockStatus } from '@/lib/stockStatus';
-import { formatQty, formatQtyAmount, isDecimalUnit, normalizeUnit } from '@/lib/units';
-import type { ProductCategory } from '@/data/productData';
+import { formatQty, formatQtyAmount, formatDisplayUnit, isDecimalUnit } from '@/lib/units';
 import { parseCommittedCartQuantity } from '@/lib/retailCartQty';
 import {
   QuantityKeypad,
@@ -122,39 +125,6 @@ function getInitialProductViewMode(): ProductViewMode {
   return window.innerWidth >= 1024 ? 'list' : 'card';
 }
 
-function hashCategorySlug(slug: string): number {
-  let hash = 0;
-  for (let i = 0; i < slug.length; i++) {
-    hash = slug.charCodeAt(i) + ((hash << 5) - hash);
-    hash |= 0;
-  }
-  return Math.abs(hash);
-}
-
-const CATEGORY_BLOCK_CLASSES = [
-  'bg-[hsl(var(--accent-soft))] text-ink',
-  'bg-secondary text-secondary-foreground',
-  'bg-muted text-ink',
-] as const;
-
-function getCategoryPlaceholderMeta(
-  product: Product,
-  categories: ProductCategory[],
-): { initial: string; blockClass: string } {
-  const slug = product.category || 'uncategorized';
-  const fromCatalog = categories.find((c) => c.id === slug);
-  const name =
-    fromCatalog?.name ||
-    (slug === 'uncategorized' ? 'Uncategorized' : slug.replace(/-/g, ' '));
-  const initial = (name.trim().charAt(0) || '?').toUpperCase();
-  const blockClass = CATEGORY_BLOCK_CLASSES[hashCategorySlug(slug) % CATEGORY_BLOCK_CLASSES.length];
-  return { initial, blockClass };
-}
-
-function formatPricePerUnit(price: number, unit: string): string {
-  return `${formatKES(price)} / ${normalizeUnit(unit)}`;
-}
-
 function PosProductStockHint({ status }: { status: 'low' | 'out' }) {
   const label = status === 'low' ? 'Low stock' : 'Out';
   const dotClass =
@@ -165,10 +135,6 @@ function PosProductStockHint({ status }: { status: 'low' | 'out' }) {
       <span className="truncate">{label}</span>
     </span>
   );
-}
-
-function hasProductImage(product: Product): boolean {
-  return Boolean(product.image?.trim());
 }
 
 function showPosCategoryChips(
@@ -1218,6 +1184,11 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
     [posCategoryChips],
   );
 
+  const activeCatalogCount = useMemo(
+    () => sellableRetailProducts.filter((p) => p.isActive).length,
+    [sellableRetailProducts],
+  );
+
   const quickKeyProducts = useMemo(() => {
     const seen = new Set<string>();
     const orderedIds: string[] = [];
@@ -1240,6 +1211,9 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
       .map((id) => byId.get(id))
       .filter((p): p is Product => Boolean(p));
   }, [favoriteProductIds, recentProductIds, sellableRetailProducts]);
+
+  const showQuickKeysStrip =
+    activeCatalogCount > 12 && quickKeyProducts.length > 0;
 
   const hiddenOutOfStockCount = useMemo(
     () => sellableRetailProducts.filter((p) => p.isActive && p.stock <= 0).length,
@@ -1823,7 +1797,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                     }
                   }}
                   className={cn(
-                    'focus-ring flex min-h-[var(--tap-min)] items-center justify-center gap-1 rounded-[calc(var(--radius)-2px)] px-2 text-xs font-semibold active:scale-95 sm:min-w-[var(--tap-min)]',
+                    'focus-ring flex min-h-[var(--tap-min)] items-center justify-center gap-1 rounded-[calc(var(--radius)-2px)] px-2 text-[13px] font-semibold active:scale-95 sm:min-w-[var(--tap-min)]',
                     productViewMode === 'card'
                       ? 'border-2 border-primary bg-[hsl(var(--accent-soft))] text-ink'
                       : 'border border-transparent text-ink-2',
@@ -1844,7 +1818,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                     }
                   }}
                   className={cn(
-                    'focus-ring flex min-h-[var(--tap-min)] items-center justify-center gap-1 rounded-[calc(var(--radius)-2px)] px-2 text-xs font-semibold active:scale-95 sm:min-w-[var(--tap-min)]',
+                    'focus-ring flex min-h-[var(--tap-min)] items-center justify-center gap-1 rounded-[calc(var(--radius)-2px)] px-2 text-[13px] font-semibold active:scale-95 sm:min-w-[var(--tap-min)]',
                     productViewMode === 'list'
                       ? 'border-2 border-primary bg-[hsl(var(--accent-soft))] text-ink'
                       : 'border border-transparent text-ink-2',
@@ -1924,67 +1898,33 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
               </button>
             </div>
 
-            {quickKeyProducts.length > 0 && (
-              <div className="shrink-0 border-b border-hairline px-2 pb-2 pt-0 sm:px-3 lg:px-4">
-                <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-2">
+            {showQuickKeysStrip && (
+              <div className="shrink-0 px-2 pb-2 pt-0 sm:px-3 lg:px-4">
+                <p className="mb-2 text-[13px] font-semibold uppercase tracking-wide text-ink-2">
                   Quick keys
                 </p>
-                <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1 scrollbar-hide">
                   {quickKeyProducts.map((product) => {
                     const cartItem = cart.find((c) => c.product.id === product.id);
                     const inCart = cartItem ? cartItem.quantity : 0;
-                    const showsImage = hasProductImage(product);
-                    const { initial, blockClass } = getCategoryPlaceholderMeta(
-                      product,
-                      retailCategories,
-                    );
+                    const stockChipStatus = getStockStatus(product);
+                    const isOutOfStock = product.stock <= 0;
                     return (
-                      <button
+                      <ProductTile
                         key={product.id}
-                        type="button"
-                        onClick={() => handleProductRowActivate(product, null)}
-                        className={cn(
-                          'focus-ring relative flex min-h-[6rem] w-[7.5rem] shrink-0 snap-start flex-col rounded-[var(--radius)] border border-hairline bg-surface p-2 text-left active:scale-[0.98]',
-                          inCart > 0 && 'border-2 border-primary',
+                        product={product}
+                        categoryLabel={getProductCategoryDisplayName(
+                          product,
+                          retailCategories,
                         )}
-                      >
-                        {inCart > 0 && (
-                          <span
-                            className="absolute right-1.5 top-1.5 z-10 flex min-h-6 min-w-6 items-center justify-center rounded-full bg-ink px-1 font-sans text-xs font-semibold text-paper num"
-                            aria-hidden
-                          >
-                            {formatQtyAmount(inCart)}
-                          </span>
-                        )}
-                        {showsImage ? (
-                          <div className="mb-1.5 aspect-square w-full overflow-hidden rounded-[calc(var(--radius)-2px)]">
-                            <img
-                              src={product.image}
-                              alt=""
-                              className="h-full w-full object-cover"
-                            />
-                          </div>
-                        ) : (
-                          <div
-                            className={cn(
-                              'mb-1.5 flex aspect-square w-full items-center justify-center rounded-[calc(var(--radius)-2px)] text-lg font-bold',
-                              blockClass,
-                            )}
-                            aria-hidden
-                          >
-                            {initial}
-                          </div>
-                        )}
-                        <p
-                          className="line-clamp-2 min-w-0 flex-1 pr-7 text-base font-semibold leading-snug text-ink"
-                          title={product.name}
-                        >
-                          {product.name}
-                        </p>
-                        <span className="mt-1 truncate font-mono text-xs font-semibold text-ink num">
-                          {formatPricePerUnit(product.price, product.unit)}
-                        </span>
-                      </button>
+                        inCartQty={inCart}
+                        isFavorite={favoriteProductIds.includes(product.id)}
+                        stockStatus={stockChipStatus}
+                        isOutOfStock={isOutOfStock}
+                        onActivate={() => handleProductRowActivate(product, null)}
+                        onToggleFavorite={() => toggleFavorite(product.id)}
+                        className="w-[176px] shrink-0 snap-start"
+                      />
                     );
                   })}
                 </div>

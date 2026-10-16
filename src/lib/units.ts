@@ -3,6 +3,13 @@ export function normalizeUnit(unit: string | null | undefined): string {
   return (unit || 'pcs').trim().toLowerCase();
 }
 
+/** POS tile/list unit suffix (display only; does not change stored values). */
+export function formatDisplayUnit(unit: string | null | undefined): string {
+  const u = normalizeUnit(unit);
+  if (u === 'kgs') return 'kg';
+  return u;
+}
+
 const DECIMAL_UNITS = new Set([
   'kg',
   'kgs',

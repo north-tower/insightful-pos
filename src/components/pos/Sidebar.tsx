@@ -1,13 +1,10 @@
-import { type ReactNode, useState, useEffect, useRef, useCallback } from 'react';
+import { type ReactNode, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   LayoutDashboard,
   ClipboardList,
   Armchair,
   UtensilsCrossed,
   Users,
-  Settings,
-  HelpCircle,
-  LogOut,
   ChevronDown,
   History,
   Receipt,
@@ -21,20 +18,59 @@ import {
   TrendingUp,
   Factory,
   CalendarDays,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Plus,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
 import { useBusinessMode } from '@/context/BusinessModeContext';
 import { useAuth, UserRole } from '@/context/AuthContext';
+import { useBranch } from '@/context/BranchContext';
 import { useCompanySettings } from '@/context/BusinessSettingsContext';
 import { ShopLogo } from '@/components/branding/ShopLogo';
+import { StoreSwitcher } from '@/components/pos/StoreSwitcher';
+import { SidebarSyncFooter } from '@/components/pos/SidebarSyncFooter';
+import { useProducts } from '@/hooks/useProducts';
+import { getStockStatus } from '@/lib/stockStatus';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+
+const SIDEBAR_COLLAPSED_KEY = 'insightful-pos:sidebar-collapsed';
+
+const RETAIL_CASHIER_NAV_IDS = new Set(['pos', 'order-history', 'shop-day']);
+
+function readSidebarCollapsedPreference(): boolean | null {
+  try {
+    const saved = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
+    if (saved === 'true') return true;
+    if (saved === 'false') return false;
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+function defaultSidebarCollapsed(activeTab: string): boolean {
+  if (activeTab === 'pos') return true;
+  if (typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches) {
+    return false;
+  }
+  return true;
+}
+
+function persistSidebarCollapsed(collapsed: boolean) {
+  try {
+    localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(collapsed));
+  } catch {
+    /* ignore */
+  }
+}
 
 interface SidebarProps {
   activeTab: string;
@@ -63,6 +99,17 @@ interface NavItem {
 interface NavSection {
   label: string;
   items: NavItem[];
+}
+
+function isItemVisibleInNav(
+  item: NavItem,
+  userRole: UserRole,
+  isRestaurant: boolean,
+): boolean {
+  if (!isRestaurant && userRole === 'cashier') {
+    return RETAIL_CASHIER_NAV_IDS.has(item.id);
+  }
+  return !item.roles || item.roles.includes(userRole);
 }
 
 const restaurantNavItems: NavItem[] = [
@@ -128,11 +175,6 @@ const retailNavSections: NavSection[] = [
 
 const retailNavItems: NavItem[] = retailNavSections.flatMap((section) => section.items);
 
-const bottomNavItems: NavItem[] = [
-  { id: 'settings', label: 'Settings', icon: Settings, roles: ['admin', 'manager'] },
-  { id: 'help', label: 'Help Center', icon: HelpCircle },
-];
-
 function isNavGroupActive(item: NavItem, activeTab: string): boolean {
   if (item.children?.length) {
     return item.children.some((child) => child.id === activeTab);
@@ -158,30 +200,49 @@ export function Sidebar({
   mobileDrawerFooter,
 }: SidebarProps) {
   const { isRestaurant, config } = useBusinessMode();
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
+  const { activeBranch, branches } = useBranch();
   const { companyName } = useCompanySettings();
+  const { products } = useProducts();
   const allNavItems = isRestaurant ? restaurantNavItems : retailNavItems;
   const LogoIcon = isRestaurant ? UtensilsCrossed : Store;
   const [expandedMenus, setExpandedMenus] = useState<Set<string>>(() => new Set());
   const navScrollRef = useRef<HTMLElement>(null);
   const [navScrollState, setNavScrollState] = useState({ top: false, bottom: false });
+  const [desktopCollapsed, setDesktopCollapsed] = useState(() => {
+    const saved = readSidebarCollapsedPreference();
+    return saved ?? defaultSidebarCollapsed(activeTab);
+  });
 
   const userRole = user?.role || 'cashier';
-  const mainNavItems = allNavItems.filter((item) => !item.roles || item.roles.includes(userRole));
-  const visibleBottomItems = bottomNavItems.filter(
-    (item) => !item.roles || item.roles.includes(userRole),
+  const mainNavItems = allNavItems.filter((item) =>
+    isItemVisibleInNav(item, userRole, isRestaurant),
   );
 
-  const initials = user?.full_name
-    ? user.full_name
-        .split(' ')
-        .map((n) => n[0])
-        .join('')
-        .toUpperCase()
-        .slice(0, 2)
-    : 'U';
+  const lowStockCount = useMemo(() => {
+    if (isRestaurant) return 0;
+    return products.filter((p) => getStockStatus(p) === 'low').length;
+  }, [products, isRestaurant]);
 
-  const roleLabel = userRole.charAt(0).toUpperCase() + userRole.slice(1);
+  const storeDisplayName =
+    branches.length > 0
+      ? activeBranch?.is_headquarters
+        ? `${activeBranch?.name} (HQ)`
+        : activeBranch?.name ?? 'Store'
+      : companyName || 'Store';
+
+  useEffect(() => {
+    if (readSidebarCollapsedPreference() !== null) return;
+    setDesktopCollapsed(defaultSidebarCollapsed(activeTab));
+  }, [activeTab]);
+
+  const toggleDesktopCollapsed = () => {
+    setDesktopCollapsed((prev) => {
+      const next = !prev;
+      persistSidebarCollapsed(next);
+      return next;
+    });
+  };
 
   const updateNavScrollEdges = useCallback(() => {
     const el = navScrollRef.current;
@@ -194,10 +255,6 @@ export function Sidebar({
   useEffect(() => {
     updateNavScrollEdges();
   }, [activeTab, mobileOpen, updateNavScrollEdges]);
-
-  const handleLogout = async () => {
-    await signOut();
-  };
 
   useEffect(() => {
     const parentsToExpand = allNavItems.filter((item) =>
@@ -315,11 +372,31 @@ export function Sidebar({
         className={cn(
           navRowClass,
           activeNavClass(isActive),
-          compact && 'justify-center px-0',
+          compact && 'relative justify-center px-0',
         )}
       >
         <Icon className={cn('h-5 w-5 shrink-0', isActive && 'text-primary')} aria-hidden />
-        {!compact && <span className="min-w-0 flex-1 truncate text-left">{item.label}</span>}
+        {!compact && (
+          <>
+            <span className="min-w-0 flex-1 truncate text-left">{item.label}</span>
+            {item.id === 'inventory' && lowStockCount > 0 && (
+              <span
+                className="num flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--accent-soft))] px-1.5 text-xs font-semibold text-primary"
+                aria-label={`${lowStockCount} low stock`}
+              >
+                {lowStockCount}
+              </span>
+            )}
+          </>
+        )}
+        {compact && item.id === 'inventory' && lowStockCount > 0 && (
+          <span
+            className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-0.5 text-[10px] font-semibold text-primary-foreground"
+            aria-hidden
+          >
+            {lowStockCount > 9 ? '9+' : lowStockCount}
+          </span>
+        )}
       </button>
     );
 
@@ -355,8 +432,8 @@ export function Sidebar({
     return (
       <div className={cn(compact ? 'space-y-2' : 'space-y-4')}>
         {retailNavSections.map((section, index) => {
-          const visibleItems = section.items.filter(
-            (item) => !item.roles || item.roles.includes(userRole),
+          const visibleItems = section.items.filter((item) =>
+            isItemVisibleInNav(item, userRole, isRestaurant),
           );
           if (visibleItems.length === 0) return null;
           return (
@@ -376,133 +453,136 @@ export function Sidebar({
     );
   };
 
-  const logoBlock = (showClose: boolean) => (
-    <div className="shrink-0 border-b border-hairline px-4 py-3">
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-3">
-          <ShopLogo
-            size="sidebar"
-            fallbackIcon={LogoIcon}
-            className="!h-10 !w-10 !max-w-[2.5rem] rounded-[var(--radius)] border border-hairline bg-surface shadow-none [&>div]:!h-10 [&>div]:!w-10 [&>div]:rounded-[var(--radius)] [&>div]:border [&>div]:border-hairline [&>div]:bg-surface [&>div]:shadow-none"
-          />
-          <div className="min-w-0">
-            <h1 className="truncate font-sans text-base font-semibold leading-tight text-ink">
-              {companyName || 'POS'}
-            </h1>
-            <p className="text-xs font-medium text-ink-2">{config.label} POS</p>
-          </div>
-        </div>
-        {showClose && (
-          <button
-            type="button"
-            onClick={onMobileClose}
-            className="focus-ring flex h-12 w-12 shrink-0 items-center justify-center rounded-[var(--radius)] text-ink hover:bg-muted md:hidden"
-            aria-label="Close menu"
-          >
-            <X className="h-5 w-5" aria-hidden />
-          </button>
-        )}
-      </div>
-    </div>
-  );
+  const showNewSale = !isRestaurant && activeTab !== 'pos';
 
-  const userBlock = (compact?: boolean) => (
-    <div className={cn('shrink-0 border-t border-hairline px-3 py-3', compact && 'flex justify-center px-2')}>
-      <div
+  const newSaleButton = (compact?: boolean) => {
+    if (!showNewSale) return null;
+
+    const button = (
+      <Button
+        type="button"
+        variant="default"
+        onClick={() => handleNavClick('pos')}
         className={cn(
-          'flex items-center gap-3',
-          compact ? 'justify-center' : 'px-1',
+          'focus-ring w-full gap-2 font-semibold shadow-none',
+          compact ? 'h-10 w-10 px-0' : 'h-10 min-h-10',
         )}
+        aria-label={compact ? 'New sale' : undefined}
       >
-        <Avatar className="h-10 w-10 border border-hairline bg-surface">
-          {user?.avatar_url && <AvatarImage src={user.avatar_url} alt="" />}
-          <AvatarFallback className="bg-muted text-sm font-medium text-ink">{initials}</AvatarFallback>
-        </Avatar>
-        {!compact && (
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-ink">{user?.full_name || 'User'}</p>
-            <p className="text-xs text-ink-2">{roleLabel}</p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
+        <Plus className="h-4 w-4 shrink-0" aria-hidden />
+        {!compact && 'New sale'}
+      </Button>
+    );
 
-  const drawerFooterRowClass =
-    'focus-ring relative flex w-full h-11 min-h-11 items-center gap-3 rounded-[var(--radius)] px-2.5 text-sm font-medium text-ink-2 hover:bg-muted hover:text-ink motion-reduce:transition-none';
+    if (compact) {
+      return (
+        <div className="mb-2 flex justify-center px-1">
+          <Tooltip>
+            <TooltipTrigger asChild>{button}</TooltipTrigger>
+            <TooltipContent side="right" className="shadow-float">
+              New sale
+            </TooltipContent>
+          </Tooltip>
+        </div>
+      );
+    }
 
-  const footerActions = (compact?: boolean, drawer?: boolean) => (
+    return <div className="mb-3 px-1">{button}</div>;
+  };
+
+  const collapseToggle = (compact: boolean) => (
     <div
       className={cn(
-        'shrink-0 space-y-0.5 border-t border-hairline px-3',
-        drawer ? 'py-1.5' : 'py-3',
+        'shrink-0 border-t border-hairline p-2',
+        compact && 'flex justify-center',
       )}
     >
-      {visibleBottomItems.map((item) => {
-        const Icon = item.icon;
-        if (compact) {
-          return (
-            <Tooltip key={item.id}>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  onClick={() => handleNavClick(item.id)}
-                  aria-label={item.label}
-                  className="focus-ring flex h-10 w-full items-center justify-center rounded-[var(--radius)] text-ink hover:bg-muted [@media(pointer:coarse)]:min-h-[var(--tap-min)]"
-                >
-                  <Icon className="h-5 w-5" aria-hidden />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="right" className="shadow-float">
-                {item.label}
-              </TooltipContent>
-            </Tooltip>
-          );
-        }
-        return (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => handleNavClick(item.id)}
-            className={cn(drawer ? drawerFooterRowClass : navRowClass, 'text-ink-2 hover:text-ink')}
-          >
-            <Icon className="h-4 w-4 shrink-0" aria-hidden />
-            {item.label}
-          </button>
-        );
-      })}
       {compact ? (
         <Tooltip>
           <TooltipTrigger asChild>
             <button
               type="button"
-              onClick={() => void handleLogout()}
-              aria-label="Logout"
-              className="focus-ring flex h-10 w-full items-center justify-center rounded-[var(--radius)] text-ink hover:bg-muted [@media(pointer:coarse)]:min-h-[var(--tap-min)]"
+              onClick={toggleDesktopCollapsed}
+              className="focus-ring flex h-10 w-10 items-center justify-center rounded-[var(--radius)] text-ink-2 hover:bg-muted hover:text-ink"
+              aria-label="Expand sidebar"
             >
-              <LogOut className="h-5 w-5" aria-hidden />
+              <PanelLeftOpen className="h-5 w-5" aria-hidden />
             </button>
           </TooltipTrigger>
           <TooltipContent side="right" className="shadow-float">
-            Logout
+            Expand sidebar
           </TooltipContent>
         </Tooltip>
       ) : (
         <button
           type="button"
-          onClick={() => void handleLogout()}
-          className={cn(
-            drawer ? drawerFooterRowClass : navRowClass,
-            'text-ink hover:text-ink',
-            drawer && 'text-ink-2',
-          )}
+          onClick={toggleDesktopCollapsed}
+          className="focus-ring flex h-10 w-full items-center gap-2 rounded-[var(--radius)] px-3 text-sm font-medium text-ink-2 hover:bg-muted hover:text-ink"
+          aria-label="Collapse sidebar"
         >
-          <LogOut className="h-4 w-4 shrink-0" aria-hidden />
-          Logout
+          <PanelLeftClose className="h-4 w-4 shrink-0" aria-hidden />
+          Collapse
         </button>
       )}
     </div>
   );
+
+  const logoBlock = (showClose: boolean, compact?: boolean) => {
+    if (compact) {
+      return (
+        <div className="flex shrink-0 justify-center border-b border-hairline py-3">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="rounded-[var(--radius)]">
+                <ShopLogo
+                  size="sidebar"
+                  fallbackIcon={LogoIcon}
+                  className="!h-10 !w-10 !max-w-[2.5rem] rounded-[var(--radius)] border border-hairline bg-surface shadow-none [&>div]:!h-10 [&>div]:!w-10 [&>div]:rounded-[var(--radius)] [&>div]:border [&>div]:border-hairline [&>div]:bg-surface"
+                />
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="right" className="shadow-float">
+              {storeDisplayName}
+            </TooltipContent>
+          </Tooltip>
+        </div>
+      );
+    }
+
+    return (
+      <div className="shrink-0 border-b border-hairline px-4 py-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <ShopLogo
+              size="sidebar"
+              fallbackIcon={LogoIcon}
+              className="!h-10 !w-10 !max-w-[2.5rem] shrink-0 rounded-[var(--radius)] border border-hairline bg-surface shadow-none [&>div]:!h-10 [&>div]:!w-10 [&>div]:rounded-[var(--radius)] [&>div]:border [&>div]:border-hairline [&>div]:bg-surface [&>div]:shadow-none"
+            />
+            <div className="min-w-0 flex-1">
+              {branches.length > 0 ? (
+                <StoreSwitcher className="h-auto max-w-full border-0 bg-transparent p-0 text-base font-semibold shadow-none [&>span]:font-semibold" />
+              ) : (
+                <h1 className="truncate font-sans text-base font-semibold leading-tight text-ink">
+                  {companyName || 'POS'}
+                </h1>
+              )}
+              <p className="text-xs font-medium text-ink-2">{config.label} POS</p>
+            </div>
+          </div>
+          {showClose && (
+            <button
+              type="button"
+              onClick={onMobileClose}
+              className="focus-ring flex h-12 w-12 shrink-0 items-center justify-center rounded-[var(--radius)] text-ink hover:bg-muted md:hidden"
+              aria-label="Close menu"
+            >
+              <X className="h-5 w-5" aria-hidden />
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   const navRegion = (compact?: boolean, drawer?: boolean) => (
     <nav
@@ -516,46 +596,20 @@ export function Sidebar({
         navScrollState.bottom && 'shell-nav-scroll--bottom',
       )}
     >
+      {newSaleButton(compact)}
       {renderMainNav(compact)}
     </nav>
   );
 
-  const fullSidebarInner = (
+  const sidebarInner = (compact: boolean, options?: { drawer?: boolean; showCollapse?: boolean }) => (
     <>
-      {logoBlock(false)}
-      {navRegion(false)}
-      {userBlock(false)}
-      {footerActions(false)}
-    </>
-  );
-
-  const drawerInner = (
-    <>
-      {mobileDrawerTop && (
-        <div className="shrink-0 border-b border-hairline px-4 py-3">{mobileDrawerTop}</div>
-      )}
-      {logoBlock(true)}
-      {navRegion(false, true)}
-      {mobileDrawerFooter && (
+      {logoBlock(Boolean(options?.drawer), compact)}
+      {navRegion(compact, options?.drawer)}
+      {options?.drawer && mobileDrawerFooter && (
         <div className="shrink-0 border-t border-hairline px-3 py-1.5">{mobileDrawerFooter}</div>
       )}
-      {userBlock(false)}
-      {footerActions(false, true)}
-    </>
-  );
-
-  const railInner = (
-    <>
-      <div className="flex shrink-0 justify-center border-b border-hairline py-3">
-        <ShopLogo
-          size="sidebar"
-          fallbackIcon={LogoIcon}
-          className="!h-10 !w-10 !max-w-[2.5rem] rounded-[var(--radius)] border border-hairline bg-surface shadow-none [&>div]:!h-10 [&>div]:!w-10 [&>div]:rounded-[var(--radius)] [&>div]:border [&>div]:border-hairline [&>div]:bg-surface"
-        />
-      </div>
-      {navRegion(true)}
-      {userBlock(true)}
-      {footerActions(true)}
+      <SidebarSyncFooter compact={compact} />
+      {options?.showCollapse && collapseToggle(compact)}
     </>
   );
 
@@ -564,14 +618,17 @@ export function Sidebar({
 
   return (
     <TooltipProvider delayDuration={300}>
-      {/* Desktop sidebar */}
-      <div className="hidden h-full shrink-0 lg:block">
-        <aside className={cn(asideClass, 'w-64 border-r')}>{fullSidebarInner}</aside>
-      </div>
-
-      {/* Tablet icon rail */}
-      <div className="hidden h-full shrink-0 md:block lg:hidden">
-        <aside className={cn(asideClass, 'w-[4.5rem] border-r')}>{railInner}</aside>
+      {/* Desktop / tablet sidebar */}
+      <div className="hidden h-full shrink-0 md:block">
+        <aside
+          className={cn(
+            asideClass,
+            'motion-reduce:transition-none border-r transition-[width] duration-200 ease-linear',
+            desktopCollapsed ? 'w-[4.5rem]' : 'w-64',
+          )}
+        >
+          {sidebarInner(desktopCollapsed, { showCollapse: true })}
+        </aside>
       </div>
 
       {/* Mobile drawer */}
@@ -588,7 +645,10 @@ export function Sidebar({
               'relative z-10 h-full max-h-[100dvh] w-[min(320px,85vw)] shadow-float motion-reduce:animate-none animate-in slide-in-from-left duration-300',
             )}
           >
-            {drawerInner}
+            {mobileDrawerTop && (
+              <div className="shrink-0 border-b border-hairline px-4 py-3">{mobileDrawerTop}</div>
+            )}
+            {sidebarInner(false, { drawer: true })}
           </aside>
         </div>
       )}
