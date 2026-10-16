@@ -468,7 +468,7 @@ function CreditSaleExtras({
               type="text"
               inputMode="decimal"
               pattern="[0-9]*"
-              placeholder={`Deposit amount (max ${fc(total)})`}
+              placeholder={`Deposit amount (max ${formatKES(total)})`}
               value={creditDeposit}
               onChange={(e) => onCreditDepositChange(e.target.value)}
               className="h-9 min-h-9 border-border/70 bg-background text-xs"
@@ -1671,7 +1671,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
             ? ` · ${paymentMethodLabel(order.payments[0].method)}`
             : '';
         toast.success(
-          `${label} #${order.invoice_number || order.order_number} — ${fc(order.total)}${paidVia}`,
+          `${label} #${order.invoice_number || order.order_number} — ${formatKES(order.total)}${paidVia}`,
         );
 
         // Send SMS notification for credit invoices (fire-and-forget)
@@ -1950,115 +1950,38 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
               ) : (
               <>
               {productViewMode === 'card' ? (
-                <div className="grid auto-rows-min content-start gap-2 sm:gap-3 [grid-template-columns:repeat(auto-fill,minmax(10rem,1fr))]">
+                <div className="grid grid-cols-2 gap-3 min-[480px]:grid-cols-[repeat(auto-fill,minmax(176px,1fr))]">
                   {filteredProducts.map((product) => {
                     const cartItem = cart.find((c) => c.product.id === product.id);
                     const inCart = cartItem ? cartItem.quantity : 0;
                     const stockChipStatus = getStockStatus(product);
-                    const showsImage = hasProductImage(product);
-                    const isFavorite = favoriteProductIds.includes(product.id);
-                    const { initial, blockClass } = getCategoryPlaceholderMeta(
-                      product,
-                      retailCategories,
-                    );
+                    const isOutOfStock = product.stock <= 0;
 
                     return (
-                      <div
+                      <ProductTile
                         key={product.id}
                         ref={(el) => {
                           if (el) productRowFocusRefs.current.set(product.id, el);
                           else productRowFocusRefs.current.delete(product.id);
                         }}
-                        role="button"
-                        tabIndex={0}
                         data-testid={`product-row-${product.id}`}
-                        onClick={() =>
+                        product={product}
+                        categoryLabel={getProductCategoryDisplayName(
+                          product,
+                          retailCategories,
+                        )}
+                        inCartQty={inCart}
+                        isFavorite={favoriteProductIds.includes(product.id)}
+                        stockStatus={stockChipStatus}
+                        isOutOfStock={isOutOfStock}
+                        onActivate={() =>
                           handleProductRowActivate(
                             product,
                             productRowFocusRefs.current.get(product.id),
                           )
                         }
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            handleProductRowActivate(
-                              product,
-                              productRowFocusRefs.current.get(product.id),
-                            );
-                          }
-                        }}
-                        className={cn(
-                          'focus-ring relative flex min-h-[6rem] cursor-pointer flex-col rounded-[var(--radius)] border border-hairline bg-surface p-2 text-left active:scale-[0.98]',
-                          inCart > 0 && 'border-2 border-primary',
-                        )}
-                      >
-                        <div className="relative z-10 mb-1 flex min-h-[var(--tap-min)] items-start justify-between gap-1">
-                          <button
-                            type="button"
-                            aria-label={
-                              isFavorite ? 'Remove from favorites' : 'Add to favorites'
-                            }
-                            aria-pressed={isFavorite}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleFavorite(product.id);
-                            }}
-                            className="focus-ring -ml-1 -mt-1 flex min-h-[var(--tap-min)] min-w-[var(--tap-min)] shrink-0 items-center justify-center rounded-[var(--radius)] active:scale-95"
-                          >
-                            <Star
-                              className={cn(
-                                'h-5 w-5',
-                                isFavorite ? 'fill-ink text-ink' : 'text-ink-2',
-                              )}
-                            />
-                          </button>
-                          {inCart > 0 ? (
-                            <span
-                              className="flex min-h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-ink px-1.5 font-sans text-xs font-semibold text-paper num"
-                              aria-hidden
-                            >
-                              {formatQtyAmount(inCart)}
-                            </span>
-                          ) : (
-                            <span className="min-h-6 min-w-6 shrink-0" aria-hidden />
-                          )}
-                        </div>
-                        {showsImage ? (
-                          <div className="relative mb-2 aspect-square overflow-hidden rounded-[calc(var(--radius)-2px)]">
-                            <img
-                              src={product.image}
-                              alt=""
-                              className="h-full w-full object-cover"
-                            />
-                          </div>
-                        ) : (
-                          <div
-                            className={cn(
-                              'mb-2 flex aspect-square w-full max-h-20 items-center justify-center rounded-[calc(var(--radius)-2px)] text-2xl font-bold',
-                              blockClass,
-                            )}
-                            aria-hidden
-                          >
-                            {initial}
-                          </div>
-                        )}
-                        <p
-                          className="line-clamp-2 min-w-0 flex-1 text-base font-semibold leading-snug text-ink"
-                          title={product.name}
-                        >
-                          {product.name}
-                        </p>
-                        {stockChipStatus && (
-                          <div className="mt-1">
-                            <PosProductStockHint status={stockChipStatus} />
-                          </div>
-                        )}
-                        <div className="mt-auto pt-2">
-                          <span className="font-mono text-sm font-semibold text-ink num">
-                            {formatPricePerUnit(product.price, product.unit)}
-                          </span>
-                        </div>
-                      </div>
+                        onToggleFavorite={() => toggleFavorite(product.id)}
+                      />
                     );
                   })}
                 </div>
@@ -2069,12 +1992,8 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                     const inCart = cartItem ? cartItem.quantity : 0;
                     const isOutOfStock = product.stock <= 0;
                     const stockChipStatus = getStockStatus(product);
-                    const showsImage = hasProductImage(product);
+                    const showsImage = Boolean(product.image?.trim());
                     const isFavorite = favoriteProductIds.includes(product.id);
-                    const { initial, blockClass } = getCategoryPlaceholderMeta(
-                      product,
-                      retailCategories,
-                    );
 
                     const handleListQtyStep = (productId: string, nextQty: number) => {
                       updateCartQuantity(productId, nextQty);
@@ -2114,17 +2033,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                               alt=""
                               className="h-11 w-11 shrink-0 rounded-[calc(var(--radius)-2px)] object-cover"
                             />
-                          ) : (
-                            <div
-                              className={cn(
-                                'flex h-11 w-11 shrink-0 items-center justify-center rounded-[calc(var(--radius)-2px)] text-sm font-bold',
-                                blockClass,
-                              )}
-                              aria-hidden
-                            >
-                              {initial}
-                            </div>
-                          )}
+                          ) : null}
                           <div className="min-w-0 flex-1">
                             <p
                               className="line-clamp-2 text-sm font-semibold leading-snug text-ink"
@@ -2145,7 +2054,11 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                             LIST_PRICE_COL,
                           )}
                         >
-                          {formatPricePerUnit(product.price, product.unit)}
+                          {formatKES(product.price)}
+                          <span className="font-normal text-ink-2">
+                            {' '}
+                            / {formatDisplayUnit(product.unit)}
+                          </span>
                         </span>
                         <ProductListStepperSlot
                           product={product}
@@ -2294,16 +2207,19 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                       {selectedCustomer ? (
                         <div className="flex items-center justify-between rounded border border-border bg-muted/40 p-2 text-sm">
                           <div className="flex items-center gap-2">
-                            <User className="h-4 w-4 text-muted-foreground" />
-                            <div>
-                              <p className="text-xs font-semibold text-foreground">
+                            <User className="h-4 w-4 shrink-0 text-muted-foreground" />
+                            <div className="min-w-0">
+                              <p className="text-sm text-foreground">
                                 {getCustomerDisplayName(selectedCustomer)}
                               </p>
-                              <p className="text-[10px] text-muted-foreground">
-                                Balance: {fc(selectedCustomer.credit_balance)}
-                                {selectedCustomer.credit_limit > 0 &&
-                                  ` / Limit: ${fc(selectedCustomer.credit_limit)}`}
+                              <p className="text-base font-semibold tabular-nums text-foreground">
+                                {formatKES(selectedCustomer.credit_balance)}
                               </p>
+                              {selectedCustomer.credit_limit > 0 && (
+                                <p className="text-xs text-muted-foreground">
+                                  Limit {formatKES(selectedCustomer.credit_limit)}
+                                </p>
+                              )}
                             </div>
                           </div>
                           <button
@@ -2369,9 +2285,9 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                                 {customer.credit_balance > 0 && (
                                   <Badge
                                     variant="outline"
-                                    className="border-border text-[10px] text-muted-foreground"
+                                    className="border-border font-semibold tabular-nums text-[10px] text-muted-foreground"
                                   >
-                                    {fc(customer.credit_balance)}
+                                    {formatKES(customer.credit_balance)}
                                   </Badge>
                                 )}
                               </div>
@@ -2534,16 +2450,19 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                   {selectedCustomer ? (
                     <div className="flex items-center justify-between rounded border border-border bg-muted/40 p-2 text-sm">
                       <div className="flex items-center gap-2">
-                        <User className="h-4 w-4 text-muted-foreground" />
-                        <div>
-                          <p className="text-xs font-semibold text-foreground">
+                        <User className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        <div className="min-w-0">
+                          <p className="text-sm text-foreground">
                             {getCustomerDisplayName(selectedCustomer)}
                           </p>
-                          <p className="text-[10px] text-muted-foreground">
-                            Balance: {fc(selectedCustomer.credit_balance)}
-                            {selectedCustomer.credit_limit > 0 &&
-                              ` / Limit: ${fc(selectedCustomer.credit_limit)}`}
+                          <p className="text-base font-semibold tabular-nums text-foreground">
+                            {formatKES(selectedCustomer.credit_balance)}
                           </p>
+                          {selectedCustomer.credit_limit > 0 && (
+                            <p className="text-xs text-muted-foreground">
+                              Limit {formatKES(selectedCustomer.credit_limit)}
+                            </p>
+                          )}
                         </div>
                       </div>
                       <button
@@ -2613,7 +2532,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                                 variant="outline"
                                 className="border-border text-[10px] text-muted-foreground"
                               >
-                                {fc(customer.credit_balance)}
+                                {formatKES(customer.credit_balance)}
                               </Badge>
                             )}
                           </div>
