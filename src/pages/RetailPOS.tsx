@@ -892,8 +892,11 @@ function CartCheckoutFooter({
   );
 }
 
-const LIST_PRICE_COL = 'w-[6.25rem]';
-const LIST_STEPPER_COL = 'w-[8.75rem]';
+const LIST_STOCK_COL = 'hidden w-[7.5rem] shrink-0 md:flex md:items-center';
+const LIST_PRICE_COL =
+  'w-[5.5rem] shrink-0 text-right font-mono text-xs font-semibold tabular-nums text-ink num sm:text-sm md:w-[8.75rem]';
+const LIST_ACTION_COL = 'flex w-11 shrink-0 justify-end';
+const LIST_FAVORITE_COL = 'flex w-11 shrink-0 justify-end';
 
 function ProductListStepperSlot({
   product,
@@ -912,7 +915,7 @@ function ProductListStepperSlot({
 }) {
   if (inCart > 0) {
     return (
-      <div className={cn('flex shrink-0 justify-end', LIST_STEPPER_COL)}>
+      <div className={cn(LIST_ACTION_COL, 'min-w-[8.75rem] justify-end')}>
         <ProductListQtyStepper
           productId={product.id}
           quantity={inCart}
@@ -926,11 +929,10 @@ function ProductListStepperSlot({
 
   return (
     <div
-      className={cn('flex shrink-0 items-center justify-end gap-0.5', LIST_STEPPER_COL)}
+      className={LIST_ACTION_COL}
       onClick={(e) => e.stopPropagation()}
       onKeyDown={(e) => e.stopPropagation()}
     >
-      <span className="min-h-[var(--tap-min)] min-w-[var(--tap-min)] shrink-0" aria-hidden />
       <button
         type="button"
         aria-label={`Add ${product.name}`}
@@ -941,13 +943,12 @@ function ProductListStepperSlot({
           onAdd();
         }}
         className={cn(
-          'focus-ring flex min-h-[var(--tap-min)] min-w-[var(--tap-min)] shrink-0 items-center justify-center rounded-[var(--radius)] border border-hairline bg-paper text-ink active:scale-95',
+          'focus-ring flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius)] bg-[hsl(var(--accent-soft))] active:scale-95',
           isOutOfStock && 'cursor-not-allowed opacity-100',
         )}
       >
-        <Plus className="h-5 w-5" aria-hidden />
+        <Plus className="h-5 w-5 text-primary" aria-hidden />
       </button>
-      <span className="min-h-[var(--tap-min)] min-w-[var(--tap-min)] shrink-0" aria-hidden />
     </div>
   );
 }
@@ -1751,6 +1752,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
       onNavigate={onNavigate}
       flexContent
       hideHeaderSearch
+      headerTitle="Point of Sale"
       // Hide bottom tabs while cart sheet is open so Complete Sale owns thumb space
       hideBottomNav={mobileCartOpen}
     >
@@ -1986,7 +1988,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                   })}
                 </div>
               ) : (
-                <div className="divide-y divide-hairline border-y border-hairline">
+                <div className="mx-auto w-full max-w-[880px] divide-y divide-hairline border-y border-hairline">
                   {filteredProducts.map((product) => {
                     const cartItem = cart.find((c) => c.product.id === product.id);
                     const inCart = cartItem ? cartItem.quantity : 0;
@@ -2024,7 +2026,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                             );
                           }
                         }}
-                        className="focus-ring grid min-h-[var(--tap-min)] cursor-pointer grid-cols-[minmax(0,1fr)_6.25rem_8.75rem_var(--tap-min)] items-center gap-x-2 border-b border-hairline py-2 pl-0 pr-0 active:bg-[hsl(var(--accent-soft))]/40"
+                        className="focus-ring grid min-h-[var(--tap-min)] cursor-pointer grid-cols-[minmax(0,1fr)_5.5rem_2.75rem_2.75rem] items-center gap-x-2 border-b border-hairline py-2 pl-0 pr-0 active:bg-[hsl(var(--accent-soft))]/40 md:grid-cols-[minmax(0,1fr)_7.5rem_8.75rem_auto_2.75rem]"
                       >
                         <div className="flex min-w-0 items-center gap-2">
                           {showsImage ? (
@@ -2042,21 +2044,20 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                               {product.name}
                             </p>
                             {stockChipStatus && (
-                              <div className="mt-0.5">
+                              <div className="mt-0.5 md:hidden">
                                 <PosProductStockHint status={stockChipStatus} />
                               </div>
                             )}
                           </div>
                         </div>
-                        <span
-                          className={cn(
-                            'shrink-0 truncate text-right font-mono text-xs font-semibold text-ink num sm:text-sm',
-                            LIST_PRICE_COL,
-                          )}
-                        >
+                        <div className={LIST_STOCK_COL}>
+                          {stockChipStatus ? (
+                            <PosProductStockHint status={stockChipStatus} />
+                          ) : null}
+                        </div>
+                        <span className={LIST_PRICE_COL}>
                           {formatKES(product.price)}
-                          <span className="font-normal text-ink-2">
-                            {' '}
+                          <span className="block truncate font-normal text-[11px] text-ink-2 sm:inline sm:text-xs">
                             / {formatDisplayUnit(product.unit)}
                           </span>
                         </span>
@@ -2089,7 +2090,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                             e.stopPropagation();
                             toggleFavorite(product.id);
                           }}
-                          className="focus-ring flex min-h-[var(--tap-min)] min-w-[var(--tap-min)] shrink-0 items-center justify-center justify-self-end rounded-[var(--radius)] border border-hairline bg-paper active:scale-95"
+                          className="focus-ring flex h-11 w-11 shrink-0 items-center justify-center justify-self-end rounded-[var(--radius)] active:scale-95"
                         >
                           <Star
                             className={cn(

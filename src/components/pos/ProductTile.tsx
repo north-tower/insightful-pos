@@ -1,5 +1,5 @@
 import { forwardRef, type KeyboardEvent, type MouseEvent } from 'react';
-import { Star } from 'lucide-react';
+import { Plus, Star } from 'lucide-react';
 import type { Product } from '@/hooks/useProducts';
 import type { ProductCategory } from '@/data/productData';
 import { cn } from '@/lib/utils';
@@ -107,7 +107,7 @@ export const ProductTile = forwardRef<HTMLDivElement, ProductTileProps>(
               e.stopPropagation();
               onToggleFavorite(e);
             }}
-            className="focus-ring flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius)] active:scale-95"
+            className="focus-ring flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius)] active:scale-95"
           >
             <Star
               className={cn(
@@ -154,6 +154,20 @@ export const ProductTile = forwardRef<HTMLDivElement, ProductTileProps>(
             />
           ) : null}
         </div>
+
+        {!inCart && !isOutOfStock ? (
+          <button
+            type="button"
+            aria-label={`Add ${product.name}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onActivate();
+            }}
+            className="focus-ring absolute bottom-2 left-2.5 flex h-11 w-11 items-center justify-center rounded-[var(--radius)] bg-[hsl(var(--accent-soft))] active:scale-95"
+          >
+            <Plus className="h-5 w-5 text-primary" aria-hidden />
+          </button>
+        ) : null}
 
         {stockStatus ? (
           <div className="pointer-events-none absolute bottom-2 right-2.5">

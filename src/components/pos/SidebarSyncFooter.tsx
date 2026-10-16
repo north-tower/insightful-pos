@@ -15,11 +15,12 @@ function formatLastSynced(iso: string | null): string | null {
   }
 }
 
-function buildStatusLine(isOnline: boolean, pendingCount: number): string {
+function buildStatusLine(isOnline: boolean, pendingCount: number): string | null {
+  if (isOnline && pendingCount === 0) return null;
   if (!isOnline) {
-    return pendingCount > 0 ? `Offline, ${pendingCount} queued` : 'Offline';
+    return pendingCount > 0 ? `Offline · ${pendingCount} queued` : 'Offline';
   }
-  return 'Online';
+  return `${pendingCount} queued`;
 }
 
 interface SidebarSyncFooterProps {
@@ -33,6 +34,10 @@ export function SidebarSyncFooter({ compact }: SidebarSyncFooterProps) {
   const fullDescription = [statusLine, lastSynced ? `Last sync ${lastSynced}` : null]
     .filter(Boolean)
     .join(' · ');
+
+  if (!statusLine) {
+    return null;
+  }
 
   const content = (
     <div

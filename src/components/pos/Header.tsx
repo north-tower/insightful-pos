@@ -18,9 +18,11 @@ interface HeaderProps {
   onMenuToggle?: () => void;
   hideSearch?: boolean;
   onNavigate?: (tab: string) => void;
+  /** When set, shown on md+ instead of the store switcher (store stays in the sidebar). */
+  pageTitle?: string;
 }
 
-export function Header({ onMenuToggle, hideSearch = false, onNavigate }: HeaderProps) {
+export function Header({ onMenuToggle, hideSearch = false, onNavigate, pageTitle }: HeaderProps) {
   const { user, signOut } = useAuth();
 
   const initials = user?.full_name
@@ -44,9 +46,20 @@ export function Header({ onMenuToggle, hideSearch = false, onNavigate }: HeaderP
       </button>
 
       <div className="flex min-w-0 flex-1 items-center gap-2 md:gap-3">
-        <div className="min-w-0 flex-1 md:flex-none md:max-w-[220px] lg:max-w-[280px]">
-          <StoreSwitcher className="w-full" />
-        </div>
+        {pageTitle ? (
+          <>
+            <h1 className="hidden min-w-0 truncate font-sans text-base font-semibold text-ink md:block">
+              {pageTitle}
+            </h1>
+            <div className="min-w-0 flex-1 md:hidden md:max-w-[220px] lg:max-w-[280px]">
+              <StoreSwitcher className="w-full" />
+            </div>
+          </>
+        ) : (
+          <div className="min-w-0 flex-1 md:flex-none md:max-w-[220px] lg:max-w-[280px]">
+            <StoreSwitcher className="w-full" />
+          </div>
+        )}
 
         {!hideSearch && (
           <div className="relative hidden min-w-0 max-w-[480px] flex-1 md:block">

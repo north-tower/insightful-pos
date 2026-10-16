@@ -22,6 +22,7 @@ interface PageLayoutProps {
   flexContent?: boolean;
   hideBottomNav?: boolean;
   hideHeaderSearch?: boolean;
+  headerTitle?: string;
 }
 
 interface BottomNavItem {
@@ -51,6 +52,7 @@ export function PageLayout({
   flexContent,
   hideBottomNav = false,
   hideHeaderSearch = false,
+  headerTitle,
 }: PageLayoutProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { isRestaurant } = useBusinessMode();
@@ -87,6 +89,7 @@ export function PageLayout({
           onMenuToggle={() => setMobileMenuOpen(true)}
           hideSearch={hideHeaderSearch}
           onNavigate={onNavigate}
+          pageTitle={headerTitle}
         />
 
         {flexContent ? (
@@ -136,15 +139,17 @@ export function PageLayout({
                     className={cn(
                       'focus-ring relative flex min-h-[var(--tap-min)] min-w-[var(--tap-min)] flex-1 flex-col items-center justify-center gap-0.5 px-1',
                       isActive
-                        ? 'font-semibold text-ink before:absolute before:left-2 before:right-2 before:top-0 before:h-[3px] before:rounded-full before:bg-primary before:content-[""]'
-                        : 'text-ink-2',
+                        ? 'font-semibold before:absolute before:left-2 before:right-2 before:top-0 before:h-[3px] before:rounded-full before:bg-primary before:content-[""]'
+                        : 'font-normal',
                     )}
                   >
                     <Icon
-                      className={cn('h-5 w-5', isActive && 'text-primary')}
+                      className={cn('h-5 w-5 shrink-0', isActive ? 'text-primary' : 'text-ink-2')}
                       aria-hidden
                     />
-                    <span className="text-xs">{item.label}</span>
+                    <span className={cn('text-xs', isActive ? 'text-primary' : 'text-ink-2')}>
+                      {item.label}
+                    </span>
                   </button>
                 );
               })}
