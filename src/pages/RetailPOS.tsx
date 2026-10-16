@@ -51,13 +51,13 @@ import { fc, CURRENCY_SYMBOL } from '@/lib/currency';
 import { formatKES } from '@/lib/formatKES';
 import { formatDate } from '@/lib/formatDate';
 import { getStockStatus } from '@/lib/stockStatus';
-import { formatQty, formatQtyAmount, isDecimalUnit } from '@/lib/units';
+import { formatQty, formatQtyAmount, isDecimalUnit, normalizeUnit } from '@/lib/units';
+import type { ProductCategory } from '@/data/productData';
 import { parseCommittedCartQuantity } from '@/lib/retailCartQty';
 import {
   QuantityKeypad,
   type QuantityKeypadMode,
 } from '@/components/pos/QuantityKeypad';
-import { StatusChip } from '@/components/ui/StatusChip';
 import { toast } from 'sonner';
 import { useCompanySettings } from '@/context/BusinessSettingsContext';
 import { notifyInvoiceCreated } from '@/lib/sendSms';
@@ -116,10 +116,55 @@ type PersistedRetailCartLine = {
 };
 
 function getInitialProductViewMode(): ProductViewMode {
-  if (typeof window === 'undefined') return 'list';
+  if (typeof window === 'undefined') return 'card';
   const stored = window.localStorage.getItem(PRODUCT_VIEW_STORAGE_KEY);
   if (stored === 'list' || stored === 'card') return stored;
-  return window.innerWidth >= 1280 ? 'card' : 'list';
+  return window.innerWidth >= 1024 ? 'list' : 'card';
+}
+
+function hashCategorySlug(slug: string): number {
+  let hash = 0;
+  for (let i = 0; i < slug.length; i++) {
+    hash = slug.charCodeAt(i) + ((hash << 5) - hash);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
+const CATEGORY_BLOCK_CLASSES = [
+  'bg-[hsl(var(--accent-soft))] text-ink',
+  'bg-secondary text-secondary-foreground',
+  'bg-muted text-ink',
+] as const;
+
+function getCategoryPlaceholderMeta(
+  product: Product,
+  categories: ProductCategory[],
+): { initial: string; blockClass: string } {
+  const slug = product.category || 'uncategorized';
+  const fromCatalog = categories.find((c) => c.id === slug);
+  const name =
+    fromCatalog?.name ||
+    (slug === 'uncategorized' ? 'Uncategorized' : slug.replace(/-/g, ' '));
+  const initial = (name.trim().charAt(0) || '?').toUpperCase();
+  const blockClass = CATEGORY_BLOCK_CLASSES[hashCategorySlug(slug) % CATEGORY_BLOCK_CLASSES.length];
+  return { initial, blockClass };
+}
+
+function formatPricePerUnit(price: number, unit: string): string {
+  return `${formatKES(price)} / ${normalizeUnit(unit)}`;
+}
+
+function PosProductStockHint({ status }: { status: 'low' | 'out' }) {
+  const label = status === 'low' ? 'Low stock' : 'Out';
+  const dotClass =
+    status === 'low' ? 'bg-[hsl(var(--wait))]' : 'bg-[hsl(var(--fail))]';
+  return (
+    <span className="inline-flex max-w-full items-center gap-1.5 text-xs font-semibold text-ink">
+      <span className={cn('h-2 w-2 shrink-0 rounded-full', dotClass)} aria-hidden />
+      <span className="truncate">{label}</span>
+    </span>
+  );
 }
 
 function hasProductImage(product: Product): boolean {
@@ -670,15 +715,15 @@ function cartCheckoutDisabledHint(
 }
 
 function CartReceiptHeader({
-  totalItems,
+  cartLineCount,
   onClear,
   showClear,
 }: {
-  totalItems: number;
+  cartLineCount: number;
   onClear?: () => void;
   showClear: boolean;
 }) {
-  const itemLabel = `${totalItems} item${totalItems === 1 ? '' : 's'}`;
+  const itemLabel = `${cartLineCount} item${cartLineCount === 1 ? '' : 's'}`;
   return (
     <div className="shrink-0 px-4 py-3">
       <div className="flex items-start justify-between gap-2">
@@ -688,7 +733,7 @@ function CartReceiptHeader({
             Cart
           </h2>
           <p className="mt-0.5 text-sm text-ink-2">
-            {totalItems > 0 ? (
+            {cartLineCount > 0 ? (
               <>
                 {itemLabel}
                 <span aria-hidden> · </span>
@@ -750,9 +795,33 @@ function CartReceiptLine({
           {formatKES(lineTotal)}
         </span>
       </div>
-      <p className="mt-0.5 font-mono text-xs text-ink-2 num">
-        {formatQty(item.quantity, item.product.unit)} × {formatKES(unitPrice)}
-      </p>
+      {!priceExpanded ? (
+        <button
+          type="button"
+          onClick={() => setPriceExpanded(true)}
+          className="focus-ring mt-0.5 flex min-h-[var(--tap-min)] items-center rounded-[var(--radius)] font-mono text-xs text-ink-2 num active:scale-[0.99]"
+        >
+          {formatQty(item.quantity, item.product.unit)} × {formatKES(unitPrice)}
+        </button>
+      ) : (
+        <div className="relative mt-0.5 max-w-[9rem]">
+          <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-ink-2">
+            {CURRENCY_SYMBOL}
+          </span>
+          <input
+            type="text"
+            inputMode="decimal"
+            value={editingPrice ?? unitPrice}
+            onChange={(e) => onPriceChange(productId, e.target.value)}
+            onBlur={() => onPriceCommit(productId)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') onPriceCommit(productId);
+            }}
+            className="h-[var(--tap-min)] min-h-[var(--tap-min)] w-full rounded-[var(--radius)] border border-hairline bg-paper pl-7 pr-2 font-mono text-sm text-ink num focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label={`Unit price for ${item.product.name}`}
+          />
+        </div>
+      )}
       <div className="mt-1 flex items-center gap-2">
         <CartQtyControl
           productId={productId}
@@ -761,35 +830,7 @@ function CartReceiptLine({
           onStep={onQtyStep}
           onEditQuantity={onEditQuantity}
         />
-        <div className="flex min-h-[var(--tap-min)] min-w-0 flex-1 items-center justify-center">
-          {!priceExpanded ? (
-            <button
-              type="button"
-              onClick={() => setPriceExpanded(true)}
-              className="focus-ring flex min-h-[var(--tap-min)] items-center rounded-[var(--radius)] px-2 font-mono text-sm text-ink-2 num active:scale-[0.99]"
-            >
-              × {formatKES(unitPrice)}
-            </button>
-          ) : (
-            <div className="relative w-full max-w-[9rem]">
-              <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-ink-2">
-                {CURRENCY_SYMBOL}
-              </span>
-              <input
-                type="text"
-                inputMode="decimal"
-                value={editingPrice ?? unitPrice}
-                onChange={(e) => onPriceChange(productId, e.target.value)}
-                onBlur={() => onPriceCommit(productId)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') onPriceCommit(productId);
-                }}
-                className="h-[var(--tap-min)] min-h-[var(--tap-min)] w-full rounded-[var(--radius)] border border-hairline bg-paper pl-7 pr-2 font-mono text-sm text-ink num focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                aria-label={`Unit price for ${item.product.name}`}
-              />
-            </div>
-          )}
-        </div>
+        <div className="min-w-0 flex-1" aria-hidden />
         <button
           type="button"
           aria-label={`Remove ${item.product.name}`}
@@ -881,6 +922,66 @@ function CartCheckoutFooter({
           Reprint #{lastOrder.invoice_number || lastOrder.order_number}
         </Button>
       )}
+    </div>
+  );
+}
+
+const LIST_PRICE_COL = 'w-[6.25rem]';
+const LIST_STEPPER_COL = 'w-[8.75rem]';
+
+function ProductListStepperSlot({
+  product,
+  inCart,
+  isOutOfStock,
+  onStep,
+  onEditQuantity,
+  onAdd,
+}: {
+  product: Product;
+  inCart: number;
+  isOutOfStock: boolean;
+  onStep: (productId: string, nextQty: number) => void;
+  onEditQuantity: (productId: string) => void;
+  onAdd: () => void;
+}) {
+  if (inCart > 0) {
+    return (
+      <div className={cn('flex shrink-0 justify-end', LIST_STEPPER_COL)}>
+        <ProductListQtyStepper
+          productId={product.id}
+          quantity={inCart}
+          unit={product.unit}
+          onStep={onStep}
+          onEditQuantity={onEditQuantity}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={cn('flex shrink-0 items-center justify-end gap-0.5', LIST_STEPPER_COL)}
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => e.stopPropagation()}
+    >
+      <span className="min-h-[var(--tap-min)] min-w-[var(--tap-min)] shrink-0" aria-hidden />
+      <button
+        type="button"
+        aria-label={`Add ${product.name}`}
+        aria-disabled={isOutOfStock}
+        disabled={isOutOfStock}
+        onClick={(e) => {
+          e.stopPropagation();
+          onAdd();
+        }}
+        className={cn(
+          'focus-ring flex min-h-[var(--tap-min)] min-w-[var(--tap-min)] shrink-0 items-center justify-center rounded-[var(--radius)] border border-hairline bg-paper text-ink active:scale-95',
+          isOutOfStock && 'cursor-not-allowed opacity-100',
+        )}
+      >
+        <Plus className="h-5 w-5" aria-hidden />
+      </button>
+      <span className="min-h-[var(--tap-min)] min-w-[var(--tap-min)] shrink-0" aria-hidden />
     </div>
   );
 }
@@ -1116,6 +1217,29 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
     () => showPosCategoryChips(posCategoryChips),
     [posCategoryChips],
   );
+
+  const quickKeyProducts = useMemo(() => {
+    const seen = new Set<string>();
+    const orderedIds: string[] = [];
+    for (const id of favoriteProductIds) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+      orderedIds.push(id);
+      if (orderedIds.length >= 8) break;
+    }
+    if (orderedIds.length < 8) {
+      for (const id of recentProductIds) {
+        if (seen.has(id)) continue;
+        seen.add(id);
+        orderedIds.push(id);
+        if (orderedIds.length >= 8) break;
+      }
+    }
+    const byId = new Map(sellableRetailProducts.map((p) => [p.id, p]));
+    return orderedIds
+      .map((id) => byId.get(id))
+      .filter((p): p is Product => Boolean(p));
+  }, [favoriteProductIds, recentProductIds, sellableRetailProducts]);
 
   const hiddenOutOfStockCount = useMemo(
     () => sellableRetailProducts.filter((p) => p.isActive && p.stock <= 0).length,
@@ -1463,7 +1587,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
 
   const tax = 0;
   const total = Math.max(subtotal - discountAmount, 0);
-  const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const cartLineCount = cart.length;
 
   const handleCompleteSale = async () => {
     if (cart.length === 0) {
@@ -1688,7 +1812,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
               <div
                 className="flex h-[var(--tap-min)] shrink-0 items-stretch overflow-hidden rounded-[var(--radius)] border border-hairline bg-surface p-0.5"
                 role="group"
-                aria-label="Product view"
+                aria-label="Product density"
               >
                 <button
                   type="button"
@@ -1699,16 +1823,17 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                     }
                   }}
                   className={cn(
-                    'focus-ring flex min-h-[var(--tap-min)] min-w-[var(--tap-min)] items-center justify-center gap-1 rounded-[calc(var(--radius)-2px)] px-2 text-xs font-semibold active:scale-95',
+                    'focus-ring flex min-h-[var(--tap-min)] items-center justify-center gap-1 rounded-[calc(var(--radius)-2px)] px-2 text-xs font-semibold active:scale-95 sm:min-w-[var(--tap-min)]',
                     productViewMode === 'card'
                       ? 'border-2 border-primary bg-[hsl(var(--accent-soft))] text-ink'
                       : 'border border-transparent text-ink-2',
                   )}
                   aria-pressed={productViewMode === 'card'}
-                  title="Card view"
+                  title="Large tiles"
                 >
-                  <LayoutGrid className="h-4 w-4" aria-hidden />
-                  <span className="sr-only">Card</span>
+                  <LayoutGrid className="h-4 w-4 shrink-0" aria-hidden />
+                  <span className="hidden sm:inline">Large tiles</span>
+                  <span className="sr-only sm:hidden">Large tiles</span>
                 </button>
                 <button
                   type="button"
@@ -1719,16 +1844,17 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                     }
                   }}
                   className={cn(
-                    'focus-ring flex min-h-[var(--tap-min)] min-w-[var(--tap-min)] items-center justify-center gap-1 rounded-[calc(var(--radius)-2px)] px-2 text-xs font-semibold active:scale-95',
+                    'focus-ring flex min-h-[var(--tap-min)] items-center justify-center gap-1 rounded-[calc(var(--radius)-2px)] px-2 text-xs font-semibold active:scale-95 sm:min-w-[var(--tap-min)]',
                     productViewMode === 'list'
                       ? 'border-2 border-primary bg-[hsl(var(--accent-soft))] text-ink'
                       : 'border border-transparent text-ink-2',
                   )}
                   aria-pressed={productViewMode === 'list'}
-                  title="List view"
+                  title="Compact list"
                 >
-                  <List className="h-4 w-4" aria-hidden />
-                  <span className="sr-only">List</span>
+                  <List className="h-4 w-4 shrink-0" aria-hidden />
+                  <span className="hidden sm:inline">Compact list</span>
+                  <span className="sr-only sm:hidden">Compact list</span>
                 </button>
               </div>
             </div>
@@ -1798,12 +1924,79 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
               </button>
             </div>
 
+            {quickKeyProducts.length > 0 && (
+              <div className="shrink-0 border-b border-hairline px-2 pb-2 pt-0 sm:px-3 lg:px-4">
+                <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-2">
+                  Quick keys
+                </p>
+                <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                  {quickKeyProducts.map((product) => {
+                    const cartItem = cart.find((c) => c.product.id === product.id);
+                    const inCart = cartItem ? cartItem.quantity : 0;
+                    const showsImage = hasProductImage(product);
+                    const { initial, blockClass } = getCategoryPlaceholderMeta(
+                      product,
+                      retailCategories,
+                    );
+                    return (
+                      <button
+                        key={product.id}
+                        type="button"
+                        onClick={() => handleProductRowActivate(product, null)}
+                        className={cn(
+                          'focus-ring relative flex min-h-[6rem] w-[7.5rem] shrink-0 snap-start flex-col rounded-[var(--radius)] border border-hairline bg-surface p-2 text-left active:scale-[0.98]',
+                          inCart > 0 && 'border-2 border-primary',
+                        )}
+                      >
+                        {inCart > 0 && (
+                          <span
+                            className="absolute right-1.5 top-1.5 z-10 flex min-h-6 min-w-6 items-center justify-center rounded-full bg-ink px-1 font-sans text-xs font-semibold text-paper num"
+                            aria-hidden
+                          >
+                            {formatQtyAmount(inCart)}
+                          </span>
+                        )}
+                        {showsImage ? (
+                          <div className="mb-1.5 aspect-square w-full overflow-hidden rounded-[calc(var(--radius)-2px)]">
+                            <img
+                              src={product.image}
+                              alt=""
+                              className="h-full w-full object-cover"
+                            />
+                          </div>
+                        ) : (
+                          <div
+                            className={cn(
+                              'mb-1.5 flex aspect-square w-full items-center justify-center rounded-[calc(var(--radius)-2px)] text-lg font-bold',
+                              blockClass,
+                            )}
+                            aria-hidden
+                          >
+                            {initial}
+                          </div>
+                        )}
+                        <p
+                          className="line-clamp-2 min-w-0 flex-1 pr-7 text-base font-semibold leading-snug text-ink"
+                          title={product.name}
+                        >
+                          {product.name}
+                        </p>
+                        <span className="mt-1 truncate font-mono text-xs font-semibold text-ink num">
+                          {formatPricePerUnit(product.price, product.unit)}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Product Grid */}
             <div
               className={cn(
                 'flex-1 overflow-y-auto p-2 sm:p-3 lg:p-4',
                 // Clear sticky mini-cart + action bar on mobile while shopping
-                totalItems > 0 &&
+                cartLineCount > 0 &&
                   'pb-[calc(3.5rem+4rem+env(safe-area-inset-bottom,0px))] lg:pb-4',
               )}
             >
@@ -1824,6 +2017,10 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                     const stockChipStatus = getStockStatus(product);
                     const showsImage = hasProductImage(product);
                     const isFavorite = favoriteProductIds.includes(product.id);
+                    const { initial, blockClass } = getCategoryPlaceholderMeta(
+                      product,
+                      retailCategories,
+                    );
 
                     return (
                       <div
@@ -1851,38 +2048,42 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                           }
                         }}
                         className={cn(
-                          'focus-ring relative flex cursor-pointer flex-col rounded-[var(--radius)] border border-hairline bg-surface p-2 text-left active:scale-[0.98]',
+                          'focus-ring relative flex min-h-[6rem] cursor-pointer flex-col rounded-[var(--radius)] border border-hairline bg-surface p-2 text-left active:scale-[0.98]',
                           inCart > 0 && 'border-2 border-primary',
                         )}
                       >
-                        {inCart > 0 && (
-                          <span
-                            className="absolute -left-2 -top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-ink font-sans text-xs font-semibold text-paper num"
-                            aria-hidden
+                        <div className="relative z-10 mb-1 flex min-h-[var(--tap-min)] items-start justify-between gap-1">
+                          <button
+                            type="button"
+                            aria-label={
+                              isFavorite ? 'Remove from favorites' : 'Add to favorites'
+                            }
+                            aria-pressed={isFavorite}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleFavorite(product.id);
+                            }}
+                            className="focus-ring -ml-1 -mt-1 flex min-h-[var(--tap-min)] min-w-[var(--tap-min)] shrink-0 items-center justify-center rounded-[var(--radius)] active:scale-95"
                           >
-                            {formatQtyAmount(inCart)}
-                          </span>
-                        )}
-                        <button
-                          type="button"
-                          aria-label={
-                            isFavorite ? 'Remove from favorites' : 'Add to favorites'
-                          }
-                          aria-pressed={isFavorite}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleFavorite(product.id);
-                          }}
-                          className="focus-ring absolute right-0 top-0 z-10 flex min-h-[var(--tap-min)] min-w-[var(--tap-min)] items-center justify-center rounded-[var(--radius)] active:scale-95"
-                        >
-                          <Star
-                            className={cn(
-                              'h-6 w-6',
-                              isFavorite ? 'fill-ink text-ink' : 'text-ink-2',
-                            )}
-                          />
-                        </button>
-                        {showsImage && (
+                            <Star
+                              className={cn(
+                                'h-5 w-5',
+                                isFavorite ? 'fill-ink text-ink' : 'text-ink-2',
+                              )}
+                            />
+                          </button>
+                          {inCart > 0 ? (
+                            <span
+                              className="flex min-h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-ink px-1.5 font-sans text-xs font-semibold text-paper num"
+                              aria-hidden
+                            >
+                              {formatQtyAmount(inCart)}
+                            </span>
+                          ) : (
+                            <span className="min-h-6 min-w-6 shrink-0" aria-hidden />
+                          )}
+                        </div>
+                        {showsImage ? (
                           <div className="relative mb-2 aspect-square overflow-hidden rounded-[calc(var(--radius)-2px)]">
                             <img
                               src={product.image}
@@ -1890,24 +2091,31 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                               className="h-full w-full object-cover"
                             />
                           </div>
+                        ) : (
+                          <div
+                            className={cn(
+                              'mb-2 flex aspect-square w-full max-h-20 items-center justify-center rounded-[calc(var(--radius)-2px)] text-2xl font-bold',
+                              blockClass,
+                            )}
+                            aria-hidden
+                          >
+                            {initial}
+                          </div>
                         )}
                         <p
-                          className="line-clamp-2 min-h-[2.5rem] w-full min-w-0 pr-[var(--tap-min)] text-sm font-semibold leading-snug text-ink"
+                          className="line-clamp-2 min-w-0 flex-1 text-base font-semibold leading-snug text-ink"
                           title={product.name}
                         >
                           {product.name}
                         </p>
                         {stockChipStatus && (
                           <div className="mt-1">
-                            <StatusChip status={stockChipStatus} size="sm" />
+                            <PosProductStockHint status={stockChipStatus} />
                           </div>
                         )}
-                        <div className="mt-auto flex items-baseline justify-between gap-2 pt-2">
+                        <div className="mt-auto pt-2">
                           <span className="font-mono text-sm font-semibold text-ink num">
-                            {formatKES(product.price)}
-                          </span>
-                          <span className="font-mono text-xs text-ink-2 num">
-                            {formatQty(product.stock, product.unit)}
+                            {formatPricePerUnit(product.price, product.unit)}
                           </span>
                         </div>
                       </div>
@@ -1915,7 +2123,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                   })}
                 </div>
               ) : (
-                <div className="divide-y divide-hairline border-y border-hairline min-[1280px]:grid min-[1280px]:gap-x-6 min-[1280px]:divide-y-0 min-[1280px]:[grid-template-columns:repeat(2,minmax(30rem,1fr))]">
+                <div className="divide-y divide-hairline border-y border-hairline">
                   {filteredProducts.map((product) => {
                     const cartItem = cart.find((c) => c.product.id === product.id);
                     const inCart = cartItem ? cartItem.quantity : 0;
@@ -1923,8 +2131,10 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                     const stockChipStatus = getStockStatus(product);
                     const showsImage = hasProductImage(product);
                     const isFavorite = favoriteProductIds.includes(product.id);
-                    const showStockChip =
-                      stockChipStatus === 'low' || stockChipStatus === 'out';
+                    const { initial, blockClass } = getCategoryPlaceholderMeta(
+                      product,
+                      retailCategories,
+                    );
 
                     const handleListQtyStep = (productId: string, nextQty: number) => {
                       updateCartQuantity(productId, nextQty);
@@ -1955,8 +2165,67 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                             );
                           }
                         }}
-                        className="focus-ring flex min-h-16 min-w-0 cursor-pointer items-center gap-1 border-b border-hairline py-1 pl-0 pr-1 active:bg-[hsl(var(--accent-soft))]/40 min-[1280px]:min-h-14 min-[1280px]:min-w-[30rem] md:min-h-14"
+                        className="focus-ring grid min-h-[var(--tap-min)] cursor-pointer grid-cols-[minmax(0,1fr)_6.25rem_8.75rem_var(--tap-min)] items-center gap-x-2 border-b border-hairline py-2 pl-0 pr-0 active:bg-[hsl(var(--accent-soft))]/40"
                       >
+                        <div className="flex min-w-0 items-center gap-2">
+                          {showsImage ? (
+                            <img
+                              src={product.image}
+                              alt=""
+                              className="h-11 w-11 shrink-0 rounded-[calc(var(--radius)-2px)] object-cover"
+                            />
+                          ) : (
+                            <div
+                              className={cn(
+                                'flex h-11 w-11 shrink-0 items-center justify-center rounded-[calc(var(--radius)-2px)] text-sm font-bold',
+                                blockClass,
+                              )}
+                              aria-hidden
+                            >
+                              {initial}
+                            </div>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <p
+                              className="line-clamp-2 text-sm font-semibold leading-snug text-ink"
+                              title={product.name}
+                            >
+                              {product.name}
+                            </p>
+                            {stockChipStatus && (
+                              <div className="mt-0.5">
+                                <PosProductStockHint status={stockChipStatus} />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <span
+                          className={cn(
+                            'shrink-0 truncate text-right font-mono text-xs font-semibold text-ink num sm:text-sm',
+                            LIST_PRICE_COL,
+                          )}
+                        >
+                          {formatPricePerUnit(product.price, product.unit)}
+                        </span>
+                        <ProductListStepperSlot
+                          product={product}
+                          inCart={inCart}
+                          isOutOfStock={isOutOfStock}
+                          onStep={handleListQtyStep}
+                          onEditQuantity={(id) => {
+                            openQtyKeypadForProduct(
+                              product,
+                              'edit',
+                              productRowFocusRefs.current.get(id),
+                            );
+                          }}
+                          onAdd={() =>
+                            handleProductRowActivate(
+                              product,
+                              productRowFocusRefs.current.get(product.id),
+                            )
+                          }
+                        />
                         <button
                           type="button"
                           aria-label={
@@ -1967,7 +2236,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                             e.stopPropagation();
                             toggleFavorite(product.id);
                           }}
-                          className="focus-ring flex min-h-[var(--tap-min)] min-w-[var(--tap-min)] shrink-0 items-center justify-center rounded-[var(--radius)] border border-hairline bg-paper active:scale-95"
+                          className="focus-ring flex min-h-[var(--tap-min)] min-w-[var(--tap-min)] shrink-0 items-center justify-center justify-self-end rounded-[var(--radius)] border border-hairline bg-paper active:scale-95"
                         >
                           <Star
                             className={cn(
@@ -1976,73 +2245,6 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                             )}
                           />
                         </button>
-                        {showsImage && (
-                          <img
-                            src={product.image}
-                            alt=""
-                            className="h-12 w-12 shrink-0 rounded-[calc(var(--radius)-2px)] object-cover md:h-10 md:w-10"
-                          />
-                        )}
-                        <div className="min-w-0 flex-1 py-1">
-                          <div className="flex items-start gap-1.5">
-                            <p
-                              className="line-clamp-2 flex-1 text-sm font-semibold leading-snug text-ink"
-                              title={product.name}
-                            >
-                              {product.name}
-                            </p>
-                            {showStockChip && stockChipStatus && (
-                              <StatusChip
-                                status={stockChipStatus}
-                                size="sm"
-                                className="shrink-0"
-                              />
-                            )}
-                          </div>
-                          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0">
-                            <span className="font-mono text-sm text-ink num">
-                              {formatKES(product.price)}
-                            </span>
-                            <span className="font-mono text-xs text-ink-2 num">
-                              {formatQty(product.stock, product.unit)}
-                            </span>
-                          </div>
-                        </div>
-                        {inCart > 0 ? (
-                          <ProductListQtyStepper
-                            productId={product.id}
-                            quantity={inCart}
-                            unit={product.unit}
-                            onStep={handleListQtyStep}
-                            onEditQuantity={(id) => {
-                              openQtyKeypadForProduct(
-                                product,
-                                'edit',
-                                productRowFocusRefs.current.get(id),
-                              );
-                            }}
-                          />
-                        ) : (
-                          <button
-                            type="button"
-                            aria-label={`Add ${product.name}`}
-                            aria-disabled={isOutOfStock}
-                            disabled={isOutOfStock}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleProductRowActivate(
-                                product,
-                                productRowFocusRefs.current.get(product.id),
-                              );
-                            }}
-                            className={cn(
-                              'focus-ring flex min-h-[var(--tap-min)] min-w-[var(--tap-min)] shrink-0 items-center justify-center rounded-[var(--radius)] border border-hairline bg-paper text-ink active:scale-95',
-                              isOutOfStock && 'cursor-not-allowed opacity-100',
-                            )}
-                          >
-                            <Plus className="h-5 w-5" aria-hidden />
-                          </button>
-                        )}
                       </div>
                     );
                   })}
@@ -2061,11 +2263,11 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
           </div>
 
           {/* ── Mobile sticky mini-cart + checkout bar (always visible while cart has items) ── */}
-          {totalItems > 0 && !mobileCartOpen && (
+          {cartLineCount > 0 && !mobileCartOpen && (
             <button
               type="button"
               onClick={() => setMobileCartOpen(true)}
-              aria-label={`Open cart, ${totalItems} items, total ${formatKES(total)}`}
+              aria-label={`Open cart, ${cartLineCount} items, total ${formatKES(total)}`}
               className="focus-ring lg:hidden fixed inset-x-0 z-50 flex h-14 min-h-14 items-center justify-between gap-3 border-t border-hairline bg-surface px-4 pb-[env(safe-area-inset-bottom,0px)] active:scale-[0.99]"
               style={{ bottom: '4rem' }}
             >
@@ -2074,7 +2276,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                   {formatKES(total)}
                 </p>
                 <p className="text-sm text-ink-2">
-                  {totalItems} item{totalItems === 1 ? '' : 's'}
+                  {cartLineCount} item{cartLineCount === 1 ? '' : 's'}
                 </p>
               </div>
               <span className="pointer-events-none flex min-h-[var(--tap-min)] items-center justify-center rounded-[var(--radius)] bg-primary px-4 text-sm font-bold text-primary-foreground">
@@ -2111,8 +2313,8 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                       Cart
                     </h2>
                     <p className="truncate text-xs text-ink-2">
-                      {totalItems > 0
-                        ? `${totalItems} item${totalItems === 1 ? '' : 's'} · ${formatDate(new Date())}`
+                      {cartLineCount > 0
+                        ? `${cartLineCount} item${cartLineCount === 1 ? '' : 's'} · ${formatDate(new Date())}`
                         : formatDate(new Date())}
                     </p>
                   </div>
@@ -2359,7 +2561,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
           <div className="hidden h-full w-[380px] min-w-[360px] max-w-[380px] shrink-0 flex-col border-l border-hairline bg-paper lg:flex">
             <div className="shrink-0 border-b border-hairline">
               <CartReceiptHeader
-                totalItems={totalItems}
+                cartLineCount={cartLineCount}
                 showClear={cart.length > 0}
                 onClear={clearCart}
               />
