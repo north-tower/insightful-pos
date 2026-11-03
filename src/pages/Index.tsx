@@ -18,6 +18,7 @@ import AccountsReceivable from '@/pages/AccountsReceivable';
 import ProfitLossReport from '@/pages/ProfitLossReport';
 import ShopDayReport from '@/pages/ShopDayReport';
 import RetailProduction from '@/pages/RetailProduction';
+import PaymentLedger from '@/pages/PaymentLedger';
 import Settings from '@/pages/Settings';
 
 const RESTAURANT_TABS = new Set([
@@ -31,6 +32,7 @@ const RESTAURANT_TABS = new Set([
   'shop-day',
   'manage-table',
   'manage-dishes',
+  'payments',
   'settings',
 ]);
 
@@ -47,6 +49,7 @@ const RETAIL_TABS = new Set([
   'order-history',
   'accounts',
   'customers',
+  'payments',
   'settings',
 ]);
 
@@ -116,6 +119,8 @@ function POSApp() {
       return <ManageTable onNavigate={handleNavigate} />;
     case 'manage-dishes':
       return <ManageDishes onNavigate={handleNavigate} />;
+    case 'payments':
+      return <PaymentLedger onNavigate={handleNavigate} />;
     case 'settings':
       return <Settings onNavigate={handleNavigate} />;
     default:
@@ -149,6 +154,8 @@ function POSApp() {
       return <AccountsReceivable onNavigate={handleNavigate} />;
     case 'customers':
       return <CustomerManagement onNavigate={handleNavigate} />;
+    case 'payments':
+      return <PaymentLedger onNavigate={handleNavigate} />;
     case 'settings':
       return <Settings onNavigate={handleNavigate} />;
     default:
