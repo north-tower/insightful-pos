@@ -22,7 +22,8 @@ import { useShopDaySettlement } from '@/hooks/useShopDaySettlement';
 import { ShopDayReportPrint } from '@/components/reports/ShopDayReportPrint';
 import { expenseCategoryLabel, expensePaymentMethodLabel } from '@/hooks/useOperatingExpenses';
 import { generateInvoicePdf } from '@/lib/generateInvoicePdf';
-import { fc } from '@/lib/currency';
+import { fc, CURRENCY_SYMBOL } from '@/lib/currency';
+import { TypedNumberHint } from '@/components/ui/typed-number-hint';
 import { SHOP_CASH_FLOAT, formatShopCashFloat } from '@/lib/shopFloat';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -419,6 +420,7 @@ export default function ShopDayReport({ onNavigate }: ShopDayReportProps) {
                     disabled={isFinalized || saving}
                     placeholder="0.00"
                   />
+                  <TypedNumberHint value={cashCounted} prefix={`${CURRENCY_SYMBOL} `} />
                   <p className="text-[10px] text-muted-foreground">
                     Count the drawer, leave {formatShopCashFloat()} in the till, enter the rest here.
                   </p>
@@ -438,6 +440,7 @@ export default function ShopDayReport({ onNavigate }: ShopDayReportProps) {
                     onChange={(e) => setMpesaConfirmed(e.target.value)}
                     disabled={isFinalized || saving}
                   />
+                  <TypedNumberHint value={mpesaConfirmed} prefix={`${CURRENCY_SYMBOL} `} />
                 </div>
                 <div className="rounded-md border border-border bg-background p-3 space-y-1">
                   <p className="text-xs text-muted-foreground">Expected bank</p>
@@ -454,6 +457,7 @@ export default function ShopDayReport({ onNavigate }: ShopDayReportProps) {
                     onChange={(e) => setBankConfirmed(e.target.value)}
                     disabled={isFinalized || saving}
                   />
+                  <TypedNumberHint value={bankConfirmed} prefix={`${CURRENCY_SYMBOL} `} />
                 </div>
               </div>
 

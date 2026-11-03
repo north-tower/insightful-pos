@@ -41,7 +41,8 @@ import { InvoiceDialog } from '@/components/receipt/InvoiceDialog';
 import { CustomerStatement } from '@/components/customer/CustomerStatement';
 import { ReceiptData } from '@/data/receiptData';
 import { toast } from 'sonner';
-import { formatCurrency } from '@/lib/currency';
+import { formatCurrency, CURRENCY_SYMBOL } from '@/lib/currency';
+import { TypedNumberHint } from '@/components/ui/typed-number-hint';
 import { useCompanySettings } from '@/context/BusinessSettingsContext';
 import { PaymentMethod } from '@/hooks/useOrders';
 import { notifyAccountPaymentReceived } from '@/lib/sendSms';
@@ -877,6 +878,10 @@ export default function AccountsReceivable({
                 value={accountPaymentAmount}
                 onChange={(e) => setAccountPaymentAmount(e.target.value)}
                 placeholder="0.00"
+              />
+              <TypedNumberHint
+                value={accountPaymentAmount}
+                prefix={`${CURRENCY_SYMBOL} `}
               />
             </div>
 

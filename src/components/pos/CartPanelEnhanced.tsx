@@ -19,7 +19,8 @@ import { useOrders, SaleOrder, SaleType } from '@/hooks/useOrders';
 import { useCustomers, Customer } from '@/hooks/useCustomers';
 import { useCompanySettings } from '@/context/BusinessSettingsContext';
 import { notifyInvoiceCreated } from '@/lib/sendSms';
-import { fc } from '@/lib/currency';
+import { fc, CURRENCY_SYMBOL } from '@/lib/currency';
+import { TypedNumberHint } from '@/components/ui/typed-number-hint';
 
 type PaymentMethod = 'cash' | 'card' | 'qr' | 'split';
 type OrderType = 'dine-in' | 'takeaway' | 'delivery';
@@ -712,6 +713,7 @@ export function CartPanelEnhanced() {
                 onChange={(e) => setCreditDeposit(e.target.value)}
                 className="h-8 text-xs"
               />
+              <TypedNumberHint value={creditDeposit} prefix={`${CURRENCY_SYMBOL} `} />
               <Input
                 placeholder="Payment description"
                 value={creditPaymentDescription}

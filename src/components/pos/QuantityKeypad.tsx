@@ -4,6 +4,7 @@ import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import { formatKES } from '@/lib/formatKES';
+import { TypedNumberHint } from '@/components/ui/typed-number-hint';
 import { formatQty, isDecimalUnit, normalizeUnit } from '@/lib/units';
 import {
   qtyKeypadInputReducer,
@@ -103,6 +104,8 @@ function KeypadBody({
         </span>
         <span className="text-lg text-ink-2">{unitLabel}</span>
       </div>
+
+      <TypedNumberHint value={inputValue} className="text-center text-ink-2" />
 
       <p className="text-center text-sm text-ink-2" aria-live="polite">
         {lineTotal !== null ? `= ${formatKES(lineTotal)}` : '\u00a0'}

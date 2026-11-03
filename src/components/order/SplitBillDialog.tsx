@@ -11,7 +11,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CreditCard, Banknote, QrCode, Plus, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { formatCurrency } from '@/lib/currency';
+import { formatCurrency, CURRENCY_SYMBOL } from '@/lib/currency';
+import { TypedNumberHint } from '@/components/ui/typed-number-hint';
 import { SplitPayment } from '@/data/orderData';
 
 interface SplitBillDialogProps {
@@ -121,6 +122,10 @@ export function SplitBillDialog({ open, onOpenChange, total, onConfirm }: SplitB
                     max={total}
                     value={payment.amount.toFixed(2)}
                     onChange={(e) => updatePayment(index, 'amount', parseFloat(e.target.value) || 0)}
+                  />
+                  <TypedNumberHint
+                    value={payment.amount > 0 ? String(payment.amount) : ''}
+                    prefix={`${CURRENCY_SYMBOL} `}
                   />
                 </div>
                 {payments.length > 1 && (

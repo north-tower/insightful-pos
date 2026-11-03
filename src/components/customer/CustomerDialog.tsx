@@ -20,6 +20,8 @@ import {
 import { Customer, CreateCustomerParams } from '@/hooks/useCustomers';
 import { X, Plus, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { CURRENCY_SYMBOL } from '@/lib/currency';
+import { TypedNumberHint } from '@/components/ui/typed-number-hint';
 
 interface CustomerDialogProps {
   open: boolean;
@@ -199,6 +201,10 @@ export function CustomerDialog({
                     })
                   }
                 />
+                <TypedNumberHint
+                  value={String(formData.opening_balance ?? '')}
+                  prefix={`${CURRENCY_SYMBOL} `}
+                />
                 <p className="text-xs text-muted-foreground mt-1">
                   Useful when migrating existing customer dues from another system.
                 </p>
@@ -217,6 +223,10 @@ export function CustomerDialog({
                       credit_limit: parseFloat(e.target.value) || 0,
                     })
                   }
+                />
+                <TypedNumberHint
+                  value={String(formData.credit_limit ?? '')}
+                  prefix={`${CURRENCY_SYMBOL} `}
                 />
               </div>
             </div>

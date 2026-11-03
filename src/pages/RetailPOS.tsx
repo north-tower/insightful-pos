@@ -48,6 +48,7 @@ import {
   Layers,
 } from 'lucide-react';
 import { CURRENCY_SYMBOL } from '@/lib/currency';
+import { TypedNumberHint } from '@/components/ui/typed-number-hint';
 import { formatKES } from '@/lib/formatKES';
 import {
   ProductTile,
@@ -473,6 +474,7 @@ function CreditSaleExtras({
               onChange={(e) => onCreditDepositChange(e.target.value)}
               className="h-9 min-h-9 border-border/70 bg-background text-xs"
             />
+            <TypedNumberHint value={creditDeposit} prefix={`${CURRENCY_SYMBOL} `} />
             <Input
               placeholder="Deposit note (optional)"
               value={creditPaymentDescription}
@@ -638,6 +640,13 @@ function CartTotalsSection({
               className="min-h-[var(--tap-min)] border-hairline bg-paper text-sm"
             />
           </div>
+          {discountMode === 'amount' && (
+            <TypedNumberHint
+              value={discountInput}
+              prefix={`${CURRENCY_SYMBOL} `}
+              className="text-ink-2"
+            />
+          )}
         </div>
       )}
 
@@ -785,6 +794,11 @@ function CartReceiptLine({
             }}
             className="h-[var(--tap-min)] min-h-[var(--tap-min)] w-full rounded-[var(--radius)] border border-hairline bg-paper pl-7 pr-2 font-mono text-sm text-ink num focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             aria-label={`Unit price for ${item.product.name}`}
+          />
+          <TypedNumberHint
+            value={String(editingPrice ?? unitPrice)}
+            prefix={`${CURRENCY_SYMBOL} `}
+            className="mt-0.5 pl-1 text-ink-2"
           />
         </div>
       )}

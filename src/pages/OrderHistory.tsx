@@ -61,7 +61,8 @@ import { ReceiptData } from '@/data/receiptData';
 import { useOrders, SaleOrder, Payment } from '@/hooks/useOrders';
 import { useCustomers, Customer } from '@/hooks/useCustomers';
 import { toast } from 'sonner';
-import { fc } from '@/lib/currency';
+import { fc, CURRENCY_SYMBOL } from '@/lib/currency';
+import { TypedNumberHint } from '@/components/ui/typed-number-hint';
 import { useCompanySettings } from '@/context/BusinessSettingsContext';
 import { notifyAccountPaymentReceived } from '@/lib/sendSms';
 import { supabase } from '@/lib/supabase';
@@ -1640,6 +1641,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                   onChange={(e) => setTopPayAmount(e.target.value)}
                   placeholder="0.00"
                 />
+                <TypedNumberHint value={topPayAmount} prefix={`${CURRENCY_SYMBOL} `} />
               </div>
               <div className="space-y-2">
                 <Label>Payment Date</Label>

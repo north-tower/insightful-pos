@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { fc, CURRENCY_SYMBOL } from '@/lib/currency';
+import { TypedNumberHint } from '@/components/ui/typed-number-hint';
 import { format } from 'date-fns';
 import { SaleOrder, PaymentMethod } from '@/hooks/useOrders';
 import { Customer } from '@/hooks/useCustomers';
@@ -471,6 +472,7 @@ export function PaymentDialog({
                   className="pl-10 text-lg font-semibold"
                 />
               </div>
+              <TypedNumberHint value={amount} prefix={`${CURRENCY_SYMBOL} `} />
               <div className="flex gap-2 flex-wrap">
                 <Button
                   variant="outline"
