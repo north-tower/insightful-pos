@@ -33,7 +33,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { Search, RotateCcw, Eye, Printer, X, Loader2, ShoppingBag, AlertTriangle, FileText, CreditCard, Banknote, CircleDollarSign, Pencil, Trash2, SlidersHorizontal, ChevronDown } from 'lucide-react';
+import { Search, RotateCcw, Eye, Printer, X, Loader2, ShoppingBag, AlertTriangle, FileText, CreditCard, Banknote, CircleDollarSign, Pencil, SlidersHorizontal, ChevronDown, Undo2 } from 'lucide-react';
 import { CurrencyIcon } from '@/components/icons/CurrencyIcon';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -44,6 +44,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { InvoiceDialog } from '@/components/receipt/InvoiceDialog';
 import { PaymentDialog } from '@/components/payment/PaymentDialog';
 import { EditPaymentDialog } from '@/components/payment/EditPaymentDialog';
@@ -56,6 +66,7 @@ import { useCompanySettings } from '@/context/BusinessSettingsContext';
 import { notifyAccountPaymentReceived } from '@/lib/sendSms';
 import { supabase } from '@/lib/supabase';
 import { useBusinessMode } from '@/context/BusinessModeContext';
+import { useAuth } from '@/context/AuthContext';
 
 interface OrderHistoryProps {
   onNavigate: (tab: string) => void;
@@ -70,6 +81,10 @@ interface CustomerAccountPayment {
   notes?: string;
   created_at: string;
 }
+
+type PaymentReverseTarget =
+  | { kind: 'order'; paymentId: string; amount: number; method: string }
+  | { kind: 'account'; paymentId: string; amount: number; method: string; customerId: string };
 
 const statusColors: Record<string, string> = {
   pending: 'bg-warning/10 text-warning',
@@ -136,7 +151,9 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
     ? ['all', 'completed', 'pending', 'preparing', 'cancelled', 'voided']
     : ['all', 'completed', 'pending', 'cancelled', 'voided'];
   const { orders, loading, voidOrder, refundOrder, updatePayment, deletePayment, todaysOrders, todaysRevenue, getOrderBalanceDue, recordPayment } = useOrders();
-  const { customers, getCustomerById, makePaymentOnAccount } = useCustomers();
+  const { customers, getCustomerById, makePaymentOnAccount, reverseCustomerAccountPayment, refetch: refetchCustomers } = useCustomers();
+  const { isAdmin, isManager } = useAuth();
+  const canReversePayments = isAdmin || isManager;
   const { companyName, settings } = useCompanySettings();
   const smsShopName = settings.fullName || settings.name || companyName;
   const [searchQuery, setSearchQuery] = useState('');
@@ -154,6 +171,8 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
   const [isEditPaymentOpen, setIsEditPaymentOpen] = useState(false);
   const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
   const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
+  const [paymentReverseTarget, setPaymentReverseTarget] = useState<PaymentReverseTarget | null>(null);
+  const [isReversingPayment, setIsReversingPayment] = useState(false);
   const [voidingOrderId, setVoidingOrderId] = useState<string | null>(null);
   const [refundingOrderId, setRefundingOrderId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -375,27 +394,85 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
 
   const handleEditPaymentComplete = () => {
     toast.success('Payment updated');
-    // Close the detail dialog so it refreshes when reopened
-    setIsDetailOpen(false);
   };
 
-  const handleDeletePayment = async (paymentId: string) => {
-    setDeletingPaymentId(paymentId);
+  const canModifyOrderPayments = (order: SaleOrder) =>
+    order.payment_status !== 'voided' &&
+    order.payment_status !== 'refunded' &&
+    order.status !== 'voided' &&
+    order.status !== 'cancelled';
+
+  const requestReverseOrderPayment = (payment: Payment) => {
+    setPaymentReverseTarget({
+      kind: 'order',
+      paymentId: payment.id,
+      amount: payment.amount,
+      method: payment.method,
+    });
+  };
+
+  const requestReverseAccountPayment = (payment: CustomerAccountPayment) => {
+    setPaymentReverseTarget({
+      kind: 'account',
+      paymentId: payment.id,
+      amount: payment.amount,
+      method: payment.method,
+      customerId: payment.customer_id,
+    });
+  };
+
+  const refreshAccountPaymentsForCustomer = async (customerId: string) => {
+    const { data, error } = await supabase
+      .from('customer_account_payments')
+      .select('id, customer_id, method, amount, reference, notes, created_at')
+      .eq('customer_id', customerId)
+      .order('created_at', { ascending: false })
+      .limit(50);
+    if (error) throw error;
+    setAccountPayments(
+      (data || []).map((p: any) => ({
+        id: p.id,
+        customer_id: p.customer_id,
+        method: p.method,
+        amount: Number(p.amount),
+        reference: p.reference || undefined,
+        notes: p.notes || undefined,
+        created_at: p.created_at,
+      })),
+    );
+  };
+
+  const confirmReversePayment = async () => {
+    if (!paymentReverseTarget) return;
+    setIsReversingPayment(true);
     try {
-      const ok = await deletePayment(paymentId);
-      if (ok) {
-        // DB trigger (trg_payment_delete_balance) already:
-        // 1. Adds payment amount back to customer.credit_balance
-        // 2. Recalculates order.payment_status
-        toast.success('Payment deleted');
-        setIsDetailOpen(false);
+      if (paymentReverseTarget.kind === 'order') {
+        setDeletingPaymentId(paymentReverseTarget.paymentId);
+        const ok = await deletePayment(paymentReverseTarget.paymentId);
+        if (ok) {
+          toast.success('Payment reversed — order balance updated');
+        } else {
+          toast.error('Failed to reverse payment');
+        }
       } else {
-        toast.error('Failed to delete payment');
+        setDeletingPaymentId(paymentReverseTarget.paymentId);
+        const result = await reverseCustomerAccountPayment(paymentReverseTarget.paymentId);
+        if (result.success) {
+          toast.success('Payment reversed — customer balance restored');
+          await refetchCustomers();
+          if (topPayCustomerId === paymentReverseTarget.customerId) {
+            await refreshAccountPaymentsForCustomer(paymentReverseTarget.customerId);
+          }
+        } else {
+          toast.error(result.error || 'Failed to reverse payment');
+        }
       }
+      setPaymentReverseTarget(null);
     } catch (err: any) {
-      toast.error(err.message || 'Failed to delete payment');
+      toast.error(err.message || 'Failed to reverse payment');
     } finally {
       setDeletingPaymentId(null);
+      setIsReversingPayment(false);
     }
   };
 
@@ -1285,31 +1362,39 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                             {format(new Date(payment.paid_at), 'MMM dd, yyyy · HH:mm')}
                           </span>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-base mr-2">
+                        <div className="flex items-center gap-1 shrink-0">
+                          <span className="font-semibold text-base tabular-nums">
                             {fc(payment.amount)}
                           </span>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-                            onClick={() => handleEditPayment(payment)}
-                          >
-                            <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
-                            onClick={() => handleDeletePayment(payment.id)}
-                            disabled={deletingPaymentId === payment.id}
-                          >
-                            {deletingPaymentId === payment.id ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            ) : (
-                              <Trash2 className="w-3.5 h-3.5" />
-                            )}
-                          </Button>
+                          {canModifyOrderPayments(selectedOrder) && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                title="Edit payment"
+                                onClick={() => handleEditPayment(payment)}
+                              >
+                                <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
+                              </Button>
+                              {canReversePayments && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-destructive hover:text-destructive"
+                                  title="Reverse payment"
+                                  onClick={() => requestReverseOrderPayment(payment)}
+                                  disabled={deletingPaymentId === payment.id}
+                                >
+                                  {deletingPaymentId === payment.id ? (
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  ) : (
+                                    <Undo2 className="w-3.5 h-3.5" />
+                                  )}
+                                </Button>
+                              )}
+                            </>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -1615,9 +1700,9 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                   {accountPayments.map((p) => (
                     <div
                       key={p.id}
-                      className="flex items-center justify-between p-2.5 rounded border bg-muted/30"
+                      className="flex items-center justify-between p-2.5 rounded border bg-muted/30 gap-2"
                     >
-                      <div>
+                      <div className="min-w-0">
                         <p className="text-sm capitalize font-medium">
                           {p.method}
                           {p.reference && (
@@ -1633,7 +1718,25 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                           <p className="text-xs text-muted-foreground">{p.notes}</p>
                         )}
                       </div>
-                      <p className="font-semibold text-success tabular-nums">{fc(p.amount)}</p>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <p className="font-semibold text-success tabular-nums">{fc(p.amount)}</p>
+                        {canReversePayments && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 gap-1 text-destructive hover:text-destructive"
+                            onClick={() => requestReverseAccountPayment(p)}
+                            disabled={deletingPaymentId === p.id}
+                          >
+                            {deletingPaymentId === p.id ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Undo2 className="w-3.5 h-3.5" />
+                            )}
+                            Reverse
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1642,6 +1745,51 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={!!paymentReverseTarget}
+        onOpenChange={(open) => {
+          if (!open && !isReversingPayment) setPaymentReverseTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reverse this payment?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {paymentReverseTarget ? (
+                <>
+                  This will remove the{' '}
+                  <span className="font-medium capitalize">{paymentReverseTarget.method}</span>{' '}
+                  payment of <span className="font-medium">{fc(paymentReverseTarget.amount)}</span>.
+                  {paymentReverseTarget.kind === 'order'
+                    ? ' The order payment status and any customer credit balance will be recalculated.'
+                    : ' The amount will be added back to the customer account balance.'}
+                </>
+              ) : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isReversingPayment}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={isReversingPayment}
+              onClick={(e) => {
+                e.preventDefault();
+                void confirmReversePayment();
+              }}
+            >
+              {isReversingPayment ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  Reversing…
+                </>
+              ) : (
+                'Reverse payment'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </PageLayout>
   );
 }

@@ -5,10 +5,16 @@
  * but never throws, so the calling code is never blocked.
  */
 import { supabase } from '@/lib/supabase';
-import { formatCurrency } from '@/lib/currency';
 import { SaleOrder } from '@/hooks/useOrders';
+import {
+  buildAccountPaymentReceivedCustomerMessage,
+  buildAccountPaymentReceivedOwnerMessage,
+  buildInvoiceCreatedCustomerMessage,
+  buildInvoiceCreatedOwnerMessage,
+  buildPaymentReceivedCustomerMessage,
+  buildPaymentReceivedOwnerMessage,
+} from '@/lib/smsMessages';
 
-const APP_SIGNATURE = 'Generated from Insightful POS.';
 const OWNER_PHONE = '0729690592';
 const MAIN_STORE_CODE = 'main';
 
@@ -45,20 +51,6 @@ async function canSendSmsInCurrentStore(): Promise<boolean> {
   }
 
   return canSendSmsInCurrentStorePromise;
-}
-
-function buildOrderItemsSummary(order: SaleOrder): string {
-  if (!order.items || order.items.length === 0) return '';
-  const maxItems = 4;
-  const items = order.items.slice(0, maxItems).map((item) => {
-    const name = item.product_name || 'Item';
-    const qty = Number(item.quantity || 0);
-    const unit = formatCurrency(Number(item.unit_price || 0));
-    return `${name} x${qty} @ ${unit}`;
-  });
-  const remaining = order.items.length - maxItems;
-  const more = remaining > 0 ? ` +${remaining} more` : '';
-  return `${items.join('; ')}${more}`;
 }
 
 // ─── Low-level send ────────────────────────────────────────────────────────
@@ -102,35 +94,23 @@ export function notifyInvoiceCreated(
   const phone = order.customer_phone;
   if (!phone) return; // No phone → no SMS
 
-  const invoiceNo = order.invoice_number || order.order_number;
-  const amount = formatCurrency(order.total);
-  const prevBalanceAmount = formatCurrency(Math.max(previousBalance || 0, 0));
-  const overallBalanceAmount = formatCurrency(Math.max(overallBalance || order.total, 0));
-  const dueDate = order.due_date
-    ? new Date(order.due_date).toLocaleDateString('en-KE', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-      })
-    : '';
+  const msg = buildInvoiceCreatedCustomerMessage(
+    order,
+    companyName,
+    previousBalance,
+    overallBalance,
+    consignmentInfo,
+  );
 
-  const name = order.customer_name || 'Customer';
-  const duePart = dueDate ? ` Due: ${dueDate}.` : '';
-  const resolvedConsignment = consignmentInfo?.trim() || order.consignment_info?.trim();
-  const consignmentPart = resolvedConsignment
-    ? ` Consignment: ${resolvedConsignment}.`
-    : '';
-  const itemsSummary = buildOrderItemsSummary(order);
-  const itemsPart = itemsSummary ? ` Items: ${itemsSummary}.` : '';
-
-  const msg =
-    `Dear ${name}, your invoice #${invoiceNo} of ${amount} from ${companyName} has been created. Previous balance: ${prevBalanceAmount}. Overall balance: ${overallBalanceAmount}.${itemsPart}${duePart}${consignmentPart} Thank you for your business. ${APP_SIGNATURE}`;
-
-  // Fire and forget
   sendSms(phone, msg);
 
-  const ownerMsg =
-    `Owner Alert: New credit invoice ${invoiceNo} has been created for ${name} at ${companyName}. Invoice amount: ${amount}. Previous balance: ${prevBalanceAmount}. Current account balance: ${overallBalanceAmount}.${itemsPart}${duePart}${consignmentPart} ${APP_SIGNATURE}`;
+  const ownerMsg = buildInvoiceCreatedOwnerMessage(
+    order,
+    companyName,
+    previousBalance,
+    overallBalance,
+    consignmentInfo,
+  );
   sendOwnerAlert(ownerMsg);
 }
 
@@ -158,23 +138,25 @@ export function notifyPaymentReceived(
   const phone = customerPhone || order.customer_phone;
   if (!phone) return;
 
-  const invoiceNo = order.invoice_number || order.order_number;
-  const paid = formatCurrency(paidAmount);
-  const previous = formatCurrency(Math.max(previousBalance, 0));
-  const balance = formatCurrency(Math.max(balanceAfter, 0));
-  const name = order.customer_name || 'Customer';
-  const shopName = companyName?.trim() || 'Our Shop';
-  const descriptionPart = paymentDescription?.trim()
-    ? ` Description: ${paymentDescription.trim()}.`
-    : '';
-
-  const msg =
-    `Dear ${name}, payment received for invoice #${invoiceNo} at ${shopName}. Statement: Previous ${previous} | Paid ${paid} | Balance ${balance}.${descriptionPart} Thank you for choosing ${shopName}. ${APP_SIGNATURE}`;
+  const msg = buildPaymentReceivedCustomerMessage(
+    order,
+    paidAmount,
+    previousBalance,
+    balanceAfter,
+    companyName,
+    paymentDescription,
+  );
 
   sendSms(phone, msg);
 
-  const ownerMsg =
-    `Owner Alert: Payment received at ${shopName} for invoice ${invoiceNo}. Customer: ${name}. Paid: ${paid}. Previous balance: ${previous}. New balance: ${balance}.${descriptionPart} ${APP_SIGNATURE}`;
+  const ownerMsg = buildPaymentReceivedOwnerMessage(
+    order,
+    paidAmount,
+    previousBalance,
+    balanceAfter,
+    companyName,
+    paymentDescription,
+  );
   sendOwnerAlert(ownerMsg);
 }
 
@@ -192,21 +174,25 @@ export function notifyAccountPaymentReceived(
   paymentDescription?: string,
 ): void {
   if (!customerPhone) return;
-  const paid = formatCurrency(Math.max(paidAmount, 0));
-  const previous = formatCurrency(Math.max(previousBalance, 0));
-  const balance = formatCurrency(Math.max(balanceAfter, 0));
-  const name = customerName || 'Customer';
-  const shopName = companyName?.trim() || 'Our Shop';
-  const descriptionPart = paymentDescription?.trim()
-    ? ` Description: ${paymentDescription.trim()}.`
-    : '';
 
-  const msg =
-    `Dear ${name}, payment received at ${shopName}. Statement: Previous ${previous} | Paid ${paid} | Balance ${balance}.${descriptionPart} Thank you for choosing ${shopName}. ${APP_SIGNATURE}`;
+  const msg = buildAccountPaymentReceivedCustomerMessage(
+    customerName,
+    paidAmount,
+    previousBalance,
+    balanceAfter,
+    companyName,
+    paymentDescription,
+  );
 
   sendSms(customerPhone, msg);
 
-  const ownerMsg =
-    `Owner Alert: Account payment received at ${shopName}. Customer: ${name}. Paid: ${paid}. Previous balance: ${previous}. New balance: ${balance}.${descriptionPart} ${APP_SIGNATURE}`;
+  const ownerMsg = buildAccountPaymentReceivedOwnerMessage(
+    customerName,
+    paidAmount,
+    previousBalance,
+    balanceAfter,
+    companyName,
+    paymentDescription,
+  );
   sendOwnerAlert(ownerMsg);
 }

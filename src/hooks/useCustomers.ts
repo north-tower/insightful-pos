@@ -193,6 +193,31 @@ export function useCustomers() {
 
   // ── Make payment against customer balance ───────────────────────────────
 
+  const reverseCustomerAccountPayment = useCallback(
+    async (paymentId: string) => {
+      try {
+        const { data, error: err } = await supabase.rpc('reverse_customer_account_payment', {
+          p_payment_id: paymentId,
+        });
+
+        if (err) throw err;
+        await fetchCustomers();
+
+        const row = Array.isArray(data) ? data[0] : data;
+        return {
+          success: true,
+          reversedAmount: Number(row?.reversed_amount ?? 0),
+          balanceBefore: Number(row?.balance_before ?? 0),
+          balanceAfter: Number(row?.balance_after ?? 0),
+        };
+      } catch (err: any) {
+        console.error('Failed to reverse account payment:', err);
+        return { success: false, error: err.message };
+      }
+    },
+    [fetchCustomers],
+  );
+
   const makePaymentOnAccount = useCallback(
     async (
       customerId: string,
@@ -301,6 +326,7 @@ export function useCustomers() {
 
     // Payment
     makePaymentOnAccount,
+    reverseCustomerAccountPayment,
     adjustCustomerBalance,
 
     // Helpers

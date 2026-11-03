@@ -32,6 +32,7 @@ const WRITE_RPC_NAMES = new Set([
   'complete_production_batch',
   'save_product_recipe',
   'record_customer_account_payment',
+  'reverse_customer_account_payment',
   'refund_order_and_restore_stock',
 ]);
 
