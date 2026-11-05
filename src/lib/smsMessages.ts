@@ -207,3 +207,77 @@ export function buildAccountPaymentReceivedOwnerMessage(
 
   return `Owner Alert: Account payment of ${paid} received from ${name} at ${shopName}. Previous balance: ${previous}. New balance: ${balance}.${descriptionPart} ${SMS_FOOTER}`;
 }
+
+export function buildInvoicePaymentReversedCustomerMessage(
+  order: SaleOrder,
+  reversedAmount: number,
+  previousBalance: number,
+  balanceAfter: number,
+  companyName: string,
+  paymentDescription?: string,
+): string {
+  const invoiceNo = order.invoice_number || order.order_number;
+  const reversed = formatCurrency(Math.max(reversedAmount, 0));
+  const previous = formatCurrency(Math.max(previousBalance, 0));
+  const balanceLine = formatCustomerBalanceAfterLine(balanceAfter);
+  const name = order.customer_name || 'Customer';
+  const shopName = companyName?.trim() || 'Our Shop';
+  const descriptionPart = formatPaymentNotePart(paymentDescription);
+
+  return `Dear ${name}, your payment of ${reversed} for invoice #${invoiceNo} at ${shopName} has been reversed. Previous balance: ${previous}. ${balanceLine}${descriptionPart} Thank you. ${SMS_FOOTER}`;
+}
+
+export function buildInvoicePaymentReversedOwnerMessage(
+  order: SaleOrder,
+  reversedAmount: number,
+  previousBalance: number,
+  balanceAfter: number,
+  companyName: string,
+  paymentDescription?: string,
+): string {
+  const invoiceNo = order.invoice_number || order.order_number;
+  const reversed = formatCurrency(Math.max(reversedAmount, 0));
+  const previous = formatCurrency(Math.max(previousBalance, 0));
+  const balance = formatCurrency(Math.max(balanceAfter, 0));
+  const name = order.customer_name || 'Customer';
+  const shopName = companyName?.trim() || 'Our Shop';
+  const descriptionPart = formatPaymentNotePart(paymentDescription);
+
+  return `Owner Alert: Payment reversal of ${reversed} for ${name} on invoice #${invoiceNo} at ${shopName}. Previous balance: ${previous}. New balance: ${balance}.${descriptionPart} ${SMS_FOOTER}`;
+}
+
+export function buildAccountPaymentReversedCustomerMessage(
+  customerName: string,
+  reversedAmount: number,
+  previousBalance: number,
+  balanceAfter: number,
+  companyName: string,
+  paymentDescription?: string,
+): string {
+  const reversed = formatCurrency(Math.max(reversedAmount, 0));
+  const previous = formatCurrency(Math.max(previousBalance, 0));
+  const balanceLine = formatCustomerBalanceAfterLine(balanceAfter);
+  const name = customerName || 'Customer';
+  const shopName = companyName?.trim() || 'Our Shop';
+  const descriptionPart = formatPaymentNotePart(paymentDescription);
+
+  return `Dear ${name}, your account payment of ${reversed} at ${shopName} has been reversed. Previous balance: ${previous}. ${balanceLine}${descriptionPart} Thank you. ${SMS_FOOTER}`;
+}
+
+export function buildAccountPaymentReversedOwnerMessage(
+  customerName: string,
+  reversedAmount: number,
+  previousBalance: number,
+  balanceAfter: number,
+  companyName: string,
+  paymentDescription?: string,
+): string {
+  const reversed = formatCurrency(Math.max(reversedAmount, 0));
+  const previous = formatCurrency(Math.max(previousBalance, 0));
+  const balance = formatCurrency(Math.max(balanceAfter, 0));
+  const name = customerName || 'Customer';
+  const shopName = companyName?.trim() || 'Our Shop';
+  const descriptionPart = formatPaymentNotePart(paymentDescription);
+
+  return `Owner Alert: Account payment reversal of ${reversed} for ${name} at ${shopName}. Previous balance: ${previous}. New balance: ${balance}.${descriptionPart} ${SMS_FOOTER}`;
+}

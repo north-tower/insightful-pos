@@ -26,6 +26,7 @@ import {
   ArrowDownRight,
   Calendar,
   Loader2,
+  Undo2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { fc } from '@/lib/currency';
@@ -36,7 +37,7 @@ import { supabase } from '@/lib/supabase';
 interface StatementEntry {
   id: string;
   date: Date;
-  type: 'opening' | 'invoice' | 'payment';
+  type: 'opening' | 'invoice' | 'payment' | 'reversal';
   reference: string;
   description: string;
   debit: number; // amount owed (invoices)
@@ -45,6 +46,7 @@ interface StatementEntry {
   // Extra context
   orderId?: string;
   paymentMethod?: string;
+  reversalKind?: 'order_payment_reversed' | 'account_payment_reversed' | 'invoice_cancelled';
 }
 
 interface CustomerStatementProps {
@@ -63,6 +65,18 @@ interface AccountPaymentEntry {
   reference?: string;
   notes?: string;
   created_at: string;
+  reversed_at?: string | null;
+}
+
+interface LedgerEntryRow {
+  id: string;
+  entry_type: 'order_payment_reversed' | 'account_payment_reversed' | 'invoice_cancelled';
+  debit: number;
+  credit: number;
+  reference?: string | null;
+  description: string;
+  order_id?: string | null;
+  created_at: string;
 }
 
 type DateRange = 'all' | '30' | '60' | '90' | 'this-month' | 'this-year';
@@ -80,6 +94,8 @@ export function CustomerStatement({
   const printRef = useRef<HTMLDivElement>(null);
   const [accountPayments, setAccountPayments] = useState<AccountPaymentEntry[]>([]);
   const [accountPaymentsLoading, setAccountPaymentsLoading] = useState(false);
+  const [ledgerEntries, setLedgerEntries] = useState<LedgerEntryRow[]>([]);
+  const [ledgerLoading, setLedgerLoading] = useState(false);
 
   const displayName = `${customer.first_name} ${customer.last_name}`.trim();
 
@@ -90,7 +106,7 @@ export function CustomerStatement({
       try {
         const { data, error } = await supabase
           .from('customer_account_payments')
-          .select('id, customer_id, method, amount, reference, notes, created_at')
+          .select('id, customer_id, method, amount, reference, notes, created_at, reversed_at')
           .eq('customer_id', customer.id)
           .order('created_at', { ascending: true });
         if (error) throw error;
@@ -103,6 +119,7 @@ export function CustomerStatement({
             reference: p.reference || undefined,
             notes: p.notes || undefined,
             created_at: p.created_at,
+            reversed_at: p.reversed_at || null,
           })),
         );
       } catch (err) {
@@ -116,6 +133,40 @@ export function CustomerStatement({
     fetchAccountPayments();
   }, [open, customer.id]);
 
+  useEffect(() => {
+    const fetchLedger = async () => {
+      if (!open || !customer.id) return;
+      setLedgerLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('customer_ledger_entries')
+          .select('id, entry_type, debit, credit, reference, description, order_id, created_at')
+          .eq('customer_id', customer.id)
+          .order('created_at', { ascending: true });
+        if (error) throw error;
+        setLedgerEntries(
+          (data || []).map((row: any) => ({
+            id: row.id,
+            entry_type: row.entry_type,
+            debit: Number(row.debit || 0),
+            credit: Number(row.credit || 0),
+            reference: row.reference,
+            description: row.description,
+            order_id: row.order_id,
+            created_at: row.created_at,
+          })),
+        );
+      } catch (err) {
+        console.error('Failed to fetch customer ledger entries:', err);
+        setLedgerEntries([]);
+      } finally {
+        setLedgerLoading(false);
+      }
+    };
+
+    fetchLedger();
+  }, [open, customer.id]);
+
   // Build the statement entries from orders + payments
   const { entries, summary } = useMemo(() => {
     // Only include credit orders for this customer
@@ -123,7 +174,7 @@ export function CustomerStatement({
       (o) =>
         o.sale_type === 'credit' &&
         o.status !== 'voided' &&
-        o.status !== 'cancelled',
+        o.customer_id === customer.id,
     );
 
     const raw: Omit<StatementEntry, 'balance'>[] = [];
@@ -143,12 +194,15 @@ export function CustomerStatement({
 
     // Add invoice entries
     creditOrders.forEach((order) => {
+      const cancelled = order.status === 'cancelled';
       raw.push({
         id: `inv-${order.id}`,
         date: new Date(order.created_at),
         type: 'invoice',
         reference: order.invoice_number || order.order_number,
-        description: `Credit Sale — ${order.items.length} item${order.items.length > 1 ? 's' : ''}`,
+        description: cancelled
+          ? `Credit Sale — ${order.items.length} item${order.items.length > 1 ? 's' : ''} (Cancelled)`
+          : `Credit Sale — ${order.items.length} item${order.items.length > 1 ? 's' : ''}`,
         debit: order.total,
         credit: 0,
         orderId: order.id,
@@ -156,6 +210,7 @@ export function CustomerStatement({
 
       // Add payment entries for each payment on this order
       order.payments.forEach((payment) => {
+        const reversed = !!payment.reversed_at;
         const paymentDescription =
           payment.description?.trim() ||
           `Payment (${payment.method.charAt(0).toUpperCase() + payment.method.slice(1)})`;
@@ -165,7 +220,9 @@ export function CustomerStatement({
           date: new Date(payment.paid_at),
           type: 'payment',
           reference: payment.reference || `PAY-${payment.id.slice(0, 8).toUpperCase()}`,
-          description: paymentDescription,
+          description: reversed
+            ? `${paymentDescription} (Reversed)`
+            : paymentDescription,
           debit: 0,
           credit: payment.amount,
           orderId: order.id,
@@ -174,8 +231,23 @@ export function CustomerStatement({
       });
     });
 
+    ledgerEntries.forEach((entry) => {
+      raw.push({
+        id: `ledger-${entry.id}`,
+        date: new Date(entry.created_at),
+        type: 'reversal',
+        reference: entry.reference || 'ADJ',
+        description: entry.description,
+        debit: entry.debit,
+        credit: entry.credit,
+        orderId: entry.order_id || undefined,
+        reversalKind: entry.entry_type,
+      });
+    });
+
     // Add account-level payments (not tied to specific invoices).
     accountPayments.forEach((payment) => {
+      const reversed = !!payment.reversed_at;
       raw.push({
         id: `acct-pay-${payment.id}`,
         date: new Date(payment.created_at),
@@ -183,9 +255,10 @@ export function CustomerStatement({
         reference:
           payment.reference ||
           `APAY-${payment.id.slice(0, 8).toUpperCase()}`,
-        description:
-          payment.notes?.trim() ||
-          `Account Payment (${payment.method.charAt(0).toUpperCase() + payment.method.slice(1)})`,
+        description: reversed
+          ? `${payment.notes?.trim() || `Account Payment (${payment.method.charAt(0).toUpperCase() + payment.method.slice(1)})`} (Reversed)`
+          : payment.notes?.trim() ||
+            `Account Payment (${payment.method.charAt(0).toUpperCase() + payment.method.slice(1)})`,
         debit: 0,
         credit: payment.amount,
         paymentMethod: payment.method,
@@ -264,6 +337,7 @@ export function CustomerStatement({
   }, [
     orders,
     accountPayments,
+    ledgerEntries,
     dateRange,
     customer.id,
     customer.created_at,
@@ -459,7 +533,7 @@ export function CustomerStatement({
 
         {/* Timeline / Ledger */}
         <div className="flex-1 overflow-y-auto px-6 py-4" ref={printRef}>
-          {loading || accountPaymentsLoading ? (
+          {loading || accountPaymentsLoading || ledgerLoading ? (
             <div className="flex items-center justify-center py-16">
               <Loader2 className="w-6 h-6 animate-spin text-primary" />
             </div>
@@ -516,6 +590,8 @@ export function CustomerStatement({
                           <div className="flex items-center gap-2">
                             {entry.type === 'payment' ? (
                               <ArrowDownRight className="w-3.5 h-3.5 text-success shrink-0" />
+                            ) : entry.type === 'reversal' ? (
+                              <Undo2 className="w-3.5 h-3.5 text-warning shrink-0" />
                             ) : (
                               <ArrowUpRight className="w-3.5 h-3.5 text-destructive shrink-0" />
                             )}
@@ -587,11 +663,15 @@ export function CustomerStatement({
                           'w-8 h-8 rounded-full flex items-center justify-center shrink-0',
                           entry.type === 'payment'
                             ? 'bg-success/10'
-                            : 'bg-destructive/10',
+                            : entry.type === 'reversal'
+                              ? 'bg-warning/10'
+                              : 'bg-destructive/10',
                         )}
                       >
                         {entry.type === 'payment' ? (
                           <CircleDollarSign className="w-3.5 h-3.5 text-success" />
+                        ) : entry.type === 'reversal' ? (
+                          <Undo2 className="w-3.5 h-3.5 text-warning" />
                         ) : (
                           <FileText className="w-3.5 h-3.5 text-destructive" />
                         )}
@@ -613,14 +693,18 @@ export function CustomerStatement({
                             'text-xs',
                             entry.type === 'payment'
                               ? 'border-success/30 text-success'
-                              : 'border-destructive/30 text-destructive',
+                              : entry.type === 'reversal'
+                                ? 'border-warning/30 text-warning'
+                                : 'border-destructive/30 text-destructive',
                           )}
                         >
                           {entry.type === 'opening'
                             ? 'Opening'
                             : entry.type === 'invoice'
                               ? 'Invoice'
-                              : 'Payment'}
+                              : entry.type === 'reversal'
+                                ? 'Reversal'
+                                : 'Payment'}
                         </Badge>
                       </div>
                       <p className="text-xs text-muted-foreground mb-1.5">
@@ -631,13 +715,13 @@ export function CustomerStatement({
                       </p>
                       <div className="flex items-center justify-between text-sm gap-3">
                         <span className="tabular-nums">
-                          {entry.type !== 'payment' ? (
-                            <span className="text-destructive font-semibold">
-                              +{fc(entry.debit > 0 ? entry.debit : 0)}
-                            </span>
-                          ) : (
+                          {entry.type === 'payment' || entry.credit > 0 ? (
                             <span className="text-success font-semibold">
                               −{fc(entry.credit > 0 ? entry.credit : 0)}
+                            </span>
+                          ) : (
+                            <span className="text-destructive font-semibold">
+                              +{fc(entry.debit > 0 ? entry.debit : 0)}
                             </span>
                           )}
                         </span>

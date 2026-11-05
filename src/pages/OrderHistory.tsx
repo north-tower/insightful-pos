@@ -58,13 +58,13 @@ import { InvoiceDialog } from '@/components/receipt/InvoiceDialog';
 import { PaymentDialog } from '@/components/payment/PaymentDialog';
 import { EditPaymentDialog } from '@/components/payment/EditPaymentDialog';
 import { ReceiptData } from '@/data/receiptData';
-import { useOrders, SaleOrder, Payment } from '@/hooks/useOrders';
+import { useOrders, SaleOrder, Payment, sumActivePaymentAmount } from '@/hooks/useOrders';
 import { useCustomers, Customer } from '@/hooks/useCustomers';
 import { toast } from 'sonner';
 import { fc, CURRENCY_SYMBOL } from '@/lib/currency';
 import { TypedNumberHint } from '@/components/ui/typed-number-hint';
 import { useCompanySettings } from '@/context/BusinessSettingsContext';
-import { notifyAccountPaymentReceived, notifyInvoiceCancelled } from '@/lib/sendSms';
+import { notifyAccountPaymentReceived, notifyAccountPaymentReversed, notifyInvoiceCancelled, notifyInvoicePaymentReversed } from '@/lib/sendSms';
 import { supabase } from '@/lib/supabase';
 import { useBusinessMode } from '@/context/BusinessModeContext';
 import { useAuth } from '@/context/AuthContext';
@@ -152,7 +152,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
     ? ['all', 'completed', 'pending', 'preparing', 'cancelled', 'voided']
     : ['all', 'completed', 'pending', 'cancelled', 'voided'];
   const { orders, loading, refundOrder, cancelCreditInvoice, updatePayment, deletePayment, todaysOrders, todaysRevenue, getOrderBalanceDue, recordPayment } = useOrders();
-  const { customers, getCustomerById, makePaymentOnAccount, reverseCustomerAccountPayment, refetch: refetchCustomers } = useCustomers();
+  const { customers, getCustomerById, getCustomerDisplayName, makePaymentOnAccount, reverseCustomerAccountPayment, refetch: refetchCustomers } = useCustomers();
   const { isAdmin, isManager } = useAuth();
   const canReversePayments = isAdmin || isManager;
   const canCancelCreditInvoices = canReversePayments;
@@ -305,7 +305,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
   const totalCreditBalance = useMemo(
     () =>
       unpaidCreditOrders.reduce((sum, o) => {
-        const paid = o.payments.reduce((s, p) => s + p.amount, 0);
+        const paid = sumActivePaymentAmount(o.payments);
         return sum + Math.max(o.total - paid, 0);
       }, 0),
     [unpaidCreditOrders],
@@ -376,7 +376,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
       );
       const totalPaid = Number(
         result?.total_paid ??
-          order.payments.reduce((s, p) => s + p.amount, 0),
+          sumActivePaymentAmount(order.payments),
       );
 
       const freshCustomers = await refetchCustomers();
@@ -497,18 +497,57 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
     try {
       if (paymentReverseTarget.kind === 'order') {
         setDeletingPaymentId(paymentReverseTarget.paymentId);
+        const order = orders.find((o) =>
+          o.payments.some((p) => p.id === paymentReverseTarget.paymentId),
+        );
+        const payment = order?.payments.find((p) => p.id === paymentReverseTarget.paymentId);
+        const customerBefore =
+          order?.customer_id != null ? getCustomerById(order.customer_id) : null;
+        const balanceBefore = customerBefore?.credit_balance ?? 0;
+
         const ok = await deletePayment(paymentReverseTarget.paymentId);
         if (ok) {
           toast.success('Payment reversed — order balance updated');
+          if (order && order.sale_type === 'credit') {
+            const freshCustomers = await refetchCustomers();
+            const customerAfter =
+              order.customer_id != null
+                ? freshCustomers.find((c) => c.id === order.customer_id)
+                : null;
+            const balanceAfter = customerAfter?.credit_balance ?? balanceBefore + paymentReverseTarget.amount;
+            notifyInvoicePaymentReversed(
+              order,
+              paymentReverseTarget.amount,
+              balanceBefore,
+              balanceAfter,
+              smsShopName,
+              customerAfter?.phone || order.customer_phone,
+              payment?.description,
+            );
+          }
         } else {
           toast.error('Failed to reverse payment');
         }
       } else {
         setDeletingPaymentId(paymentReverseTarget.paymentId);
+        const customerBefore = getCustomerById(paymentReverseTarget.customerId);
         const result = await reverseCustomerAccountPayment(paymentReverseTarget.paymentId);
         if (result.success) {
           toast.success('Payment reversed — customer balance restored');
           await refetchCustomers();
+          const customerAfter = getCustomerById(paymentReverseTarget.customerId);
+          notifyAccountPaymentReversed(
+            customerAfter
+              ? getCustomerDisplayName(customerAfter)
+              : customerBefore
+                ? getCustomerDisplayName(customerBefore)
+                : 'Customer',
+            result.reversedAmount ?? paymentReverseTarget.amount,
+            result.balanceBefore ?? customerBefore?.credit_balance ?? 0,
+            result.balanceAfter ?? customerAfter?.credit_balance ?? 0,
+            smsShopName,
+            customerAfter?.phone || customerBefore?.phone,
+          );
           if (topPayCustomerId === paymentReverseTarget.customerId) {
             await refreshAccountPaymentsForCustomer(paymentReverseTarget.customerId);
           }
@@ -1391,11 +1430,19 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                     {selectedOrder.payments.map((payment) => (
                       <div
                         key={payment.id}
-                        className="flex items-center justify-between p-3 bg-muted/50 rounded-lg group"
+                        className={cn(
+                          'flex items-center justify-between p-3 bg-muted/50 rounded-lg group',
+                          payment.reversed_at && 'opacity-60',
+                        )}
                       >
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
                             <span className="capitalize font-medium">{payment.method}</span>
+                            {payment.reversed_at && (
+                              <Badge variant="outline" className="text-xs border-warning/40 text-warning">
+                                Reversed
+                              </Badge>
+                            )}
                             {payment.reference && (
                               <span className="text-xs text-muted-foreground font-mono">
                                 ({payment.reference})
@@ -1415,7 +1462,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                           <span className="font-semibold text-base tabular-nums">
                             {fc(payment.amount)}
                           </span>
-                          {canModifyOrderPayments(selectedOrder) && (
+                          {canModifyOrderPayments(selectedOrder) && !payment.reversed_at && (
                             <>
                               <Button
                                 variant="ghost"
@@ -1451,7 +1498,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                     <div className="flex justify-between pt-2 border-t border-border/50 text-sm">
                       <span className="text-muted-foreground">Total Paid</span>
                       <span className="font-semibold text-success">
-                        {fc(selectedOrder.payments.reduce((s, p) => s + p.amount, 0))}
+                        {fc(sumActivePaymentAmount(selectedOrder.payments))}
                       </span>
                     </div>
                   </div>
@@ -1888,7 +1935,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                       Deposits totalling{' '}
                       <span className="font-medium text-foreground">
                         {fc(
-                          creditCancelTarget.payments.reduce((s, p) => s + p.amount, 0),
+                          sumActivePaymentAmount(creditCancelTarget.payments),
                         )}
                       </span>{' '}
                       stay on record; refund any cash or M-Pesa separately if needed.

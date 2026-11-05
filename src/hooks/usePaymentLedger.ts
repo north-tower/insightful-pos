@@ -19,6 +19,7 @@ export interface LedgerPaymentRow {
   customer_name?: string;
   order_payment_status?: PaymentStatus;
   order_status?: OrderStatus;
+  reversed_at?: string | null;
 }
 
 const FETCH_LIMIT = 400;
@@ -45,6 +46,7 @@ export function usePaymentLedger() {
             reference,
             description,
             paid_at,
+            reversed_at,
             orders!inner (
               order_number,
               customer_id,
@@ -69,6 +71,7 @@ export function usePaymentLedger() {
             reference,
             notes,
             created_at,
+            reversed_at,
             customers (
               first_name,
               last_name,
@@ -93,6 +96,7 @@ export function usePaymentLedger() {
           reference: p.reference || undefined,
           description: p.description || undefined,
           paid_at: p.paid_at,
+          reversed_at: p.reversed_at || null,
           order_id: p.order_id,
           order_number: order?.order_number,
           customer_id: order?.customer_id || undefined,
@@ -118,6 +122,7 @@ export function usePaymentLedger() {
           reference: p.reference || undefined,
           description: p.notes || undefined,
           paid_at: p.created_at,
+          reversed_at: p.reversed_at || null,
           customer_id: p.customer_id,
           customer_name: name,
         };

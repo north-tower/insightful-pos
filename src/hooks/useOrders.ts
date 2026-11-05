@@ -67,6 +67,13 @@ export interface Payment {
   reference?: string;
   description?: string;
   paid_at: string;
+  reversed_at?: string | null;
+}
+
+export function sumActivePaymentAmount(payments: Payment[]): number {
+  return payments
+    .filter((p) => !p.reversed_at)
+    .reduce((sum, p) => sum + p.amount, 0);
 }
 
 export type SaleType = 'cash' | 'credit';
@@ -579,6 +586,7 @@ export function useOrders() {
           reference: p.reference,
           description: p.description,
           paid_at: p.paid_at,
+          reversed_at: p.reversed_at || null,
         });
         paymentsByOrder.set(p.order_id, list);
       });
@@ -1037,20 +1045,32 @@ export function useOrders() {
         return false;
       }
 
+      const payment = order.payments.find((p) => p.id === paymentId);
+      if (payment?.reversed_at) {
+        setError('Payment is already reversed');
+        return false;
+      }
+
       try {
-        const { error: delErr } = await supabase
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        const { error: revErr } = await supabase
           .from('payments')
-          .delete()
+          .update({
+            reversed_at: new Date().toISOString(),
+            reversed_by: user?.id ?? null,
+          })
           .eq('id', paymentId);
 
-        if (delErr) throw delErr;
+        if (revErr) throw revErr;
 
-        // The DB trigger will adjust customer balance and order payment_status
         await fetchOrders();
         return true;
       } catch (err: any) {
-        console.error('Failed to delete payment:', err);
-        setError(err.message || 'Failed to delete payment');
+        console.error('Failed to reverse payment:', err);
+        setError(err.message || 'Failed to reverse payment');
         return false;
       }
     },
@@ -1095,7 +1115,7 @@ export function useOrders() {
   const totalOutstandingCredit = useMemo(
     () =>
       unpaidCreditOrders.reduce((sum, o) => {
-        const paid = o.payments.reduce((s, p) => s + p.amount, 0);
+        const paid = sumActivePaymentAmount(o.payments);
         return sum + Math.max(o.total - paid, 0);
       }, 0),
     [unpaidCreditOrders],
@@ -1103,7 +1123,7 @@ export function useOrders() {
 
   const getOrderBalanceDue = useCallback(
     (order: SaleOrder) => {
-      const paid = order.payments.reduce((s, p) => s + p.amount, 0);
+      const paid = sumActivePaymentAmount(order.payments);
       return Math.max(order.total - paid, 0);
     },
     [],
