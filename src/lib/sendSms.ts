@@ -17,7 +17,7 @@ import {
   buildPaymentReceivedOwnerMessage,
 } from '@/lib/smsMessages';
 
-const OWNER_PHONE = '0729690592';
+const OWNER_PHONE = '0799229340';
 const MAIN_STORE_CODE = 'main';
 
 let canSendSmsInCurrentStorePromise: Promise<boolean> | null = null;
