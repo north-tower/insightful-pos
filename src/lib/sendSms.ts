@@ -176,9 +176,19 @@ export function notifyPaymentReceived(
   paymentDescription?: string,
 ): void {
   const phone = customerPhone || order.customer_phone;
-  if (!phone) return;
+  if (phone) {
+    const msg = buildPaymentReceivedCustomerMessage(
+      order,
+      paidAmount,
+      previousBalance,
+      balanceAfter,
+      companyName,
+      paymentDescription,
+    );
+    sendSms(phone, msg);
+  }
 
-  const msg = buildPaymentReceivedCustomerMessage(
+  const ownerMsg = buildPaymentReceivedOwnerMessage(
     order,
     paidAmount,
     previousBalance,
@@ -186,12 +196,66 @@ export function notifyPaymentReceived(
     companyName,
     paymentDescription,
   );
+  sendOwnerAlert(ownerMsg);
+}
 
-  sendSms(phone, msg);
+export function notifyInvoicePaymentReversed(
+  order: SaleOrder,
+  reversedAmount: number,
+  previousBalance: number,
+  balanceAfter: number,
+  companyName: string,
+  customerPhone?: string,
+  paymentDescription?: string,
+): void {
+  const phone = customerPhone || order.customer_phone;
+  if (phone) {
+    const msg = buildInvoicePaymentReversedCustomerMessage(
+      order,
+      reversedAmount,
+      previousBalance,
+      balanceAfter,
+      companyName,
+      paymentDescription,
+    );
+    sendSms(phone, msg);
+  }
 
-  const ownerMsg = buildPaymentReceivedOwnerMessage(
+  const ownerMsg = buildInvoicePaymentReversedOwnerMessage(
     order,
-    paidAmount,
+    reversedAmount,
+    previousBalance,
+    balanceAfter,
+    companyName,
+    paymentDescription,
+  );
+  sendOwnerAlert(ownerMsg);
+}
+
+export function notifyAccountPaymentReversed(
+  customerName: string,
+  reversedAmount: number,
+  previousBalance: number,
+  balanceAfter: number,
+  companyName: string,
+  customerPhone?: string,
+  paymentDescription?: string,
+): void {
+  if (customerPhone) {
+    const msg = buildAccountPaymentReversedCustomerMessage(
+      customerName,
+      reversedAmount,
+      previousBalance,
+      balanceAfter,
+      companyName,
+      paymentDescription,
+    );
+    sendSms(customerPhone, msg);
+  }
+
+  const ownerMsg = buildAccountPaymentReversedOwnerMessage(
+    customerName,
+    reversedAmount,
     previousBalance,
     balanceAfter,
     companyName,
@@ -213,18 +277,17 @@ export function notifyAccountPaymentReceived(
   customerPhone?: string,
   paymentDescription?: string,
 ): void {
-  if (!customerPhone) return;
-
-  const msg = buildAccountPaymentReceivedCustomerMessage(
-    customerName,
-    paidAmount,
-    previousBalance,
-    balanceAfter,
-    companyName,
-    paymentDescription,
-  );
-
-  sendSms(customerPhone, msg);
+  if (customerPhone) {
+    const msg = buildAccountPaymentReceivedCustomerMessage(
+      customerName,
+      paidAmount,
+      previousBalance,
+      balanceAfter,
+      companyName,
+      paymentDescription,
+    );
+    sendSms(customerPhone, msg);
+  }
 
   const ownerMsg = buildAccountPaymentReceivedOwnerMessage(
     customerName,
