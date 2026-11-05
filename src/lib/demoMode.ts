@@ -34,6 +34,7 @@ const WRITE_RPC_NAMES = new Set([
   'record_customer_account_payment',
   'reverse_customer_account_payment',
   'refund_order_and_restore_stock',
+  'cancel_credit_invoice',
 ]);
 
 let demoModeActive = false;

@@ -9,6 +9,8 @@ import { SaleOrder } from '@/hooks/useOrders';
 import {
   buildAccountPaymentReceivedCustomerMessage,
   buildAccountPaymentReceivedOwnerMessage,
+  buildInvoiceCancelledCustomerMessage,
+  buildInvoiceCancelledOwnerMessage,
   buildInvoiceCreatedCustomerMessage,
   buildInvoiceCreatedOwnerMessage,
   buildPaymentReceivedCustomerMessage,
@@ -110,6 +112,41 @@ export function notifyInvoiceCreated(
     previousBalance,
     overallBalance,
     consignmentInfo,
+  );
+  sendOwnerAlert(ownerMsg);
+}
+
+// ─── Credit invoice cancelled ───────────────────────────────────────────────
+
+export function notifyInvoiceCancelled(
+  order: SaleOrder,
+  companyName: string,
+  amountRemovedFromBalance: number,
+  previousBalance: number,
+  balanceAfter: number,
+  totalPaidOnInvoice: number,
+  customerPhone?: string,
+): void {
+  const phone = customerPhone || order.customer_phone;
+  if (phone) {
+    const msg = buildInvoiceCancelledCustomerMessage(
+      order,
+      companyName,
+      amountRemovedFromBalance,
+      previousBalance,
+      balanceAfter,
+      totalPaidOnInvoice,
+    );
+    sendSms(phone, msg);
+  }
+
+  const ownerMsg = buildInvoiceCancelledOwnerMessage(
+    order,
+    companyName,
+    amountRemovedFromBalance,
+    previousBalance,
+    balanceAfter,
+    totalPaidOnInvoice,
   );
   sendOwnerAlert(ownerMsg);
 }

@@ -887,6 +887,27 @@ export function useOrders() {
     [fetchOrders, orders],
   );
 
+  const cancelCreditInvoice = useCallback(
+    async (orderId: string) => {
+      const { data, error: err } = await supabase.rpc('cancel_credit_invoice', {
+        p_order_id: orderId,
+      });
+      if (err) throw err;
+      await fetchOrders();
+      const row = (Array.isArray(data) ? data[0] : data) as
+        | {
+            balance_before: number;
+            balance_after: number;
+            amount_removed: number;
+            total_paid: number;
+          }
+        | null
+        | undefined;
+      return row ?? null;
+    },
+    [fetchOrders],
+  );
+
   // ── Record payment against an order ───────────────────────────────────
 
   const recordPayment = useCallback(
@@ -1101,6 +1122,7 @@ export function useOrders() {
     updateOrderStatus,
     voidOrder,
     refundOrder,
+    cancelCreditInvoice,
     recordPayment,
     updatePayment,
     deletePayment,

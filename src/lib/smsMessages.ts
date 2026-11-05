@@ -68,6 +68,52 @@ export function buildInvoiceCreatedCustomerMessage(
   return `Dear ${name}, invoice #${invoiceNo} for ${amount} has been issued by ${companyName}. Previous balance: ${prevBalanceAmount}. Total balance due: ${overallBalanceAmount}.${itemsPart}${duePart}${consignmentPart} Thank you for your business. ${SMS_FOOTER}`;
 }
 
+export function buildInvoiceCancelledCustomerMessage(
+  order: SaleOrder,
+  companyName: string,
+  amountRemovedFromBalance: number,
+  previousBalance: number,
+  balanceAfter: number,
+  totalPaidOnInvoice: number,
+): string {
+  const invoiceNo = order.invoice_number || order.order_number;
+  const invoiceAmount = formatCurrency(order.total);
+  const removed = formatCurrency(Math.max(amountRemovedFromBalance, 0));
+  const previous = formatCurrency(Math.max(previousBalance, 0));
+  const balanceLine = formatCustomerBalanceAfterLine(balanceAfter);
+  const name = order.customer_name || 'Customer';
+  const shopName = companyName?.trim() || 'Our Shop';
+  const depositPart =
+    totalPaidOnInvoice > 0
+      ? ` Payments totalling ${formatCurrency(totalPaidOnInvoice)} on this invoice remain on record; contact ${shopName} if you need a cash refund.`
+      : '';
+
+  return `Dear ${name}, invoice #${invoiceNo} for ${invoiceAmount} at ${shopName} has been cancelled. ${removed} removed from your account balance. Previous balance: ${previous}. ${balanceLine}${depositPart} Thank you. ${SMS_FOOTER}`;
+}
+
+export function buildInvoiceCancelledOwnerMessage(
+  order: SaleOrder,
+  companyName: string,
+  amountRemovedFromBalance: number,
+  previousBalance: number,
+  balanceAfter: number,
+  totalPaidOnInvoice: number,
+): string {
+  const invoiceNo = order.invoice_number || order.order_number;
+  const invoiceAmount = formatCurrency(order.total);
+  const removed = formatCurrency(Math.max(amountRemovedFromBalance, 0));
+  const previous = formatCurrency(Math.max(previousBalance, 0));
+  const balance = formatCurrency(Math.max(balanceAfter, 0));
+  const name = order.customer_name || 'Customer';
+  const shopName = companyName?.trim() || 'Our Shop';
+  const depositPart =
+    totalPaidOnInvoice > 0
+      ? ` Deposits on invoice: ${formatCurrency(totalPaidOnInvoice)} (not auto-refunded).`
+      : '';
+
+  return `Owner Alert: Credit invoice #${invoiceNo} for ${name} cancelled at ${shopName}. Invoice: ${invoiceAmount}. Removed from balance: ${removed}. Previous balance: ${previous}. New balance: ${balance}.${depositPart} ${SMS_FOOTER}`;
+}
+
 export function buildInvoiceCreatedOwnerMessage(
   order: SaleOrder,
   companyName: string,

@@ -64,7 +64,7 @@ import { toast } from 'sonner';
 import { fc, CURRENCY_SYMBOL } from '@/lib/currency';
 import { TypedNumberHint } from '@/components/ui/typed-number-hint';
 import { useCompanySettings } from '@/context/BusinessSettingsContext';
-import { notifyAccountPaymentReceived } from '@/lib/sendSms';
+import { notifyAccountPaymentReceived, notifyInvoiceCancelled } from '@/lib/sendSms';
 import { supabase } from '@/lib/supabase';
 import { useBusinessMode } from '@/context/BusinessModeContext';
 import { useAuth } from '@/context/AuthContext';
@@ -151,10 +151,11 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
   const statusFilterOptions = isRestaurant
     ? ['all', 'completed', 'pending', 'preparing', 'cancelled', 'voided']
     : ['all', 'completed', 'pending', 'cancelled', 'voided'];
-  const { orders, loading, voidOrder, refundOrder, updatePayment, deletePayment, todaysOrders, todaysRevenue, getOrderBalanceDue, recordPayment } = useOrders();
+  const { orders, loading, refundOrder, cancelCreditInvoice, updatePayment, deletePayment, todaysOrders, todaysRevenue, getOrderBalanceDue, recordPayment } = useOrders();
   const { customers, getCustomerById, makePaymentOnAccount, reverseCustomerAccountPayment, refetch: refetchCustomers } = useCustomers();
   const { isAdmin, isManager } = useAuth();
   const canReversePayments = isAdmin || isManager;
+  const canCancelCreditInvoices = canReversePayments;
   const { companyName, settings } = useCompanySettings();
   const smsShopName = settings.fullName || settings.name || companyName;
   const [searchQuery, setSearchQuery] = useState('');
@@ -174,8 +175,9 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
   const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
   const [paymentReverseTarget, setPaymentReverseTarget] = useState<PaymentReverseTarget | null>(null);
   const [isReversingPayment, setIsReversingPayment] = useState(false);
-  const [voidingOrderId, setVoidingOrderId] = useState<string | null>(null);
   const [refundingOrderId, setRefundingOrderId] = useState<string | null>(null);
+  const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
+  const [creditCancelTarget, setCreditCancelTarget] = useState<SaleOrder | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [isTopPayOpen, setIsTopPayOpen] = useState(false);
@@ -333,6 +335,15 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
     order.status !== 'cancelled' &&
     order.status !== 'voided';
 
+  const canCancelCreditInvoiceForOrder = (order: SaleOrder) =>
+    canCancelCreditInvoices &&
+    order.sale_type === 'credit' &&
+    getOrderBalanceDue(order) > 0 &&
+    order.payment_status !== 'refunded' &&
+    order.payment_status !== 'voided' &&
+    order.status !== 'cancelled' &&
+    order.status !== 'voided';
+
   const handleRefund = async (order: SaleOrder) => {
     setRefundingOrderId(order.id);
     try {
@@ -346,16 +357,53 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
     }
   };
 
-  const handleVoid = async (order: SaleOrder) => {
-    setVoidingOrderId(order.id);
+  const confirmCancelCreditInvoice = async () => {
+    if (!creditCancelTarget) return;
+    const order = creditCancelTarget;
+    setCancellingOrderId(order.id);
     try {
-      await voidOrder(order.id);
-      toast.success(`Order #${order.order_number} voided`);
+      const customerBefore =
+        order.customer_id != null
+          ? getCustomerById(order.customer_id)
+          : null;
+      const result = await cancelCreditInvoice(order.id);
+      const balanceBefore = Number(
+        result?.balance_before ?? customerBefore?.credit_balance ?? 0,
+      );
+      const balanceAfter = Number(result?.balance_after ?? balanceBefore);
+      const amountRemoved = Number(
+        result?.amount_removed ?? getOrderBalanceDue(order),
+      );
+      const totalPaid = Number(
+        result?.total_paid ??
+          order.payments.reduce((s, p) => s + p.amount, 0),
+      );
+
+      const freshCustomers = await refetchCustomers();
+      const freshCustomer =
+        order.customer_id != null
+          ? freshCustomers.find((c) => c.id === order.customer_id)
+          : null;
+
+      notifyInvoiceCancelled(
+        order,
+        smsShopName,
+        amountRemoved,
+        balanceBefore,
+        balanceAfter,
+        totalPaid,
+        freshCustomer?.phone || order.customer_phone,
+      );
+
+      toast.success(
+        `Credit invoice #${order.invoice_number || order.order_number} cancelled`,
+      );
+      setCreditCancelTarget(null);
       setIsDetailOpen(false);
     } catch (err: any) {
-      toast.error(err.message || 'Failed to void order');
+      toast.error(err.message || 'Failed to cancel credit invoice');
     } finally {
-      setVoidingOrderId(null);
+      setCancellingOrderId(null);
     }
   };
 
@@ -1477,19 +1525,34 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
               )}
 
               {/* Actions */}
-              <div className="flex gap-2 pt-4 border-t">
+              <div className="flex flex-wrap gap-2 pt-4 border-t">
                 <Button 
                   variant="outline" 
-                  className="flex-1 gap-2"
+                  className="flex-1 min-w-[140px] gap-2"
                   onClick={() => handlePrintReceipt(selectedOrder)}
                 >
                   <FileText className="w-4 h-4" />
                   {selectedOrder.sale_type === 'credit' ? 'View Invoice' : 'Print Receipt'}
                 </Button>
+                {canCancelCreditInvoiceForOrder(selectedOrder) && (
+                  <Button
+                    variant="outline"
+                    className="flex-1 min-w-[140px] gap-2 text-destructive hover:text-destructive"
+                    onClick={() => setCreditCancelTarget(selectedOrder)}
+                    disabled={cancellingOrderId === selectedOrder.id}
+                  >
+                    {cancellingOrderId === selectedOrder.id ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <X className="w-4 h-4" />
+                    )}
+                    Cancel invoice
+                  </Button>
+                )}
                 {canShowRefundForOrder(selectedOrder) && (
                   <Button
                     variant="outline"
-                      className="flex-1 gap-2 text-destructive hover:text-destructive"
+                      className="flex-1 min-w-[140px] gap-2 text-destructive hover:text-destructive"
                       onClick={() => handleRefund(selectedOrder)}
                       disabled={refundingOrderId === selectedOrder.id}
                   >
@@ -1787,6 +1850,74 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                 </>
               ) : (
                 'Reverse payment'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={!!creditCancelTarget}
+        onOpenChange={(open) => {
+          if (!open && !cancellingOrderId) setCreditCancelTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel this credit invoice?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              {creditCancelTarget ? (
+                <div className="space-y-2 text-sm text-muted-foreground">
+                  <p>
+                    Invoice{' '}
+                    <span className="font-medium text-foreground">
+                      #{creditCancelTarget.invoice_number || creditCancelTarget.order_number}
+                    </span>{' '}
+                    for{' '}
+                    <span className="font-medium text-foreground">
+                      {fc(creditCancelTarget.total)}
+                    </span>{' '}
+                    will be marked cancelled. Stock will be restored (retail).{' '}
+                    <span className="font-medium text-foreground">
+                      {fc(getOrderBalanceDue(creditCancelTarget))}
+                    </span>{' '}
+                    will be removed from the customer&apos;s account balance.
+                  </p>
+                  {creditCancelTarget.payments.length > 0 && (
+                    <p>
+                      Deposits totalling{' '}
+                      <span className="font-medium text-foreground">
+                        {fc(
+                          creditCancelTarget.payments.reduce((s, p) => s + p.amount, 0),
+                        )}
+                      </span>{' '}
+                      stay on record; refund any cash or M-Pesa separately if needed.
+                    </p>
+                  )}
+                  {creditCancelTarget.customer_phone && (
+                    <p>The customer will receive an SMS confirmation (main store only).</p>
+                  )}
+                </div>
+              ) : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={!!cancellingOrderId}>Keep invoice</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={!!cancellingOrderId}
+              onClick={(e) => {
+                e.preventDefault();
+                void confirmCancelCreditInvoice();
+              }}
+            >
+              {cancellingOrderId ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  Cancelling…
+                </>
+              ) : (
+                'Cancel invoice'
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

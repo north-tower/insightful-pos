@@ -12,6 +12,7 @@
  *   account-owner    Owner alert for account payment
  *   invoice-payment  Payment tied to an invoice — customer SMS
  *   invoice-created  New credit invoice — customer SMS
+ *   invoice-cancelled Credit invoice cancelled — customer SMS
  *   raw              Send --message verbatim (gateway / template debugging)
  *
  * Requires VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env
@@ -23,6 +24,7 @@ import { createClient } from '@supabase/supabase-js';
 import {
   buildAccountPaymentReceivedCustomerMessage,
   buildAccountPaymentReceivedOwnerMessage,
+  buildInvoiceCancelledCustomerMessage,
   buildInvoiceCreatedCustomerMessage,
   buildPaymentReceivedCustomerMessage,
 } from '../src/lib/smsMessages';
@@ -149,8 +151,29 @@ function buildMessage(opts: Record<string, string | boolean>): string {
     );
   }
 
+  if (type === 'invoice-cancelled') {
+    const removed = Number(opts.removed ?? paid);
+    const deposit = Number(opts.deposit ?? 0);
+    return buildInvoiceCancelledCustomerMessage(
+      {
+        id: 'test',
+        customer_name: name,
+        customer_phone: String(opts.mobile),
+        invoice_number: String(opts.invoice),
+        order_number: String(opts.invoice),
+        total: paid,
+        items: [],
+      } as Parameters<typeof buildInvoiceCancelledCustomerMessage>[0],
+      shop,
+      removed,
+      previous,
+      balance,
+      deposit,
+    );
+  }
+
   throw new Error(
-    `Unknown --type ${type}. Use: account | account-settled | account-owner | invoice-payment | invoice-created | raw`,
+    `Unknown --type ${type}. Use: account | account-settled | account-owner | invoice-payment | invoice-created | invoice-cancelled | raw`,
   );
 }
 
