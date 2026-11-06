@@ -48,11 +48,6 @@ import { useAuth } from '@/context/AuthContext';
 import { useOrders, Payment, SaleOrder } from '@/hooks/useOrders';
 import { useCustomers } from '@/hooks/useCustomers';
 import {
-  notifyAccountPaymentReversed,
-  notifyInvoicePaymentReversed,
-} from '@/lib/sendSms';
-import { useCompanySettings } from '@/context/BusinessSettingsContext';
-import {
   usePaymentLedger,
   LedgerPaymentRow,
   LedgerPaymentKind,
@@ -72,11 +67,8 @@ type ReverseTarget = {
 export default function PaymentLedger({ onNavigate }: PaymentLedgerProps) {
   const { rows, loading, refetch } = usePaymentLedger();
   const { deletePayment, updatePayment, orders } = useOrders();
-  const { reverseCustomerAccountPayment, getCustomerById, getCustomerDisplayName, refetch: refetchCustomers } =
-    useCustomers();
+  const { reverseCustomerAccountPayment } = useCustomers();
   const { isAdmin, isManager } = useAuth();
-  const { companyName, settings } = useCompanySettings();
-  const smsShopName = settings.fullName || settings.name || companyName;
   const canReverse = isAdmin || isManager;
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -152,59 +144,17 @@ export default function PaymentLedger({ onNavigate }: PaymentLedgerProps) {
     setBusyId(row.id);
     try {
       if (row.kind === 'order') {
-        const order = orders.find((o) => o.id === row.order_id);
-        const payment = order?.payments.find((p) => p.id === row.id);
-        const customerBefore =
-          order?.customer_id != null ? getCustomerById(order.customer_id) : null;
-        const balanceBefore = customerBefore?.credit_balance ?? 0;
-
         const ok = await deletePayment(row.id);
         if (ok) {
           toast.success('Payment reversed');
           await refetch();
-          if (order && order.sale_type === 'credit') {
-            const freshCustomers = await refetchCustomers();
-            const customerAfter =
-              order.customer_id != null
-                ? freshCustomers.find((c) => c.id === order.customer_id)
-                : null;
-            const balanceAfter =
-              customerAfter?.credit_balance ?? balanceBefore + row.amount;
-            notifyInvoicePaymentReversed(
-              order,
-              row.amount,
-              balanceBefore,
-              balanceAfter,
-              smsShopName,
-              customerAfter?.phone || order.customer_phone,
-              payment?.description || row.description,
-            );
-          }
         } else {
           toast.error('Failed to reverse payment');
         }
       } else {
-        const customerBefore =
-          row.customer_id != null ? getCustomerById(row.customer_id) : null;
         const result = await reverseCustomerAccountPayment(row.id);
         if (result.success) {
           toast.success('Account payment reversed');
-          const freshCustomers = await refetchCustomers();
-          const customerAfter =
-            row.customer_id != null
-              ? freshCustomers.find((c) => c.id === row.customer_id) ||
-                getCustomerById(row.customer_id)
-              : null;
-          notifyAccountPaymentReversed(
-            row.customer_name ||
-              (customerAfter ? getCustomerDisplayName(customerAfter) : 'Customer'),
-            result.reversedAmount ?? row.amount,
-            result.balanceBefore ?? customerBefore?.credit_balance ?? 0,
-            result.balanceAfter ?? customerAfter?.credit_balance ?? 0,
-            smsShopName,
-            customerAfter?.phone || customerBefore?.phone,
-            row.description,
-          );
           await refetch();
         } else {
           toast.error(result.error || 'Failed to reverse payment');

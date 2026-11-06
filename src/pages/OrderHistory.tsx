@@ -64,7 +64,7 @@ import { toast } from 'sonner';
 import { fc, CURRENCY_SYMBOL } from '@/lib/currency';
 import { TypedNumberHint } from '@/components/ui/typed-number-hint';
 import { useCompanySettings } from '@/context/BusinessSettingsContext';
-import { notifyAccountPaymentReceived, notifyAccountPaymentReversed, notifyInvoiceCancelled, notifyInvoicePaymentReversed } from '@/lib/sendSms';
+import { notifyAccountPaymentReceived, notifyInvoiceCancelled } from '@/lib/sendSms';
 import { supabase } from '@/lib/supabase';
 import { useBusinessMode } from '@/context/BusinessModeContext';
 import { useAuth } from '@/context/AuthContext';
@@ -497,57 +497,18 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
     try {
       if (paymentReverseTarget.kind === 'order') {
         setDeletingPaymentId(paymentReverseTarget.paymentId);
-        const order = orders.find((o) =>
-          o.payments.some((p) => p.id === paymentReverseTarget.paymentId),
-        );
-        const payment = order?.payments.find((p) => p.id === paymentReverseTarget.paymentId);
-        const customerBefore =
-          order?.customer_id != null ? getCustomerById(order.customer_id) : null;
-        const balanceBefore = customerBefore?.credit_balance ?? 0;
-
         const ok = await deletePayment(paymentReverseTarget.paymentId);
         if (ok) {
           toast.success('Payment reversed — order balance updated');
-          if (order && order.sale_type === 'credit') {
-            const freshCustomers = await refetchCustomers();
-            const customerAfter =
-              order.customer_id != null
-                ? freshCustomers.find((c) => c.id === order.customer_id)
-                : null;
-            const balanceAfter = customerAfter?.credit_balance ?? balanceBefore + paymentReverseTarget.amount;
-            notifyInvoicePaymentReversed(
-              order,
-              paymentReverseTarget.amount,
-              balanceBefore,
-              balanceAfter,
-              smsShopName,
-              customerAfter?.phone || order.customer_phone,
-              payment?.description,
-            );
-          }
         } else {
           toast.error('Failed to reverse payment');
         }
       } else {
         setDeletingPaymentId(paymentReverseTarget.paymentId);
-        const customerBefore = getCustomerById(paymentReverseTarget.customerId);
         const result = await reverseCustomerAccountPayment(paymentReverseTarget.paymentId);
         if (result.success) {
           toast.success('Payment reversed — customer balance restored');
           await refetchCustomers();
-          const customerAfter = getCustomerById(paymentReverseTarget.customerId);
-          notifyAccountPaymentReversed(
-            customerAfter
-              ? getCustomerDisplayName(customerAfter)
-              : customerBefore
-                ? getCustomerDisplayName(customerBefore)
-                : 'Customer',
-            result.reversedAmount ?? paymentReverseTarget.amount,
-            result.balanceBefore ?? customerBefore?.credit_balance ?? 0,
-            result.balanceAfter ?? customerAfter?.credit_balance ?? 0,
-            smsShopName,
-            customerAfter?.phone || customerBefore?.phone,
-          );
           if (topPayCustomerId === paymentReverseTarget.customerId) {
             await refreshAccountPaymentsForCustomer(paymentReverseTarget.customerId);
           }
