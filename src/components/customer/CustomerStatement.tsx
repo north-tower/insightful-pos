@@ -208,9 +208,9 @@ export function CustomerStatement({
         orderId: order.id,
       });
 
-      // Add payment entries for each payment on this order
+      // Add payment entries for each active payment on this order
       order.payments.forEach((payment) => {
-        const reversed = !!payment.reversed_at;
+        if (payment.reversed_at) return;
         const paymentDescription =
           payment.description?.trim() ||
           `Payment (${payment.method.charAt(0).toUpperCase() + payment.method.slice(1)})`;
@@ -220,9 +220,7 @@ export function CustomerStatement({
           date: new Date(payment.paid_at),
           type: 'payment',
           reference: payment.reference || `PAY-${payment.id.slice(0, 8).toUpperCase()}`,
-          description: reversed
-            ? `${paymentDescription} (Reversed)`
-            : paymentDescription,
+          description: paymentDescription,
           debit: 0,
           credit: payment.amount,
           orderId: order.id,
@@ -232,6 +230,12 @@ export function CustomerStatement({
     });
 
     ledgerEntries.forEach((entry) => {
+      if (
+        entry.entry_type === 'order_payment_reversed' ||
+        entry.entry_type === 'account_payment_reversed'
+      ) {
+        return;
+      }
       raw.push({
         id: `ledger-${entry.id}`,
         date: new Date(entry.created_at),
@@ -247,7 +251,7 @@ export function CustomerStatement({
 
     // Add account-level payments (not tied to specific invoices).
     accountPayments.forEach((payment) => {
-      const reversed = !!payment.reversed_at;
+      if (payment.reversed_at) return;
       raw.push({
         id: `acct-pay-${payment.id}`,
         date: new Date(payment.created_at),
@@ -255,10 +259,9 @@ export function CustomerStatement({
         reference:
           payment.reference ||
           `APAY-${payment.id.slice(0, 8).toUpperCase()}`,
-        description: reversed
-          ? `${payment.notes?.trim() || `Account Payment (${payment.method.charAt(0).toUpperCase() + payment.method.slice(1)})`} (Reversed)`
-          : payment.notes?.trim() ||
-            `Account Payment (${payment.method.charAt(0).toUpperCase() + payment.method.slice(1)})`,
+        description:
+          payment.notes?.trim() ||
+          `Account Payment (${payment.method.charAt(0).toUpperCase() + payment.method.slice(1)})`,
         debit: 0,
         credit: payment.amount,
         paymentMethod: payment.method,
