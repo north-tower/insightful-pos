@@ -65,6 +65,7 @@ import { useCustomers, Customer } from '@/hooks/useCustomers';
 import { toast } from 'sonner';
 import { fc, CURRENCY_SYMBOL } from '@/lib/currency';
 import { formatKES } from '@/lib/formatKES';
+import { Money } from '@/components/ui/Money';
 import { formatCompactDateRange, formatDate } from '@/lib/formatDate';
 import {
   getPaymentMethodLabel,
@@ -1643,11 +1644,16 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                 ) : (
                   <>
                     <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden />
-                    <span className="truncate tabular-nums">
+                    <span className="truncate font-sans tabular-nums">
                       Record{' '}
-                      {parseFloat(topPayAmount) > 0
-                        ? formatKES(parseFloat(topPayAmount))
-                        : formatKES(0)}
+                      <Money
+                        value={
+                          parseFloat(topPayAmount) > 0
+                            ? parseFloat(topPayAmount)
+                            : 0
+                        }
+                        sansInline
+                      />
                     </span>
                   </>
                 )}
@@ -1709,7 +1715,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                   value={topPayAmount}
                   onChange={(e) => setTopPayAmount(e.target.value)}
                   placeholder="0.00"
-                  className="h-14 border-hairline pl-14 font-sans text-[28px] font-bold tabular-nums"
+                  className="h-14 border-hairline pl-14 font-sans text-[28px] font-bold tabular-nums md:text-[28px]"
                 />
               </div>
               <TypedNumberHint value={topPayAmount} prefix={`${CURRENCY_SYMBOL} `} />
@@ -1726,7 +1732,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                 className="min-h-12 border-hairline"
               />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 md:col-span-2">
               <Label htmlFor="top-pay-ref" className="text-sm font-semibold text-ink">
                 {getPaymentReferenceFieldLabel(topPayMethod)}
               </Label>
@@ -1735,10 +1741,10 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                 value={topPayReference}
                 onChange={(e) => setTopPayReference(e.target.value)}
                 className="min-h-12 border-hairline"
-                placeholder="Txn ID / receipt no."
+                placeholder="Txn ID or receipt no."
               />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 md:col-span-2">
               <Label htmlFor="top-pay-desc" className="text-sm font-semibold text-ink">
                 Description (optional)
               </Label>
@@ -1747,7 +1753,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                 value={topPayDescription}
                 onChange={(e) => setTopPayDescription(e.target.value)}
                 className="min-h-12 border-hairline"
-                placeholder="e.g. Weekly settlement, bank transfer"
+                placeholder="e.g. Weekly settlement"
               />
             </div>
           </div>
@@ -1777,30 +1783,31 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                   ).map((p) => (
                     <li
                       key={p.id}
-                      className="flex w-full items-start justify-between gap-3 py-3"
+                      className="max-h-[72px] space-y-1 py-2"
+                      title={p.notes || undefined}
                     >
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-ink">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span className="text-sm font-semibold text-ink">
                           {formatDate(new Date(p.created_at))}
-                        </p>
-                        <p className="mt-0.5 text-sm text-ink-2">
+                        </span>
+                        <Money
+                          value={p.amount}
+                          className="text-sm font-semibold text-ink"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="min-w-0 truncate text-sm text-ink-2">
                           {getPaymentMethodLabel(p.method)}
                           {p.reference ? (
-                            <span className="ml-1 font-mono text-xs">({p.reference})</span>
+                            <span className="ml-1 font-mono text-xs">
+                              ({p.reference})
+                            </span>
                           ) : null}
-                        </p>
-                        {p.notes ? (
-                          <p className="mt-0.5 text-xs text-ink-2">{p.notes}</p>
-                        ) : null}
-                      </div>
-                      <div className="flex shrink-0 flex-col items-end gap-1">
-                        <p className="font-mono text-sm font-semibold tabular-nums text-ink">
-                          {formatKES(p.amount)}
-                        </p>
+                        </span>
                         {canReversePayments ? (
                           <button
                             type="button"
-                            className="focus-ring inline-flex h-12 min-h-12 items-center gap-1 px-2 text-sm font-semibold text-ink"
+                            className="focus-ring inline-flex h-12 min-h-12 shrink-0 items-center gap-1 px-2 text-sm font-semibold text-ink"
                             onClick={() => requestReverseAccountPayment(p)}
                             disabled={deletingPaymentId === p.id}
                           >

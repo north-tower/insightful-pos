@@ -11,7 +11,8 @@ import {
 import { cn } from '@/lib/utils';
 import { CURRENCY_SYMBOL } from '@/lib/currency';
 import { TypedNumberHint } from '@/components/ui/typed-number-hint';
-import { formatKES, formatKESAmount } from '@/lib/formatKES';
+import { formatKES } from '@/lib/formatKES';
+import { Money } from '@/components/ui/Money';
 import { formatDate } from '@/lib/formatDate';
 import {
   getPaymentMethodLabel,
@@ -120,17 +121,8 @@ function amountMatches(entered: number, target: number): boolean {
   return entered > 0 && Math.abs(entered - target) < 0.005;
 }
 
-function BalanceDueFigure({ amount }: { amount: number }) {
-  return (
-    <span className="inline-flex items-baseline gap-1.5 font-sans text-[28px] font-bold leading-tight tabular-nums text-ink">
-      <span className="text-sm font-semibold text-ink-2">KES</span>
-      <span>{formatKESAmount(amount)}</span>
-    </span>
-  );
-}
-
 const FILL_BTN =
-  'focus-ring inline-flex h-12 min-h-12 items-center gap-2 rounded-[var(--radius)] border border-hairline bg-surface px-3 text-sm font-semibold text-ink active:scale-[0.98]';
+  'focus-ring inline-flex h-12 min-h-12 min-w-0 flex-[1_1_calc(50%-0.25rem)] items-center gap-2 rounded-[var(--radius)] border border-hairline bg-surface px-3 text-sm font-semibold text-ink active:scale-[0.98] min-[768px]:flex-[0_1_auto]';
 
 export function PaymentDialog({
   open,
@@ -370,10 +362,21 @@ export function PaymentDialog({
           ) : (
             <>
               <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden />
-              <span className="truncate tabular-nums">
-                {isMethodOnly
-                  ? `Confirm ${formatKES(balanceDue)}`
-                  : `Record ${enteredAmount > 0 ? formatKES(enteredAmount) : formatKES(0)}`}
+              <span className="truncate font-sans tabular-nums">
+                {isMethodOnly ? (
+                  <>
+                    Confirm{' '}
+                    <Money value={balanceDue} sansInline />
+                  </>
+                ) : (
+                  <>
+                    Record{' '}
+                    <Money
+                      value={enteredAmount > 0 ? enteredAmount : 0}
+                      sansInline
+                    />
+                  </>
+                )}
               </span>
             </>
           )}
@@ -410,7 +413,7 @@ export function PaymentDialog({
           <section className="receipt-ruled space-y-2 border-y border-hairline py-4 text-sm">
             <div className="flex items-baseline justify-between gap-4">
               <span className="text-ink-2">Invoice total</span>
-              <span className="font-mono tabular-nums text-ink">{formatKES(order.total)}</span>
+              <Money value={order.total} className="text-ink" />
             </div>
             {paymentCount > 0 ? (
               <div className="flex items-baseline justify-between gap-4">
@@ -418,15 +421,13 @@ export function PaymentDialog({
                   Paid so far ({paymentCount} payment
                   {paymentCount > 1 ? 's' : ''})
                 </span>
-                <span className="font-mono tabular-nums text-ink">
-                  −{formatKES(paidSoFar)}
-                </span>
+                <Money value={paidSoFar} sign="minus" className="text-ink" />
               </div>
             ) : null}
             <div className="border-y-2 border-double border-hairline py-3">
               <div className="flex items-baseline justify-between gap-4">
                 <span className="font-semibold text-ink">Balance due</span>
-                <BalanceDueFigure amount={balanceDue} />
+                <Money value={balanceDue} variant="display" size={28} />
               </div>
             </div>
             {order.due_date ? (
@@ -474,7 +475,7 @@ export function PaymentDialog({
                     setError(null);
                   }}
                   placeholder="0.00"
-                  className="h-14 border-hairline pl-14 font-sans text-[28px] font-bold tabular-nums"
+                  className="h-14 border-hairline pl-14 font-sans text-[28px] font-bold tabular-nums md:text-[28px]"
                 />
               </div>
               <TypedNumberHint value={amount} prefix={`${CURRENCY_SYMBOL} `} />
@@ -493,10 +494,28 @@ export function PaymentDialog({
                     <Check className="h-4 w-4 text-primary" aria-hidden />
                   ) : null}
                   <span>
-                    Invoice balance ·{' '}
-                    <span className="font-mono">{formatKES(balanceDue)}</span>
+                    Invoice balance · <Money value={balanceDue} />
                   </span>
                 </button>
+                {balanceDue > 100 ? (
+                  <button
+                    type="button"
+                    className={cn(
+                      FILL_BTN,
+                      amountMatches(enteredAmount, balanceDue / 2) &&
+                        'border-primary bg-[hsl(var(--accent-soft))]',
+                    )}
+                    aria-pressed={amountMatches(enteredAmount, balanceDue / 2)}
+                    onClick={() => setAmount((balanceDue / 2).toFixed(2))}
+                  >
+                    {amountMatches(enteredAmount, balanceDue / 2) ? (
+                      <Check className="h-4 w-4 text-primary" aria-hidden />
+                    ) : null}
+                    <span>
+                      Half · <Money value={balanceDue / 2} />
+                    </span>
+                  </button>
+                ) : null}
                 {isAccountPaymentMode ? (
                   <button
                     type="button"
@@ -513,7 +532,7 @@ export function PaymentDialog({
                     ) : null}
                     <span>
                       Account balance ·{' '}
-                      <span className="font-mono">{formatKES(accountBalanceBefore)}</span>
+                      <Money value={accountBalanceBefore} />
                     </span>
                   </button>
                 ) : null}
@@ -534,28 +553,7 @@ export function PaymentDialog({
                       <Check className="h-4 w-4 text-primary" aria-hidden />
                     ) : null}
                     <span>
-                      All invoices ·{' '}
-                      <span className="font-mono">{formatKES(totalCustomerBalance)}</span>
-                    </span>
-                  </button>
-                ) : null}
-                {balanceDue > 100 ? (
-                  <button
-                    type="button"
-                    className={cn(
-                      FILL_BTN,
-                      amountMatches(enteredAmount, balanceDue / 2) &&
-                        'border-primary bg-[hsl(var(--accent-soft))]',
-                    )}
-                    aria-pressed={amountMatches(enteredAmount, balanceDue / 2)}
-                    onClick={() => setAmount((balanceDue / 2).toFixed(2))}
-                  >
-                    {amountMatches(enteredAmount, balanceDue / 2) ? (
-                      <Check className="h-4 w-4 text-primary" aria-hidden />
-                    ) : null}
-                    <span>
-                      Half ·{' '}
-                      <span className="font-mono">{formatKES(balanceDue / 2)}</span>
+                      All invoices · <Money value={totalCustomerBalance} />
                     </span>
                   </button>
                 ) : null}

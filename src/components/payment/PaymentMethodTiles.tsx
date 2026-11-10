@@ -1,7 +1,5 @@
 import {
   Banknote,
-  CreditCard,
-  QrCode,
   Smartphone,
   Landmark,
   Check,
@@ -18,8 +16,8 @@ export type PaymentMethodTileDef = {
 
 export const INVOICE_PAYMENT_METHOD_TILES: PaymentMethodTileDef[] = [
   { id: 'cash', icon: Banknote },
-  { id: 'card', icon: CreditCard },
-  { id: 'qr', icon: QrCode },
+  { id: 'card', icon: Landmark },
+  { id: 'qr', icon: Smartphone },
 ];
 
 export const METHOD_ONLY_PAYMENT_TILES: PaymentMethodTileDef[] = [
@@ -30,8 +28,8 @@ export const METHOD_ONLY_PAYMENT_TILES: PaymentMethodTileDef[] = [
 
 export const ACCOUNT_QUICK_PAYMENT_TILES: PaymentMethodTileDef[] = [
   { id: 'cash', icon: Banknote },
-  { id: 'card', icon: CreditCard },
-  { id: 'qr', icon: QrCode },
+  { id: 'card', icon: Landmark },
+  { id: 'qr', icon: Smartphone },
 ];
 
 export function PaymentMethodTiles({
