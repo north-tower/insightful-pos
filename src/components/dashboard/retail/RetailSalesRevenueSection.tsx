@@ -3,7 +3,8 @@ import { Bar, BarChart, CartesianGrid, Cell, XAxis, YAxis } from 'recharts';
 import { ChartContainer, ChartTooltip } from '@/components/ui/chart';
 import type { SalesData } from '@/data/dashboardData';
 import { cn } from '@/lib/utils';
-import { formatKES, formatKESAxis, formatKESAxisTick } from '@/lib/formatKES';
+import { formatKES, formatKESAxis, formatKESCompact } from '@/lib/formatKES';
+import { Money } from '@/components/ui/Money';
 
 const Y_AXIS_WIDTH_FULL = 76;
 const Y_AXIS_WIDTH_COMPACT = 44;
@@ -170,7 +171,7 @@ export function RetailSalesRevenueSection({
               width={compactYAxis ? Y_AXIS_WIDTH_COMPACT : Y_AXIS_WIDTH_FULL}
               tickFormatter={(v) =>
                 compactYAxis
-                  ? formatKESAxisTick(Number(v))
+                  ? formatKESCompact(Number(v))
                   : formatKESAxis(Number(v))
               }
             />
@@ -182,9 +183,11 @@ export function RetailSalesRevenueSection({
                 return (
                   <div className="rounded-[var(--radius)] border border-hairline bg-surface px-3 py-2 text-sm text-ink">
                     <div className="font-semibold">{point.date}</div>
-                    <div className="font-mono num text-ink-2">
-                      {formatKES(Number(payload[0].value) || 0)}
-                    </div>
+                    <Money
+                      value={Number(payload[0].value) || 0}
+                      muted
+                      className="text-sm"
+                    />
                   </div>
                 );
               }}

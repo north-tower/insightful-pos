@@ -9,7 +9,7 @@ import { PeakHoursChart } from '@/components/dashboard/PeakHoursChart';
 import { IncomingOrdersQueue } from '@/components/order/IncomingOrdersQueue';
 import { ActiveCustomerOrders } from '@/components/order/ActiveCustomerOrders';
 import { OrderQueueProvider } from '@/context/OrderQueueContext';
-import { formatCurrency } from '@/lib/currency';
+import { Money } from '@/components/ui/Money';
 import { useDashboardStats } from '@/hooks/useDashboardStats';
 import { DollarSign, ShoppingCart, Users, Table2, TrendingUp, Loader2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -88,7 +88,13 @@ function DashboardContent({ onNavigate }: DashboardProps) {
         {/* Revenue */}
         <StatsCard
           title="Revenue"
-          value={loading ? '—' : formatCurrency(stats.todayRevenue)}
+          value={
+            loading ? (
+              '—'
+            ) : (
+              <Money value={stats.todayRevenue} variant="display" size="lg" />
+            )
+          }
           change={loading ? undefined : stats.revenueChange}
           icon={<DollarSign className="w-5 h-5" />}
           description={

@@ -9,26 +9,17 @@
  *   CURRENCY_SYMBOL           → "KES"
  */
 
-const DEFAULT_CURRENCY = 'KES';
-const DEFAULT_LOCALE = 'en-KE';
-
-const formatter = new Intl.NumberFormat(DEFAULT_LOCALE, {
-  style: 'currency',
-  currency: DEFAULT_CURRENCY,
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
+import { formatKES, type FormatKESOptions } from '@/lib/formatKES';
 
 /** The currency code used as a display prefix, e.g. "KES" */
-export const CURRENCY_SYMBOL = DEFAULT_CURRENCY;
+export const CURRENCY_SYMBOL = 'KES';
 
 /**
- * Format a number as currency.
- * @param amount  The numeric amount to format
- * @returns       Formatted string, e.g. "KES 1,234.50"
+ * Format a number as currency (display strings, SMS, toasts).
+ * Delegates to formatKES for consistent decimals and KES labelling.
  */
-export function formatCurrency(amount: number): string {
-  return formatter.format(amount);
+export function formatCurrency(amount: number, options?: FormatKESOptions): string {
+  return formatKES(amount, options);
 }
 
 /** Short alias for formatCurrency */

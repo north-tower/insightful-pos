@@ -1,0 +1,14 @@
+# file:line or file path — logic-only / exports / print CSV
+src/lib/smsMessages.ts
+src/components/reports/AssignmentDailyReportDialog.tsx
+src/components/reports/ShopDayReportPrint.tsx
+src/pages/ShopDayReport.tsx
+src/pages/ProfitLossReport.tsx
+src/components/receipt/DigitalReceiptDialog.tsx
+src/components/order/SplitBillDialog.tsx
+src/components/payment/EditPaymentDialog.tsx
+src/components/payment/PaymentDialog.tsx
+src/components/ui/chart.tsx
+src/pages/RetailProduction.tsx
+src/pages/RetailInventory.tsx
+src/lib/shopFloat.ts

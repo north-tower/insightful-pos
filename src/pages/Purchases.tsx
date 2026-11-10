@@ -66,7 +66,8 @@ import { useSuppliers, type Supplier } from '@/hooks/useSuppliers';
 import { useProducts } from '@/hooks/useProducts';
 import { toast } from 'sonner';
 import { format, subMonths, startOfMonth, isAfter, isSameMonth } from 'date-fns';
-import { formatCurrency } from '@/lib/currency';
+import { Money } from '@/components/ui/Money';
+import { formatKESCompact } from '@/lib/formatKES';
 import { consumePurchaseDraft } from '@/lib/purchaseDraft';
 
 type PurchaseSortKey = 'purchase_number' | 'supplier' | 'date' | 'items' | 'status' | 'total';
@@ -629,7 +630,7 @@ export default function Purchases({ onNavigate }: PurchasesProps) {
           <CardContent className="p-4 min-w-0">
             <p className="text-xs text-muted-foreground mb-1">Outstanding Value</p>
             <p className="text-2xl font-bold text-warning tabular-nums truncate">
-              {formatCurrency(stats.outstandingValue)}
+              <Money value={stats.outstandingValue} variant="display" size="xl" className="text-warning truncate" />
             </p>
           </CardContent>
         </Card>
@@ -774,7 +775,7 @@ export default function Purchases({ onNavigate }: PurchasesProps) {
                               <Badge variant={style.variant}>{style.tableLabel}</Badge>
                             </TableCell>
                             <TableCell className="text-right font-semibold tabular-nums">
-                              {formatCurrency(po.total)}
+                              <Money value={po.total} align="right" />
                             </TableCell>
                             <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                               <div className="flex justify-end gap-0.5">
@@ -830,7 +831,7 @@ export default function Purchases({ onNavigate }: PurchasesProps) {
                       <div className="flex justify-between text-sm gap-2">
                         <span className="truncate font-medium">{s.name}</span>
                         <span className="tabular-nums text-muted-foreground shrink-0">
-                          {formatCurrency(s.total)}
+                          <Money value={s.total} align="right" />
                         </span>
                       </div>
                       <div className="h-1.5 rounded-full bg-muted overflow-hidden">
@@ -864,7 +865,7 @@ export default function Purchases({ onNavigate }: PurchasesProps) {
                     <ChartTooltip
                       content={
                         <ChartTooltipContent
-                          formatter={(value) => formatCurrency(Number(value))}
+                          formatter={(value) => formatKESCompact(Number(value))}
                         />
                       }
                     />
@@ -901,7 +902,7 @@ export default function Purchases({ onNavigate }: PurchasesProps) {
                             {po.supplier_name ? ` · ${po.supplier_name}` : ''}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {style.tableLabel} · {formatCurrency(po.total)} ·{' '}
+                            {style.tableLabel} · <Money value={po.total} align="right" /> ·{' '}
                             {format(new Date(po.updated_at), 'dd MMM yyyy')}
                           </p>
                         </div>
@@ -1128,7 +1129,7 @@ export default function Purchases({ onNavigate }: PurchasesProps) {
                       <div className="sm:col-span-2 text-right min-w-0">
                         <Label className="sm:hidden text-xs mb-1 block">Total</Label>
                         <p className="text-sm font-semibold py-2 tabular-nums truncate">
-                          {formatCurrency(item.quantity * item.unit_cost)}
+                          <Money value={item.quantity * item.unit_cost} align="right" />
                         </p>
                       </div>
 
@@ -1151,7 +1152,7 @@ export default function Purchases({ onNavigate }: PurchasesProps) {
                     <div className="text-right min-w-0">
                       <p className="text-sm text-muted-foreground">Subtotal</p>
                       <p className="text-lg font-bold tabular-nums">
-                        {formatCurrency(poSubtotal)}
+                        <Money value={poSubtotal} align="right" />
                       </p>
                     </div>
                   </div>
@@ -1250,10 +1251,10 @@ export default function Purchases({ onNavigate }: PurchasesProps) {
                         </div>
                         <div className="text-right shrink-0">
                           <p className="text-sm font-medium tabular-nums whitespace-nowrap">
-                            {formatCurrency(item.line_total)}
+                            <Money value={item.line_total} align="right" />
                           </p>
                           <p className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">
-                            {item.quantity.toLocaleString()} × {formatCurrency(item.unit_cost)}
+                            {item.quantity.toLocaleString()} × <Money value={item.unit_cost} />
                           </p>
                         </div>
                       </div>
@@ -1265,7 +1266,7 @@ export default function Purchases({ onNavigate }: PurchasesProps) {
                 <div className="flex justify-between items-center gap-4 p-3 rounded-lg bg-muted">
                   <span className="font-medium shrink-0">Total</span>
                   <span className="text-lg font-bold tabular-nums text-right">
-                    {formatCurrency(viewPurchase.total)}
+                    <Money value={viewPurchase.total} variant="display" size="lg" />
                   </span>
                 </div>
 

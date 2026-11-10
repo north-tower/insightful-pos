@@ -20,7 +20,8 @@ import {
   Pencil,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { fc, CURRENCY_SYMBOL } from '@/lib/currency';
+import { CURRENCY_SYMBOL } from '@/lib/currency';
+import { Money } from '@/components/ui/Money';
 import { TypedNumberHint } from '@/components/ui/typed-number-hint';
 import { format } from 'date-fns';
 import { Payment, PaymentMethod, SaleOrder } from '@/hooks/useOrders';
@@ -206,12 +207,11 @@ export function EditPaymentDialog({
               <TypedNumberHint value={amount} prefix={`${CURRENCY_SYMBOL} `} />
               {enteredAmount !== payment.amount && enteredAmount > 0 && (
                 <p className="text-xs text-muted-foreground">
-                  Original: {fc(payment.amount)} →{' '}
-                  <span className="font-medium text-foreground">
-                    {fc(enteredAmount)}
-                  </span>{' '}
-                  ({enteredAmount > payment.amount ? '+' : ''}
-                  {fc(enteredAmount - payment.amount)})
+                  Original: <Money value={payment.amount} /> →{' '}
+                  <Money value={enteredAmount} className="font-medium text-foreground" />{' '}
+                  (
+                  {enteredAmount > payment.amount ? '+' : ''}
+                  <Money value={enteredAmount - payment.amount} />)
                 </p>
               )}
             </div>

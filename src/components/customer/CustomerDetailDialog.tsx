@@ -29,7 +29,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { PaymentDialog } from '@/components/payment/PaymentDialog';
 import { CustomerStatement } from '@/components/customer/CustomerStatement';
 import { toast } from 'sonner';
-import { formatCurrency } from '@/lib/currency';
+import { Money } from '@/components/ui/Money';
 import { useCompanySettings } from '@/context/BusinessSettingsContext';
 import { useCustomers } from '@/hooks/useCustomers';
 import { supabase } from '@/lib/supabase';
@@ -248,7 +248,7 @@ export function CustomerDetailDialog({
               <Card>
                 <CardContent className="p-4 text-center min-w-0">
                   <p className="text-2xl font-bold tabular-nums truncate">
-                    {formatCurrency(customer.total_spent)}
+                    <Money value={customer.total_spent} variant="display" size="xl" />
                   </p>
                   <p className="text-sm text-muted-foreground">Total Spent</p>
                 </CardContent>
@@ -269,7 +269,12 @@ export function CustomerDetailDialog({
                       customer.credit_balance > 0 ? 'text-warning' : '',
                     )}
                   >
-                    {formatCurrency(customer.credit_balance)}
+                    <Money
+                      value={customer.credit_balance}
+                      variant="display"
+                      size="xl"
+                      className={customer.credit_balance > 0 ? 'text-warning' : undefined}
+                    />
                   </p>
                   <p className="text-sm text-muted-foreground">
                     Credit Balance
@@ -287,13 +292,13 @@ export function CustomerDetailDialog({
                     <div className="min-w-0">
                       <p className="text-muted-foreground">Opening Balance</p>
                       <p className="font-medium tabular-nums truncate">
-                        {formatCurrency(customer.opening_balance || 0)}
+                        <Money value={customer.opening_balance || 0} />
                       </p>
                     </div>
                     <div className="min-w-0">
                       <p className="text-muted-foreground">Credit Limit</p>
                       <p className="font-medium tabular-nums truncate">
-                        {formatCurrency(customer.credit_limit)}
+                        <Money value={customer.credit_limit} />
                       </p>
                     </div>
                     <div className="min-w-0">
@@ -304,20 +309,28 @@ export function CustomerDetailDialog({
                           customer.credit_balance > 0 && 'text-warning',
                         )}
                       >
-                        {formatCurrency(customer.credit_balance)}
+                        <Money
+                      value={customer.credit_balance}
+                      variant="display"
+                      size="xl"
+                      className={customer.credit_balance > 0 ? 'text-warning' : undefined}
+                    />
                       </p>
                     </div>
                     <div className="min-w-0">
                       <p className="text-muted-foreground">Available</p>
                       <p className="font-medium text-success tabular-nums truncate">
-                        {customer.credit_limit > 0
-                          ? formatCurrency(
-                              Math.max(
-                                customer.credit_limit - customer.credit_balance,
-                                0,
-                              ),
-                            )
-                          : 'No limit'}
+                        {customer.credit_limit > 0 ? (
+                          <Money
+                            value={Math.max(
+                              customer.credit_limit - customer.credit_balance,
+                              0,
+                            )}
+                            className="text-success"
+                          />
+                        ) : (
+                          'No limit'
+                        )}
                       </p>
                     </div>
                   </div>
@@ -406,7 +419,7 @@ export function CustomerDetailDialog({
                   <div className="flex items-center gap-2 text-warning font-medium text-sm flex-wrap">
                     <CreditCard className="w-4 h-4 shrink-0" />
                     <span>{unpaidOrders.length} unpaid invoice{unpaidOrders.length > 1 ? 's' : ''}</span>
-                    <span className="tabular-nums">— Account balance: {formatCurrency(customer.credit_balance)}</span>
+                    <span className="tabular-nums">— Account balance: <Money value={customer.credit_balance} /></span>
                   </div>
                   {customer.credit_balance > 0 && (
                     <Button
@@ -454,7 +467,7 @@ export function CustomerDetailDialog({
                           )}
                         </div>
                         <p className="font-semibold text-success tabular-nums shrink-0">
-                          {formatCurrency(payment.amount)}
+                          <Money value={payment.amount} />
                         </p>
                       </div>
                     ))}
@@ -531,14 +544,14 @@ export function CustomerDetailDialog({
                               <div className="min-w-0">
                                 <p className="text-muted-foreground">Total</p>
                                 <p className="font-medium tabular-nums truncate">
-                                  {formatCurrency(order.total)}
+                                  <Money value={order.total} />
                                 </p>
                               </div>
                               {isUnpaid && (
                                 <div className="min-w-0">
                                   <p className="text-muted-foreground">Balance</p>
                                   <p className="font-bold text-warning tabular-nums truncate">
-                                    {formatCurrency(balanceDue)}
+                                    <Money value={balanceDue} className="text-warning font-bold" />
                                   </p>
                                 </div>
                               )}
@@ -551,9 +564,10 @@ export function CustomerDetailDialog({
                                     Payments ({order.payments.length})
                                   </span>
                                   <span className="font-semibold text-success tabular-nums">
-                                    {formatCurrency(
-                                      order.payments.reduce((sum, p) => sum + p.amount, 0),
-                                    )}
+                                    <Money
+                                      value={order.payments.reduce((sum, p) => sum + p.amount, 0)}
+                                      className="text-success font-semibold"
+                                    />
                                   </span>
                                 </div>
                                 <div className="space-y-1.5">
@@ -586,7 +600,7 @@ export function CustomerDetailDialog({
                                           </p>
                                         </div>
                                         <span className="font-medium tabular-nums shrink-0">
-                                          {formatCurrency(payment.amount)}
+                                          <Money value={payment.amount} />
                                         </span>
                                       </div>
                                     ))}

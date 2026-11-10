@@ -1,0 +1,6 @@
+---
+description: Currency display — always use Money or formatKES
+alwaysApply: true
+---
+
+Never format currency inline. Use `<Money>` or `formatKES`. Amounts of 18px and larger use `<Money variant='display'>` (sans, tabular numerals, small KES label); 16px and smaller use `<Money>` inline (mono, tabular numerals). The currency label is always KES, never Ksh. Whole amounts have no decimals; non-whole amounts have exactly two. Negatives use a minus sign before KES. Abbreviations (K, M) are for chart axes only via `formatKESCompact`.

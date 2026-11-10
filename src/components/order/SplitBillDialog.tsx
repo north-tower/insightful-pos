@@ -11,7 +11,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CreditCard, Banknote, QrCode, Plus, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { formatCurrency, CURRENCY_SYMBOL } from '@/lib/currency';
+import { CURRENCY_SYMBOL } from '@/lib/currency';
+import { Money } from '@/components/ui/Money';
 import { TypedNumberHint } from '@/components/ui/typed-number-hint';
 import { SplitPayment } from '@/data/orderData';
 
@@ -75,16 +76,16 @@ export function SplitBillDialog({ open, onOpenChange, total, onConfirm }: SplitB
           <div className="p-4 bg-muted/50 rounded-lg">
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Total Amount</span>
-              <span className="text-2xl font-bold">{formatCurrency(total)}</span>
+              <Money value={total} variant="display" size="xl" />
             </div>
             <div className="flex justify-between items-center mt-2">
               <span className="text-sm text-muted-foreground">Remaining</span>
-              <span className={cn(
-                "text-lg font-semibold",
-                isComplete ? "text-success" : "text-foreground"
-              )}>
-                {formatCurrency(Math.abs(remaining))}
-              </span>
+              <Money
+                value={Math.abs(remaining)}
+                variant="display"
+                size="lg"
+                className={cn(isComplete ? 'text-success' : 'text-foreground')}
+              />
             </div>
           </div>
 

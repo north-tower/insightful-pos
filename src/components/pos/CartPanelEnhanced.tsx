@@ -20,7 +20,9 @@ import { useOrders, SaleOrder, SaleType } from '@/hooks/useOrders';
 import { useCustomers, Customer } from '@/hooks/useCustomers';
 import { useCompanySettings } from '@/context/BusinessSettingsContext';
 import { notifyInvoiceCreated } from '@/lib/sendSms';
-import { fc, CURRENCY_SYMBOL } from '@/lib/currency';
+import { CURRENCY_SYMBOL } from '@/lib/currency';
+import { formatKES } from '@/lib/formatKES';
+import { Money } from '@/components/ui/Money';
 import { TypedNumberHint } from '@/components/ui/typed-number-hint';
 
 type PaymentMethod = 'cash' | 'card' | 'qr' | 'split';
@@ -222,7 +224,7 @@ export function CartPanelEnhanced() {
         }
         setLastOrderCustomer(freshCustomer);
         const saleLabel = saleType === 'credit' ? 'Credit invoice' : 'Order';
-        toast.success(`${saleLabel} #${order.invoice_number || order.order_number} — ${fc(order.total)}`);
+        toast.success(`${saleLabel} #${order.invoice_number || order.order_number} — ${formatKES(order.total)}`);
 
         // Send SMS notification for credit invoices (fire-and-forget)
         if (saleType === 'credit') {
@@ -425,9 +427,9 @@ export function CartPanelEnhanced() {
                         {getCustomerDisplayName(selectedCustomer)}
                       </p>
                       <p className="text-[10px] text-muted-foreground">
-                        Balance: {fc(selectedCustomer.credit_balance)}
+                        Balance: <Money value={selectedCustomer.credit_balance} />
                         {selectedCustomer.credit_limit > 0 &&
-                          ` / Limit: ${fc(selectedCustomer.credit_limit)}`}
+                          ` / Limit: ${formatKES(selectedCustomer.credit_limit)}`}
                       </p>
                     </div>
                   </div>
@@ -492,7 +494,7 @@ export function CartPanelEnhanced() {
                       <div className="text-right">
                         {customer.credit_balance > 0 && (
                           <Badge variant="outline" className="text-[10px] text-warning border-warning/30">
-                            {fc(customer.credit_balance)}
+                            <Money value={customer.credit_balance} />
                           </Badge>
                         )}
                         {customer.status === 'vip' && (
@@ -559,7 +561,7 @@ export function CartPanelEnhanced() {
                       </button>
                     </div>
                     <p className="text-xs text-primary font-semibold tabular-nums truncate">
-                      {fc(item.price)} × {item.quantity.toLocaleString()}
+                      <Money value={item.price} /> × {item.quantity.toLocaleString()}
                     </p>
                     
                     {/* Modifiers */}
@@ -572,7 +574,7 @@ export function CartPanelEnhanced() {
                             </Badge>
                             {mod.price && mod.price > 0 && (
                               <span className="text-xs text-muted-foreground">
-                                +{fc(mod.price)}
+                                +<Money value={mod.price} />
                               </span>
                             )}
                           </div>
@@ -615,7 +617,7 @@ export function CartPanelEnhanced() {
                         </button>
                       </div>
                       <p className="font-bold text-foreground text-sm tabular-nums">
-                        {fc(itemTotal)}
+                        <Money value={itemTotal} />
                       </p>
                     </div>
                   </div>
@@ -648,17 +650,17 @@ export function CartPanelEnhanced() {
               <>
                 <div className="flex justify-between text-info gap-4">
                   <span className="shrink-0">Paid</span>
-                  <span className="tabular-nums text-right">{fc(partialPayment)}</span>
+                  <Money value={partialPayment} align="right" />
                 </div>
                 <div className="flex justify-between text-warning font-medium gap-4">
                   <span className="shrink-0">Remaining</span>
-                  <span className="tabular-nums text-right">{fc(remaining)}</span>
+                  <Money value={remaining} align="right" />
                 </div>
               </>
             )}
             <div className="flex justify-between items-baseline font-bold text-lg text-foreground pt-2 border-t border-border gap-4">
               <span className="shrink-0">Total</span>
-              <span className="tabular-nums text-right break-all">{fc(displayTotal)}</span>
+              <Money value={displayTotal} variant="display" size="lg" align="right" className="break-all" />
             </div>
           </div>
 
@@ -811,7 +813,9 @@ export function CartPanelEnhanced() {
                 ) : saleType === 'credit' ? (
                   <>
                     <FileText className="w-4 h-4 shrink-0" />
-                    <span className="truncate">Create Invoice — {fc(total)}</span>
+                    <span className="truncate inline-flex items-center gap-1">
+                      Create Invoice — <Money value={total} />
+                    </span>
                   </>
                 ) : (
                   'Place Order'

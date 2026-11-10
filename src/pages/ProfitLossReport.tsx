@@ -49,7 +49,8 @@ import {
 } from '@/hooks/useOperatingExpenses';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { fc } from '@/lib/currency';
+import { Money } from '@/components/ui/Money';
+import { formatKESCompact } from '@/lib/formatKES';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useBusinessMode } from '@/context/BusinessModeContext';
@@ -469,7 +470,7 @@ export default function ProfitLossReport({ onNavigate }: ProfitLossReportProps) 
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-xs text-muted-foreground mb-1">Net revenue</p>
-                      <p className="text-2xl font-bold tabular-nums">{fc(summary.netRevenue)}</p>
+                      <Money value={summary.netRevenue} variant="display" size="xl" />
                       <p className="text-[11px] text-muted-foreground mt-1">
                         {summary.orderCount} orders
                       </p>
@@ -495,7 +496,12 @@ export default function ProfitLossReport({ onNavigate }: ProfitLossReportProps) 
                           summary.grossProfit >= 0 ? 'text-success' : 'text-destructive',
                         )}
                       >
-                        {fc(summary.grossProfit)}
+                        <Money
+                          value={summary.grossProfit}
+                          variant="display"
+                          size="xl"
+                          className={summary.grossProfit >= 0 ? 'text-success' : 'text-destructive'}
+                        />
                       </p>
                       <p className="text-[11px] text-muted-foreground mt-1">
                         {summary.grossMarginPct.toFixed(1)}% margin
@@ -516,7 +522,7 @@ export default function ProfitLossReport({ onNavigate }: ProfitLossReportProps) 
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-xs text-muted-foreground mb-1">Operating expenses</p>
-                      <p className="text-2xl font-bold tabular-nums">{fc(summary.operatingExpenses)}</p>
+                      <Money value={summary.operatingExpenses} variant="display" size="xl" />
                       <p className="text-[11px] text-muted-foreground mt-1">
                         {summary.expenseCount} entries
                       </p>
@@ -542,7 +548,12 @@ export default function ProfitLossReport({ onNavigate }: ProfitLossReportProps) 
                           summary.netProfit >= 0 ? 'text-success' : 'text-destructive',
                         )}
                       >
-                        {fc(summary.netProfit)}
+                        <Money
+                          value={summary.netProfit}
+                          variant="display"
+                          size="xl"
+                          className={summary.netProfit >= 0 ? 'text-success' : 'text-destructive'}
+                        />
                       </p>
                       <p className="text-[11px] text-muted-foreground mt-1">
                         {summary.netMarginPct.toFixed(1)}% net margin
@@ -567,7 +578,7 @@ export default function ProfitLossReport({ onNavigate }: ProfitLossReportProps) 
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-xs text-muted-foreground mb-1">Cost of goods</p>
-                      <p className="text-2xl font-bold tabular-nums">{fc(summary.cogs)}</p>
+                      <Money value={summary.cogs} variant="display" size="xl" />
                     </div>
                     <Package className="w-8 h-8 text-warning opacity-40" />
                   </div>
@@ -602,12 +613,12 @@ export default function ProfitLossReport({ onNavigate }: ProfitLossReportProps) 
                         tickLine={false}
                         axisLine={false}
                         fontSize={12}
-                        tickFormatter={(v) => fc(Number(v))}
+                        tickFormatter={(v) => formatKESCompact(Number(v))}
                       />
                       <ChartTooltip
                         content={
                           <ChartTooltipContent
-                            formatter={(value) => fc(Number(value))}
+                            formatter={(value) => formatKESCompact(Number(value))}
                           />
                         }
                       />
@@ -627,43 +638,55 @@ export default function ProfitLossReport({ onNavigate }: ProfitLossReportProps) 
               <CardContent className="space-y-3 text-sm">
                 <div className="flex justify-between gap-4 tabular-nums">
                   <span className="text-muted-foreground">Gross sales</span>
-                  <span className="font-medium">{fc(summary.grossSales)}</span>
+                  <Money value={summary.grossSales} align="right" />
                 </div>
                 {summary.discounts > 0 && (
                   <div className="flex justify-between gap-4 tabular-nums">
                     <span className="text-muted-foreground">Discounts (on orders)</span>
-                    <span className="font-medium">{fc(summary.discounts)}</span>
+                    <Money value={summary.discounts} align="right" />
                   </div>
                 )}
                 {summary.refunds > 0 && (
                   <div className="flex justify-between gap-4 tabular-nums text-destructive">
                     <span>Refunds ({summary.refundedOrderCount} orders)</span>
-                    <span className="font-medium">− {fc(summary.refunds)}</span>
+                    <span className="font-medium inline-flex items-center gap-1">
+                      − <Money value={summary.refunds} />
+                    </span>
                   </div>
                 )}
                 <div className="border-t border-border pt-3 flex justify-between gap-4 tabular-nums font-semibold">
                   <span>Net revenue</span>
-                  <span>{fc(summary.netRevenue)}</span>
+                  <Money value={summary.netRevenue} align="right" />
                 </div>
                 <div className="flex justify-between gap-4 tabular-nums">
                   <span className="text-muted-foreground">Cost of goods sold</span>
-                  <span className="font-medium">− {fc(summary.cogs)}</span>
+                  <span className="font-medium inline-flex items-center gap-1">
+                    − <Money value={summary.cogs} />
+                  </span>
                 </div>
                 <div className="border-t border-border pt-3 flex justify-between gap-4 tabular-nums font-semibold">
                   <span>Gross profit</span>
-                  <span className={summary.grossProfit >= 0 ? 'text-success' : 'text-destructive'}>
-                    {fc(summary.grossProfit)}
-                  </span>
+                  <Money
+                    value={summary.grossProfit}
+                    align="right"
+                    className={summary.grossProfit >= 0 ? 'text-success' : 'text-destructive'}
+                  />
                 </div>
                 <div className="flex justify-between gap-4 tabular-nums">
                   <span className="text-muted-foreground">Operating expenses</span>
-                  <span className="font-medium">− {fc(summary.operatingExpenses)}</span>
+                  <span className="font-medium inline-flex items-center gap-1">
+                    − <Money value={summary.operatingExpenses} />
+                  </span>
                 </div>
                 <div className="border-t-2 border-border pt-3 flex justify-between gap-4 tabular-nums text-base font-bold">
                   <span>Net profit</span>
-                  <span className={summary.netProfit >= 0 ? 'text-success' : 'text-destructive'}>
-                    {fc(summary.netProfit)}
-                  </span>
+                  <Money
+                    value={summary.netProfit}
+                    variant="display"
+                    size="md"
+                    align="right"
+                    className={summary.netProfit >= 0 ? 'text-success' : 'text-destructive'}
+                  />
                 </div>
               </CardContent>
             </Card>
@@ -823,7 +846,7 @@ export default function ProfitLossReport({ onNavigate }: ProfitLossReportProps) 
                         className="flex justify-between text-sm tabular-nums"
                       >
                         <span>{expenseCategoryLabel(category)}</span>
-                        <span className="font-medium">{fc(total)}</span>
+                        <Money value={total} align="right" />
                       </div>
                     ))}
                   </div>
@@ -855,7 +878,7 @@ export default function ProfitLossReport({ onNavigate }: ProfitLossReportProps) 
                           )}
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
-                          <span className="font-semibold tabular-nums">{fc(e.amount)}</span>
+                          <Money value={e.amount} align="right" />
                           <Button
                             size="icon"
                             variant="ghost"

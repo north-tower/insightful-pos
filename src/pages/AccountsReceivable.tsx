@@ -41,7 +41,8 @@ import { InvoiceDialog } from '@/components/receipt/InvoiceDialog';
 import { CustomerStatement } from '@/components/customer/CustomerStatement';
 import { ReceiptData } from '@/data/receiptData';
 import { toast } from 'sonner';
-import { formatCurrency, CURRENCY_SYMBOL } from '@/lib/currency';
+import { CURRENCY_SYMBOL } from '@/lib/currency';
+import { Money } from '@/components/ui/Money';
 import { TypedNumberHint } from '@/components/ui/typed-number-hint';
 import { useCompanySettings } from '@/context/BusinessSettingsContext';
 import { PaymentMethod } from '@/hooks/useOrders';
@@ -379,9 +380,12 @@ export default function AccountsReceivable({
                   <p className="text-sm text-muted-foreground">
                     Total Outstanding
                   </p>
-                  <p className="text-lg font-bold text-warning tabular-nums truncate">
-                    {formatCurrency(totalOutstanding)}
-                  </p>
+                  <Money
+                    value={totalOutstanding}
+                    variant="display"
+                    size="lg"
+                    className="text-warning truncate"
+                  />
                 </div>
               </CardContent>
             </Card>
@@ -392,9 +396,12 @@ export default function AccountsReceivable({
                 </div>
                 <div className="min-w-0">
                   <p className="text-sm text-muted-foreground">Overdue</p>
-                  <p className="text-lg font-bold text-destructive tabular-nums truncate">
-                    {formatCurrency(overdueTotal)}
-                  </p>
+                  <Money
+                    value={overdueTotal}
+                    variant="display"
+                    size="lg"
+                    className="text-destructive truncate"
+                  />
                 </div>
               </CardContent>
             </Card>
@@ -528,7 +535,7 @@ export default function AccountsReceivable({
                               {account.openingOwed > 0 && (
                                 <>
                                   {' '}
-                                  · Opening: {formatCurrency(account.openingOwed)}
+                                  · Opening: <Money value={account.openingOwed} />
                                 </>
                               )}
                               {account.oldestDue && (
@@ -574,16 +581,15 @@ export default function AccountsReceivable({
                             <p className="text-sm text-muted-foreground">
                               Balance Owed
                             </p>
-                            <p
+                            <Money
+                              value={account.totalOwed}
+                              variant="display"
+                              size="lg"
+                              align="right"
                               className={cn(
-                                'text-lg font-bold tabular-nums',
-                                account.isOverdue
-                                  ? 'text-destructive'
-                                  : 'text-warning',
+                                account.isOverdue ? 'text-destructive' : 'text-warning',
                               )}
-                            >
-                              {formatCurrency(account.totalOwed)}
-                            </p>
+                            />
                           </div>
                           {isExpanded ? (
                             <ChevronUp className="w-5 h-5 text-muted-foreground shrink-0" />
@@ -693,11 +699,11 @@ export default function AccountsReceivable({
                                         )}
                                       </span>
                                       <span className="tabular-nums">
-                                        Total: {formatCurrency(order.total)}
+                                        Total: <Money value={order.total} />
                                       </span>
                                       {totalPaid > 0 && (
                                         <span className="text-success tabular-nums">
-                                          Paid: {formatCurrency(totalPaid)}
+                                          Paid: <Money value={totalPaid} />
                                         </span>
                                       )}
                                       {dueDate && !isOverdue && (
@@ -714,16 +720,14 @@ export default function AccountsReceivable({
                                       <p className="text-xs text-muted-foreground">
                                         Due
                                       </p>
-                                      <p
+                                      <Money
+                                        value={balanceDue}
                                         className={cn(
-                                          'font-bold tabular-nums',
-                                          isOverdue
-                                            ? 'text-destructive'
-                                            : 'text-warning',
+                                          'font-bold',
+                                          isOverdue ? 'text-destructive' : 'text-warning',
                                         )}
-                                      >
-                                        {formatCurrency(balanceDue)}
-                                      </p>
+                                        align="right"
+                                      />
                                     </div>
                                     <Button
                                       variant="outline"
@@ -847,7 +851,7 @@ export default function AccountsReceivable({
             <div className="p-3 rounded-lg bg-muted/40 text-sm flex items-center justify-between">
               <span className="text-muted-foreground">Current Balance</span>
               <span className="font-semibold tabular-nums text-warning">
-                {formatCurrency(accountPaymentCustomer?.credit_balance || 0)}
+                <Money value={accountPaymentCustomer?.credit_balance || 0} />
               </span>
             </div>
 

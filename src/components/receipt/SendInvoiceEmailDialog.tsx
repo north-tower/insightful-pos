@@ -13,7 +13,8 @@ import { Mail, Send, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { generateInvoicePdfBase64 } from '@/lib/generateInvoicePdf';
-import { fc } from '@/lib/currency';
+import { formatKES } from '@/lib/formatKES';
+import { Money } from '@/components/ui/Money';
 import { SaleOrder } from '@/hooks/useOrders';
 
 interface SendInvoiceEmailDialogProps {
@@ -47,7 +48,7 @@ export function SendInvoiceEmailDialog({
     if (open) {
       setEmail(customerEmail || order.customer_email || '');
       setSubject(
-        `Invoice ${invoiceNumber} from ${companyName || 'Us'} — ${fc(order.total)}`,
+        `Invoice ${invoiceNumber} from ${companyName || 'Us'} — ${formatKES(order.total)}`,
       );
       setStatus('idle');
       setStatusMessage('');
@@ -102,7 +103,7 @@ export function SendInvoiceEmailDialog({
                   </tr>
                   <tr>
                     <td style="padding: 4px 16px 4px 0; color: #666;">Total:</td>
-                    <td style="padding: 4px 0; font-weight: 600;">${fc(order.total)}</td>
+                    <td style="padding: 4px 0; font-weight: 600;">${formatKES(order.total)}</td>
                   </tr>
                 </table>
                 <p>Thank you for your business!</p>
@@ -194,7 +195,9 @@ export function SendInvoiceEmailDialog({
                 Customer: {order.customer_name}
               </p>
             )}
-            <p className="text-sm font-medium">Total: {fc(order.total)}</p>
+            <p className="text-sm font-medium">
+              Total: <Money value={order.total} />
+            </p>
             <p className="text-xs text-muted-foreground mt-1">
               📎 Invoice PDF will be attached
             </p>

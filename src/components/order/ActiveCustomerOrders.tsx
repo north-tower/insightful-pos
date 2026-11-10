@@ -6,7 +6,7 @@ import { CustomerOrder } from '@/data/orderQueueData';
 import { format, formatDistanceToNow } from 'date-fns';
 import { Clock, ChefHat, Package, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { formatCurrency } from '@/lib/currency';
+import { Money } from '@/components/ui/Money';
 import { CustomerOrderStatus } from '@/data/orderQueueData';
 
 interface ActiveCustomerOrdersProps {
@@ -90,7 +90,7 @@ export function ActiveCustomerOrders({ onOrderClick }: ActiveCustomerOrdersProps
                 {/* Items Preview */}
                 <div className="mb-3">
                   <p className="text-sm text-muted-foreground mb-2">
-                    {order.items.length} items • {formatCurrency(order.total)}
+                    {order.items.length} items • <Money value={order.total} />
                   </p>
                 </div>
 

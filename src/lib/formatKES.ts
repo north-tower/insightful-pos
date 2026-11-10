@@ -1,23 +1,43 @@
+export type FormatKESOptions = {
+  /** Prefix positive amounts with + (negatives always use − before KES). */
+  signed?: boolean;
+};
+
+const MINUS = '\u2212';
+
 /**
  * Numeric portion of a KES display (thousands separators; 0 or 2 fraction digits).
  * @example formatKESAmount(6793) → "6,793"
  * @example formatKESAmount(6793.5) → "6,793.50"
  */
 export function formatKESAmount(amount: number): string {
-  const hasFraction = Math.abs(amount % 1) > 1e-9;
+  const abs = Math.abs(amount);
+  const hasFraction = Math.abs(abs % 1) > 1e-9;
   return new Intl.NumberFormat('en-KE', {
     minimumFractionDigits: hasFraction ? 2 : 0,
     maximumFractionDigits: hasFraction ? 2 : 0,
-  }).format(amount);
+  }).format(abs);
 }
 
 /**
- * Display KES amounts for POS receipt UI: whole amounts omit decimals; otherwise exactly two.
+ * Display KES amounts: whole amounts omit decimals; otherwise exactly two.
+ * Negatives render as "−KES 2,000" (U+2212 before KES).
  * @example formatKES(340) → "KES 340"
  * @example formatKES(6793.5) → "KES 6,793.50"
+ * @example formatKES(-2000) → "−KES 2,000"
  */
-export function formatKES(amount: number): string {
-  return `KES ${formatKESAmount(amount)}`;
+export function formatKES(amount: number, options?: FormatKESOptions): string {
+  if (amount === 0 || Math.abs(amount) < 1e-9) {
+    return 'KES 0';
+  }
+  const num = formatKESAmount(amount);
+  if (amount < 0) {
+    return `${MINUS}KES ${num}`;
+  }
+  if (options?.signed) {
+    return `+KES ${num}`;
+  }
+  return `KES ${num}`;
 }
 
 function formatKESAxisCore(amount: number): string {
@@ -40,11 +60,16 @@ function formatKESAxisCore(amount: number): string {
 }
 
 /** Compact KES for chart axes (K / M abbreviations only). */
+export function formatKESCompact(amount: number): string {
+  return formatKESAxisCore(amount);
+}
+
+/** Compact axis label with currency prefix (wider viewports). */
 export function formatKESAxis(amount: number): string {
   return `KES ${formatKESAxisCore(amount)}`;
 }
 
 /** Chart Y-axis ticks without currency prefix (narrow viewports). */
 export function formatKESAxisTick(amount: number): string {
-  return formatKESAxisCore(amount);
+  return formatKESCompact(amount);
 }

@@ -51,6 +51,7 @@ import {
 import { CURRENCY_SYMBOL } from '@/lib/currency';
 import { TypedNumberHint } from '@/components/ui/typed-number-hint';
 import { formatKES } from '@/lib/formatKES';
+import { Money } from '@/components/ui/Money';
 import {
   ProductTile,
   getProductCategoryDisplayName,
@@ -176,13 +177,11 @@ function CartSelectedCustomerRow({
           <p className="text-sm font-medium text-foreground">{displayName}</p>
           <p className="text-xs text-ink-2">
             Owes{' '}
-            <span className="font-sans text-sm font-semibold tabular-nums text-foreground">
-              {formatKES(customer.credit_balance)}
-            </span>
+            <Money value={customer.credit_balance} className="text-sm font-semibold text-foreground" />
           </p>
           {customer.credit_limit > 0 ? (
             <p className="text-[11px] text-muted-foreground">
-              Credit limit {formatKES(customer.credit_limit)}
+              Credit limit <Money value={customer.credit_limit} />
             </p>
           ) : null}
         </div>
@@ -704,12 +703,12 @@ function CartTotalsSection({
       <div className="space-y-2 font-sans text-sm text-ink-2">
         <div className="flex justify-between">
           <span>Subtotal</span>
-          <span className="font-sans tabular-nums text-ink">{formatKES(subtotal)}</span>
+          <Money value={subtotal} align="right" />
         </div>
         {discountAmount > 0 && (
           <div className="flex justify-between">
             <span>Discount</span>
-            <span className="font-sans tabular-nums text-ink">−{formatKES(discountAmount)}</span>
+            <Money value={discountAmount} sign="minus" align="right" />
           </div>
         )}
       </div>
@@ -720,9 +719,7 @@ function CartTotalsSection({
         aria-label="Order total"
       >
         <span className="text-base font-semibold text-ink">Total</span>
-        <span className="font-sans text-[clamp(2rem,5vw,2.5rem)] font-bold leading-none tracking-tight text-ink tabular-nums">
-          {formatKES(total)}
-        </span>
+        <Money value={total} variant="display" size="hero" />
       </div>
     </div>
   );
@@ -817,9 +814,7 @@ function CartReceiptLine({
         >
           {item.product.name}
         </p>
-        <span className="shrink-0 font-mono text-sm font-semibold text-ink num">
-          {formatKES(lineTotal)}
-        </span>
+        <Money value={lineTotal} className="shrink-0 text-sm font-semibold" align="right" />
       </div>
       {!priceExpanded ? (
         <button
@@ -827,7 +822,7 @@ function CartReceiptLine({
           onClick={() => setPriceExpanded(true)}
           className="focus-ring mt-0.5 flex min-h-[var(--tap-min)] items-center rounded-[var(--radius)] font-mono text-xs text-ink-2 num active:scale-[0.99]"
         >
-          {formatQty(item.quantity, item.product.unit)} × {formatKES(unitPrice)}
+          {formatQty(item.quantity, item.product.unit)} × <Money value={unitPrice} />
         </button>
       ) : (
         <div className="relative mt-0.5 max-w-[9rem]">
@@ -939,7 +934,7 @@ function CartCheckoutFooter({
         ) : saleType === 'credit' ? (
           <>
             <FileText className="mr-2 h-4 w-4" aria-hidden />
-            Create Invoice — {formatKES(total)}
+            Create Invoice — <Money value={total} />
           </>
         ) : (
           `Complete Sale — ${formatKES(total)}`
@@ -987,9 +982,7 @@ function ProductListStockCell({
 function ProductListUnitPrice({ product }: { product: Product }) {
   return (
   <>
-      <span className="font-mono font-semibold tabular-nums text-ink num">
-        {formatKES(product.price)}
-      </span>
+      <Money value={product.price} className="font-semibold" />
       <span className="font-sans font-normal text-ink-2">
         {' '}
         / {formatDisplayUnit(product.unit)}
@@ -2261,9 +2254,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
               style={{ bottom: '4rem' }}
             >
               <div className="text-left">
-                <p className="font-sans text-lg font-bold tabular-nums text-ink">
-                  {formatKES(total)}
-                </p>
+                <Money value={total} variant="display" size="lg" />
                 <p className="text-sm text-ink-2">
                   {cartLineCount} item{cartLineCount === 1 ? '' : 's'}
                 </p>
@@ -2403,7 +2394,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                                     variant="outline"
                                     className="border-border font-semibold tabular-nums text-[10px] text-muted-foreground"
                                   >
-                                    {formatKES(customer.credit_balance)}
+                                    <Money value={customer.credit_balance} />
                                   </Badge>
                                 )}
                               </div>
@@ -2628,7 +2619,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                                 variant="outline"
                                 className="border-border text-[10px] text-muted-foreground"
                               >
-                                {formatKES(customer.credit_balance)}
+                                <Money value={customer.credit_balance} />
                               </Badge>
                             )}
                           </div>

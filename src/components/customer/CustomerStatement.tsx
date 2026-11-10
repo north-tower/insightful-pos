@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { fc } from '@/lib/currency';
+import { Money } from '@/components/ui/Money';
 import { supabase } from '@/lib/supabase';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -387,15 +388,15 @@ export function CustomerStatement({
           <div class="summary">
             <div class="summary-item">
               <div class="summary-label">Total Invoiced</div>
-              <div class="summary-value">${fc(summary.totalDebit)}</div>
+              <div class="summary-value">$<Money value={summary.totalDebit} /></div>
             </div>
             <div class="summary-item">
               <div class="summary-label">Total Paid</div>
-              <div class="summary-value credit">${fc(summary.totalCredit)}</div>
+              <div class="summary-value credit">$<Money value={summary.totalCredit} /></div>
             </div>
             <div class="summary-item">
               <div class="summary-label">Balance</div>
-              <div class="summary-value ${summary.closingBalance > 0 ? 'debit' : 'credit'}">${fc(Math.abs(summary.closingBalance))}</div>
+              <div class="summary-value ${summary.closingBalance > 0 ? 'debit' : 'credit'}">$<Money value={Math.abs(summary.closingBalance)} /></div>
             </div>
             <div class="summary-item">
               <div class="summary-label">Transactions</div>
@@ -489,7 +490,7 @@ export function CustomerStatement({
                   Total Invoiced
                 </p>
                 <p className="text-base font-bold mt-0.5 tabular-nums truncate">
-                  {fc(summary.totalDebit)}
+                  <Money value={summary.totalDebit} />
                 </p>
               </CardContent>
             </Card>
@@ -499,7 +500,7 @@ export function CustomerStatement({
                   Total Paid
                 </p>
                 <p className="text-base font-bold text-success mt-0.5 tabular-nums truncate">
-                  {fc(summary.totalCredit)}
+                  <Money value={summary.totalCredit} />
                 </p>
               </CardContent>
             </Card>
@@ -518,7 +519,7 @@ export function CustomerStatement({
                         : '',
                   )}
                 >
-                  {fc(Math.abs(summary.closingBalance))}
+                  <Money value={Math.abs(summary.closingBalance)} />
                   {summary.closingBalance < 0 && ' CR'}
                 </p>
               </CardContent>
@@ -604,7 +605,7 @@ export function CustomerStatement({
                         <td className="py-2.5 px-3 text-right tabular-nums whitespace-nowrap">
                           {entry.debit > 0 ? (
                             <span className="text-destructive font-semibold">
-                              {fc(entry.debit)}
+                              <Money value={entry.debit} align="right" />
                             </span>
                           ) : (
                             <span className="text-muted-foreground">—</span>
@@ -613,14 +614,14 @@ export function CustomerStatement({
                         <td className="py-2.5 px-3 text-right tabular-nums whitespace-nowrap">
                           {entry.credit > 0 ? (
                             <span className="text-success font-semibold">
-                              {fc(entry.credit)}
+                              <Money value={entry.credit} align="right" />
                             </span>
                           ) : (
                             <span className="text-muted-foreground">—</span>
                           )}
                         </td>
                         <td className="py-2.5 px-3 text-right tabular-nums font-bold whitespace-nowrap">
-                          {fc(entry.balance)}
+                          <Money value={entry.balance} align="right" />
                         </td>
                       </tr>
                     ))}
@@ -634,10 +635,10 @@ export function CustomerStatement({
                         Totals
                       </td>
                       <td className="py-2.5 px-3 text-right tabular-nums font-bold text-destructive whitespace-nowrap">
-                        {fc(summary.totalDebit)}
+                        <Money value={summary.totalDebit} />
                       </td>
                       <td className="py-2.5 px-3 text-right tabular-nums font-bold text-success whitespace-nowrap">
-                        {fc(summary.totalCredit)}
+                        <Money value={summary.totalCredit} />
                       </td>
                       <td
                         className={cn(
@@ -647,7 +648,7 @@ export function CustomerStatement({
                             : 'text-success',
                         )}
                       >
-                        {fc(Math.abs(summary.closingBalance))}
+                        <Money value={Math.abs(summary.closingBalance)} />
                         {summary.closingBalance < 0 && ' CR'}
                       </td>
                     </tr>
@@ -720,16 +721,16 @@ export function CustomerStatement({
                         <span className="tabular-nums">
                           {entry.type === 'payment' || entry.credit > 0 ? (
                             <span className="text-success font-semibold">
-                              −{fc(entry.credit > 0 ? entry.credit : 0)}
+                              <Money value={entry.credit > 0 ? entry.credit : 0} sign="minus" />
                             </span>
                           ) : (
                             <span className="text-destructive font-semibold">
-                              +{fc(entry.debit > 0 ? entry.debit : 0)}
+                              +<Money value={entry.debit > 0 ? entry.debit : 0} signed />
                             </span>
                           )}
                         </span>
                         <span className="font-bold text-foreground tabular-nums">
-                          Bal: {fc(entry.balance)}
+                          Bal: <Money value={entry.balance} align="right" />
                         </span>
                       </div>
                     </div>
@@ -748,7 +749,7 @@ export function CustomerStatement({
                           : 'text-success',
                       )}
                     >
-                      {fc(Math.abs(summary.closingBalance))}
+                      <Money value={Math.abs(summary.closingBalance)} />
                       {summary.closingBalance < 0 && ' CR'}
                     </span>
                   </CardContent>

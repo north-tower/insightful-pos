@@ -15,7 +15,8 @@ import { useAssignmentReport, type AssignmentDailyReportData } from '@/hooks/use
 import { useRouteSettlement } from '@/hooks/useRouteSettlement';
 import { AssignmentDailyReportPrint } from '@/components/reports/AssignmentDailyReportPrint';
 import { generateInvoicePdf } from '@/lib/generateInvoicePdf';
-import { fc } from '@/lib/currency';
+import { formatKES } from '@/lib/formatKES';
+import { Money } from '@/components/ui/Money';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -221,7 +222,7 @@ export default function AssignmentDailyReportDialog({
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div>
                   <Label className="text-xs text-muted-foreground">Expected remittance</Label>
-                  <p className="text-lg font-bold tabular-nums mt-1">{fc(expectedRemittance)}</p>
+                  <Money value={expectedRemittance} variant="display" size="lg" className="mt-1" />
                 </div>
                 <div>
                   <Label htmlFor="cash-submitted">Cash submitted *</Label>
@@ -279,11 +280,14 @@ export default function AssignmentDailyReportDialog({
                   <CheckCircle2 className="w-4 h-4 shrink-0" />
                 )}
                 <span>
-                  {varianceLabel}: {liveVariance >= 0 ? '+' : ''}
-                  {fc(liveVariance)}
+                  {varianceLabel}:                   <Money value={liveVariance} signed />
                   {liveVariance !== 0 && (
                     <span className="font-normal text-xs ml-1">
-                      ({parsedCash > 0 ? `${fc(parsedCash)} submitted vs ${fc(expectedRemittance)} expected` : 'enter cash submitted'})
+                      (
+                      {parsedCash > 0
+                        ? `${formatKES(parsedCash)} submitted vs ${formatKES(expectedRemittance)} expected`
+                        : 'enter cash submitted'}
+                      )
                     </span>
                   )}
                 </span>

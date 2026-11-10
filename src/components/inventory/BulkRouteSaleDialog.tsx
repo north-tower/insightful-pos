@@ -22,7 +22,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { fc } from '@/lib/currency';
+import { formatKES } from '@/lib/formatKES';
+import { Money } from '@/components/ui/Money';
 import { toast } from 'sonner';
 import { useOrders, type PaymentMethod, type SaleType } from '@/hooks/useOrders';
 import { useCustomers, type Customer } from '@/hooks/useCustomers';
@@ -229,7 +230,7 @@ export function BulkRouteSaleDialog({
       }
 
       toast.success(
-        `Bulk sale recorded · ${order.invoice_number || order.order_number} · ${fc(subtotal)}`,
+        `Bulk sale recorded · ${order.invoice_number || order.order_number} · ${formatKES(subtotal)}`,
       );
       onOpenChange(false);
       await onCompleted?.();
@@ -297,7 +298,7 @@ export function BulkRouteSaleDialog({
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium">{line.productName}</p>
                         <p className="text-[10px] text-muted-foreground tabular-nums">
-                          {fc(line.unitPrice)}/{line.unit || 'unit'}
+                          <Money value={line.unitPrice} />/{line.unit || 'unit'}
                         </p>
                       </div>
                       <span className="text-center text-xs tabular-nums text-muted-foreground">
@@ -487,7 +488,7 @@ export function BulkRouteSaleDialog({
 
             <div className="flex items-center justify-between border-t border-border pt-3">
               <span className="text-sm font-semibold">Total</span>
-              <span className="text-xl font-bold tabular-nums">{fc(subtotal)}</span>
+              <Money value={subtotal} variant="display" size="xl" />
             </div>
 
             {validationError && (
@@ -512,9 +513,9 @@ export function BulkRouteSaleDialog({
                 Recording…
               </>
             ) : saleType === 'credit' ? (
-              `Create Invoice — ${fc(subtotal)}`
+              `Create Invoice — ${formatKES(subtotal)}`
             ) : (
-              `Complete Sale — ${fc(subtotal)}`
+              `Complete Sale — ${formatKES(subtotal)}`
             )}
           </Button>
         </DialogFooter>

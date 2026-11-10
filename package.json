@@ -10,6 +10,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test:sms": "npx tsx scripts/test-sms.ts",
+    "check:money": "node scripts/check-money.mjs",
     "fonts:download": "node scripts/download-fonts.mjs",
     "postinstall": "node scripts/download-fonts.mjs"
   },

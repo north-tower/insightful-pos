@@ -4,7 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Printer, Mail, MessageSquare, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { fc } from '@/lib/currency';
+import { Money } from '@/components/ui/Money';
 import { ReceiptBrandHeader } from '@/components/branding/ReceiptBrandHeader';
 
 interface ReceiptPreviewProps {
@@ -79,17 +79,17 @@ export function ReceiptPreview({
       <div className="border-t border-dashed pt-2 space-y-1">
         <div className="flex justify-between">
           <span>Subtotal:</span>
-          <span>{fc(receiptData.subtotal)}</span>
+          <Money value={receiptData.subtotal} align="right" />
         </div>
         {receiptData.discount && (
           <div className="flex justify-between text-success">
             <span>Discount:</span>
-            <span>-{fc(receiptData.discount)}</span>
+            <Money value={receiptData.discount} sign="minus" align="right" />
           </div>
         )}
         <div className="flex justify-between font-bold text-base border-t border-dashed pt-1">
           <span>Total:</span>
-          <span>{fc(receiptData.total)}</span>
+          <Money value={receiptData.total} variant="display" size="lg" align="right" />
         </div>
       </div>
 
@@ -177,17 +177,17 @@ export function ReceiptPreview({
       <div className="border-t pt-3 space-y-2">
         <div className="flex justify-between">
           <span className="text-muted-foreground">Subtotal</span>
-          <span>{fc(receiptData.subtotal)}</span>
+          <Money value={receiptData.subtotal} align="right" />
         </div>
         {receiptData.discount && (
           <div className="flex justify-between text-success">
             <span>Discount</span>
-            <span>-{fc(receiptData.discount)}</span>
+            <Money value={receiptData.discount} sign="minus" align="right" />
           </div>
         )}
         <div className="flex justify-between font-bold text-xl border-t pt-2 mt-2">
           <span>TOTAL</span>
-          <span>{fc(receiptData.total)}</span>
+          <Money value={receiptData.total} variant="display" size="lg" align="right" />
         </div>
       </div>
 
@@ -202,7 +202,7 @@ export function ReceiptPreview({
             {receiptData.splitPayments.map((payment, idx) => (
               <div key={idx} className="flex justify-between text-xs">
                 <span className="capitalize">{payment.method}</span>
-                <span>{fc(payment.amount)}</span>
+                <Money value={payment.amount} align="right" />
               </div>
             ))}
           </div>

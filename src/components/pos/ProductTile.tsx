@@ -3,7 +3,7 @@ import { Star } from 'lucide-react';
 import type { Product } from '@/hooks/useProducts';
 import type { ProductCategory } from '@/data/productData';
 import { cn } from '@/lib/utils';
-import { formatKESAmount } from '@/lib/formatKES';
+import { Money } from '@/components/ui/Money';
 import { formatDisplayUnit, formatQty } from '@/lib/units';
 import { StatusChip } from '@/components/ui/StatusChip';
 
@@ -126,9 +126,7 @@ export const ProductTile = forwardRef<HTMLDivElement, ProductTileProps>(
 
           <div className="mt-auto flex min-w-0 items-end justify-between gap-2 pt-2">
             <div className="min-w-0">
-              <span className="font-sans text-[20px] font-semibold tabular-nums text-ink num">
-                KES {formatKESAmount(product.price)}
-              </span>
+              <Money value={product.price} variant="display" size="md" />
               <span className="font-sans text-[14px] text-ink-2"> / {unitSuffix}</span>
             </div>
             {showStockQty ? (

@@ -8,7 +8,8 @@ import {
 } from '@/components/ui/sheet';
 import { StatusChip } from '@/components/ui/StatusChip';
 import { cn } from '@/lib/utils';
-import { formatKES, formatKESAmount } from '@/lib/formatKES';
+import { formatKES } from '@/lib/formatKES';
+import { Money } from '@/components/ui/Money';
 import { formatDate } from '@/lib/formatDate';
 import { formatQty, formatQtyAmount } from '@/lib/units';
 import { getOrderListStatus } from '@/lib/orderListStatus';
@@ -46,29 +47,6 @@ function orderStatusCaption(status: string): string | null {
 }
 
 const DRAWER_PAD = 'px-5';
-
-function SansKesFigure({
-  amount,
-  size,
-  className,
-}: {
-  amount: number;
-  size: 32 | 28;
-  className?: string;
-}) {
-  return (
-    <span
-      className={cn(
-        'inline-flex items-baseline gap-1.5 font-sans font-bold tabular-nums text-ink',
-        size === 32 ? 'text-[32px] leading-tight' : 'text-[28px] leading-tight',
-        className,
-      )}
-    >
-      <span className="text-sm font-semibold text-ink-2">KES</span>
-      <span>{formatKESAmount(amount)}</span>
-    </span>
-  );
-}
 
 function itemQtyUnitLine(
   quantity: number,
@@ -276,7 +254,7 @@ export function OrderDetailDrawer({
                       <div className="mt-3">
                         <p className="text-xs font-semibold text-ink-2">Balance due</p>
                         <div className="mt-1 flex flex-wrap items-end gap-x-3 gap-y-1">
-                          <SansKesFigure amount={balanceDue} size={32} />
+                          <Money value={balanceDue} variant="display" size="xl" />
                           {order.due_date ? (
                             <div className="flex flex-wrap items-center gap-2 pb-1">
                               <p className="text-sm text-ink-2">
@@ -314,14 +292,11 @@ export function OrderDetailDrawer({
                             <p className="min-w-0 flex-1 text-sm font-semibold text-ink">
                               {item.product_name}
                             </p>
-                            <p
-                              className={cn(
-                                'shrink-0 font-mono text-sm font-semibold tabular-nums text-ink',
-                                isCancelled && 'line-through',
-                              )}
-                            >
-                              {formatKES(item.line_total)}
-                            </p>
+                            <Money
+                              value={item.line_total}
+                              strike={isCancelled}
+                              className="shrink-0 text-sm font-semibold"
+                            />
                           </div>
                           <p className="mt-0.5 font-mono text-xs text-ink-2">
                             {itemQtyUnitLine(item.quantity, item.unit_price)}
@@ -336,39 +311,22 @@ export function OrderDetailDrawer({
                     <div className="mt-4 space-y-2 border-t border-hairline pt-4 text-sm">
                       <div className="flex justify-between gap-3 text-ink">
                         <span className="text-ink-2">Subtotal</span>
-                        <span
-                          className={cn(
-                            'font-mono tabular-nums',
-                            isCancelled && 'line-through',
-                          )}
-                        >
-                          {formatKES(order.subtotal)}
-                        </span>
+                        <Money value={order.subtotal} strike={isCancelled} />
                       </div>
                       {order.discount_amount > 0 ? (
                         <div className="flex justify-between gap-3 text-ink">
                           <span className="text-ink-2">Discount</span>
-                          <span
-                            className={cn(
-                              'font-mono tabular-nums',
-                              isCancelled && 'line-through',
-                            )}
-                          >
-                            −{formatKES(order.discount_amount)}
-                          </span>
+                          <Money
+                            value={order.discount_amount}
+                            sign="minus"
+                            strike={isCancelled}
+                          />
                         </div>
                       ) : null}
                       {showTax ? (
                         <div className="flex justify-between gap-3 text-ink">
                           <span className="text-ink-2">Tax ({taxRatePercent}%)</span>
-                          <span
-                            className={cn(
-                              'font-mono tabular-nums',
-                              isCancelled && 'line-through',
-                            )}
-                          >
-                            {formatKES(order.tax_amount)}
-                          </span>
+                          <Money value={order.tax_amount} strike={isCancelled} />
                         </div>
                       ) : null}
                       <div
@@ -377,30 +335,22 @@ export function OrderDetailDrawer({
                       >
                         <div className="flex items-baseline justify-between gap-3">
                           <span className="text-sm font-semibold text-ink">Total</span>
-                          <SansKesFigure
-                            amount={order.total}
-                            size={28}
-                            className={cn(isCancelled && 'line-through')}
+                          <Money
+                            value={order.total}
+                            variant="display"
+                            size="lg"
+                            strike={isCancelled}
                           />
                         </div>
                         <div className="mt-3 space-y-1 text-sm">
                           <div className="flex justify-between gap-3 text-ink">
                             <span className="text-ink-2">Paid</span>
-                            <span
-                              className={cn(
-                                'font-mono tabular-nums',
-                                isCancelled && 'line-through',
-                              )}
-                            >
-                              {formatKES(paidTotal)}
-                            </span>
+                            <Money value={paidTotal} strike={isCancelled} />
                           </div>
                           {balanceDue > 0 && !isCancelled ? (
                             <div className="flex justify-between gap-3 text-ink">
                               <span className="text-ink-2">Balance due</span>
-                              <span className="font-mono tabular-nums">
-                                {formatKES(balanceDue)}
-                              </span>
+                              <Money value={balanceDue} />
                             </div>
                           ) : null}
                         </div>
@@ -453,9 +403,10 @@ export function OrderDetailDrawer({
                             </p>
                           </div>
                           <div className="flex shrink-0 flex-col items-end gap-1">
-                            <p className="font-mono text-sm font-semibold tabular-nums text-ink">
-                              {formatKES(payment.amount)}
-                            </p>
+                            <Money
+                              value={payment.amount}
+                              className="text-sm font-semibold"
+                            />
                             {canModifyPayments && !payment.reversed_at ? (
                               <div className="flex items-center gap-1">
                                 <button
@@ -503,7 +454,7 @@ export function OrderDetailDrawer({
                       <dt className="sr-only">Account balance</dt>
                       <dd className="text-ink">
                         {order.customer_name} account balance{' '}
-                        {formatKES(customer.credit_balance)}
+                        <Money value={customer.credit_balance} className="inline" />
                       </dd>
                     </div>
                   ) : null}

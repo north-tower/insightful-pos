@@ -22,7 +22,8 @@ import { useShopDaySettlement } from '@/hooks/useShopDaySettlement';
 import { ShopDayReportPrint } from '@/components/reports/ShopDayReportPrint';
 import { expenseCategoryLabel, expensePaymentMethodLabel } from '@/hooks/useOperatingExpenses';
 import { generateInvoicePdf } from '@/lib/generateInvoicePdf';
-import { fc, CURRENCY_SYMBOL } from '@/lib/currency';
+import { CURRENCY_SYMBOL } from '@/lib/currency';
+import { Money } from '@/components/ui/Money';
 import { TypedNumberHint } from '@/components/ui/typed-number-hint';
 import { SHOP_CASH_FLOAT, formatShopCashFloat } from '@/lib/shopFloat';
 import { cn } from '@/lib/utils';
@@ -125,10 +126,7 @@ function VarianceBadge({ value, label }: { value: number; label: string }) {
       )}
       <span>
         {label}: {balanced ? 'Balanced' : value > 0 ? 'Surplus' : 'Shortage'}{' '}
-        <span className="tabular-nums">
-          {value >= 0 ? '+' : ''}
-          {fc(value)}
-        </span>
+        <Money value={value} signed className="tabular-nums" />
       </span>
     </div>
   );
@@ -349,21 +347,19 @@ export default function ShopDayReport({ onNavigate }: ShopDayReportProps) {
               <Card>
                 <CardContent className="p-4">
                   <p className="text-xs text-muted-foreground mb-1">Cash sales</p>
-                  <p className="text-xl font-bold tabular-nums">{fc(report.salesBreakdown.cash)}</p>
+                  <Money value={report.salesBreakdown.cash} variant="display" size="xl" />
                 </CardContent>
               </Card>
               <Card>
                 <CardContent className="p-4">
                   <p className="text-xs text-muted-foreground mb-1">M-Pesa sales</p>
-                  <p className="text-xl font-bold tabular-nums">{fc(report.salesBreakdown.mpesa)}</p>
+                  <Money value={report.salesBreakdown.mpesa} variant="display" size="xl" />
                 </CardContent>
               </Card>
               <Card>
                 <CardContent className="p-4">
                   <p className="text-xs text-muted-foreground mb-1">Expenses</p>
-                  <p className="text-xl font-bold tabular-nums">
-                    {fc(report.expenseBreakdown.total)}
-                  </p>
+                  <Money value={report.expenseBreakdown.total} variant="display" size="xl" />
                 </CardContent>
               </Card>
               <Card>
@@ -388,15 +384,15 @@ export default function ShopDayReport({ onNavigate }: ShopDayReportProps) {
               <div className="rounded-md border border-border bg-background p-3 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
                 <div>
                   <p className="text-xs text-muted-foreground">Till float (fixed)</p>
-                  <p className="text-lg font-bold tabular-nums">{fc(SHOP_CASH_FLOAT)}</p>
+                  <Money value={SHOP_CASH_FLOAT} variant="display" size="lg" />
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Drawer should hold (before remittance)</p>
-                  <p className="text-lg font-bold tabular-nums">{fc(expectedDrawerTotal)}</p>
+                  <Money value={expectedDrawerTotal} variant="display" size="lg" />
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Cash to hand over</p>
-                  <p className="text-lg font-bold tabular-nums">{fc(liveExpected.cash)}</p>
+                  <Money value={liveExpected.cash} variant="display" size="lg" />
                   <p className="text-[10px] text-muted-foreground mt-0.5">
                     = drawer − {formatShopCashFloat()} float left in till
                   </p>
@@ -406,7 +402,7 @@ export default function ShopDayReport({ onNavigate }: ShopDayReportProps) {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="rounded-md border border-border bg-background p-3 space-y-1">
                   <p className="text-xs text-muted-foreground">Expected cash remittance</p>
-                  <p className="text-lg font-bold tabular-nums">{fc(liveExpected.cash)}</p>
+                  <Money value={liveExpected.cash} variant="display" size="lg" />
                   <Label htmlFor="cash-counted" className="text-xs">
                     Cash handed over *
                   </Label>
@@ -427,7 +423,7 @@ export default function ShopDayReport({ onNavigate }: ShopDayReportProps) {
                 </div>
                 <div className="rounded-md border border-border bg-background p-3 space-y-1">
                   <p className="text-xs text-muted-foreground">Expected M-Pesa</p>
-                  <p className="text-lg font-bold tabular-nums">{fc(liveExpected.mpesa)}</p>
+                  <Money value={liveExpected.mpesa} variant="display" size="lg" />
                   <Label htmlFor="mpesa-confirmed" className="text-xs">
                     M-Pesa till statement
                   </Label>
@@ -444,7 +440,7 @@ export default function ShopDayReport({ onNavigate }: ShopDayReportProps) {
                 </div>
                 <div className="rounded-md border border-border bg-background p-3 space-y-1">
                   <p className="text-xs text-muted-foreground">Expected bank</p>
-                  <p className="text-lg font-bold tabular-nums">{fc(liveExpected.bank)}</p>
+                  <Money value={liveExpected.bank} variant="display" size="lg" />
                   <Label htmlFor="bank-confirmed" className="text-xs">
                     Bank confirmed
                   </Label>
@@ -532,7 +528,7 @@ export default function ShopDayReport({ onNavigate }: ShopDayReportProps) {
                           {expensePaymentMethodLabel(e.payment_method)}
                         </p>
                       </div>
-                      <span className="font-semibold tabular-nums shrink-0">{fc(e.amount)}</span>
+                      <Money value={e.amount} align="right" className="shrink-0 font-semibold" />
                     </div>
                   ))}
                 </CardContent>

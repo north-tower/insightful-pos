@@ -4,7 +4,7 @@ import { Area, AreaChart, CartesianGrid, XAxis } from 'recharts';
 import { SalesData } from '@/data/dashboardData';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
-import { formatCurrency } from '@/lib/currency';
+import { Money } from '@/components/ui/Money';
 import { TrendingUp } from 'lucide-react';
 
 interface SalesChartProps {
@@ -123,9 +123,7 @@ export function SalesChart({ data, dailyData, weeklyData, monthlyData }: SalesCh
                               <div className="h-2 w-2 rounded-full bg-primary" />
                               <span className="text-sm text-muted-foreground">
                                 Revenue:{' '}
-                                <span className="font-medium text-foreground">
-                                  {formatCurrency(Number(payload[0].value) || 0)}
-                                </span>
+                                <Money value={Number(payload[0].value) || 0} />
                               </span>
                             </div>
                           </div>
@@ -151,7 +149,8 @@ export function SalesChart({ data, dailyData, weeklyData, monthlyData }: SalesCh
                 <span className="text-muted-foreground">Revenue</span>
               </div>
               <div className="text-muted-foreground">
-                Total: {formatCurrency(chartData.reduce((sum, item) => sum + item.revenue, 0))}
+                Total:{' '}
+                <Money value={chartData.reduce((sum, item) => sum + item.revenue, 0)} />
               </div>
             </div>
           </>

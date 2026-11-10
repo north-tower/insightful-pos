@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { formatCurrency } from '@/lib/currency';
+import { Money } from '@/components/ui/Money';
 
 export default function CustomerOrderTracking() {
   const { trackingCode } = useParams<{ trackingCode: string }>();
@@ -141,7 +141,7 @@ export default function CustomerOrderTracking() {
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Total Amount</span>
-                <span className="font-bold text-lg">{formatCurrency(order.total)}</span>
+                <Money value={order.total} variant="display" size="lg" />
               </div>
             </div>
 
@@ -169,7 +169,7 @@ export default function CustomerOrderTracking() {
                   <div className="flex-1">
                     <p className="font-medium">{item.name}</p>
                     <p className="text-sm text-muted-foreground">
-                      {formatCurrency(item.price)} × {item.quantity}
+                      <Money value={item.price} muted /> × {item.quantity}
                     </p>
                     {item.notes && (
                       <p className="text-xs text-muted-foreground mt-1 italic">
@@ -178,7 +178,7 @@ export default function CustomerOrderTracking() {
                     )}
                   </div>
                   <p className="font-semibold">
-                    {formatCurrency(item.price * item.quantity)}
+                    <Money value={item.price * item.quantity} />
                   </p>
                 </div>
               ))}

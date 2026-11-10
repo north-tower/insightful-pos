@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { ReceiptData } from '@/data/receiptData';
 import { Mail, MessageSquare, Send } from 'lucide-react';
 import { toast } from 'sonner';
-import { formatCurrency } from '@/lib/currency';
+import { Money } from '@/components/ui/Money';
 
 interface DigitalReceiptDialogProps {
   open: boolean;
@@ -129,7 +129,7 @@ export function DigitalReceiptDialog({
               Receipt for Order #{receiptData.orderNumber}
             </p>
             <p className="text-sm font-medium mt-1">
-              Total: ${receiptData.total.toFixed(2)}
+              Total: <Money value={receiptData.total} className="inline" />
             </p>
           </div>
 

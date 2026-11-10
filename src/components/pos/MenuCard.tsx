@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { MenuItem } from '@/data/menuData';
 import { useCart } from '@/context/CartContext';
 import { cn } from '@/lib/utils';
-import { formatCurrency } from '@/lib/currency';
+import { Money } from '@/components/ui/Money';
 
 interface MenuCardProps {
   item: MenuItem;
@@ -48,9 +48,7 @@ export function MenuCard({ item }: MenuCardProps) {
         </h3>
 
         <div className="flex items-center justify-between gap-2">
-          <p className="text-base font-bold text-foreground tabular-nums truncate">
-            {formatCurrency(item.price)}
-          </p>
+          <Money value={item.price} variant="display" size="md" className="truncate" />
 
           {quantity === 0 ? (
             <Button

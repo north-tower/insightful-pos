@@ -38,7 +38,8 @@ import {
   useProduction,
   type RecipeLineInput,
 } from '@/hooks/useProduction';
-import { fc } from '@/lib/currency';
+import { formatKES } from '@/lib/formatKES';
+import { Money } from '@/components/ui/Money';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -233,7 +234,7 @@ export default function RetailProduction({ onNavigate }: RetailProductionProps) 
           : undefined,
         notes: batchNotes.trim() || undefined,
       });
-      toast.success(`Batch ${batch.batch_number} completed — unit cost ${fc(batch.unit_cost)}`);
+      toast.success(`Batch ${batch.batch_number} completed — unit cost ${formatKES(batch.unit_cost)}`);
       setBatchQty('');
       setBatchNotes('');
       setBatchExpires('');
@@ -353,7 +354,7 @@ export default function RetailProduction({ onNavigate }: RetailProductionProps) 
                               <SelectContent>
                                 {rawMaterialProducts.map((p) => (
                                   <SelectItem key={p.id} value={p.id}>
-                                    {p.name} — {formatQty(p.stock)} {p.unit} @ {fc(p.cost)}/{p.unit}
+                                    {p.name} — {formatQty(p.stock)} {p.unit} @ <Money value={p.cost} />/{p.unit}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
@@ -528,7 +529,7 @@ export default function RetailProduction({ onNavigate }: RetailProductionProps) 
                               {formatQty(r.quantity_required)} {r.unit} needed
                             </div>
                             <div className="text-xs text-muted-foreground">
-                              {formatQty(r.available_stock)} available · {fc(r.line_cost)}
+                              {formatQty(r.available_stock)} available · <Money value={r.line_cost} />
                             </div>
                           </div>
                         </div>
@@ -536,7 +537,7 @@ export default function RetailProduction({ onNavigate }: RetailProductionProps) 
                     </div>
                     <div className="border-t border-border px-3 py-2 flex justify-between text-sm font-medium bg-muted/20">
                       <span>Estimated unit cost</span>
-                      <span className="tabular-nums">{fc(estimatedUnitCost)}</span>
+                      <Money value={estimatedUnitCost} align="right" />
                     </div>
                   </div>
                 )}
@@ -592,9 +593,9 @@ export default function RetailProduction({ onNavigate }: RetailProductionProps) 
                             </div>
                             <div className="flex items-center gap-3 shrink-0">
                               <div className="text-right text-sm tabular-nums">
-                                <div>{fc(batch.material_cost_total)}</div>
+                                <div><Money value={batch.material_cost_total} /></div>
                                 <div className="text-xs text-muted-foreground">
-                                  {fc(batch.unit_cost)}/unit
+                                  <Money value={batch.unit_cost} />/unit
                                 </div>
                               </div>
                               <ChevronDown
@@ -619,7 +620,7 @@ export default function RetailProduction({ onNavigate }: RetailProductionProps) 
                                 >
                                   <span>{c.ingredient_name}</span>
                                   <span className="text-muted-foreground">
-                                    {formatQty(c.quantity_consumed)} {c.unit} · {fc(c.line_cost)}
+                                    {formatQty(c.quantity_consumed)} {c.unit} · <Money value={c.line_cost} />
                                   </span>
                                 </div>
                               ))}

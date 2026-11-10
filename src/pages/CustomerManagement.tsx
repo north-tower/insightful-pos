@@ -24,7 +24,7 @@ import { cn } from '@/lib/utils';
 import { CustomerDialog } from '@/components/customer/CustomerDialog';
 import { CustomerDetailDialog } from '@/components/customer/CustomerDetailDialog';
 import { toast } from 'sonner';
-import { formatCurrency } from '@/lib/currency';
+import { Money } from '@/components/ui/Money';
 
 interface CustomerManagementProps {
   onNavigate: (tab: string) => void;
@@ -231,7 +231,7 @@ export default function CustomerManagement({
                   </p>
                 </div>
                 <p className="text-2xl font-bold text-warning tabular-nums truncate">
-                  {formatCurrency(totalOutstanding)}
+                  <Money value={totalOutstanding} variant="display" size="lg" />
                 </p>
               </CardContent>
             </Card>
@@ -315,7 +315,7 @@ export default function CustomerManagement({
                       <div className="min-w-0">
                         <p className="text-xs text-muted-foreground">Spent</p>
                         <p className="font-semibold tabular-nums truncate">
-                          {formatCurrency(customer.total_spent)}
+                          <Money value={customer.total_spent} align="right" />
                         </p>
                       </div>
                       <div className="min-w-0">
@@ -330,7 +330,7 @@ export default function CustomerManagement({
                               : 'text-muted-foreground',
                           )}
                         >
-                          {formatCurrency(customer.credit_balance)}
+                          <Money value={customer.credit_balance} align="right" />
                         </p>
                       </div>
                     </div>

@@ -4,7 +4,7 @@ import { useCart } from '@/context/CartContext';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { formatCurrency } from '@/lib/currency';
+import { Money } from '@/components/ui/Money';
 
 type PaymentMethod = 'cash' | 'card' | 'qr';
 type OrderType = 'dine-in' | 'takeaway' | 'delivery';
@@ -81,7 +81,9 @@ export function CartPanel() {
               />
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-foreground text-sm truncate">{item.name}</p>
-                <p className="text-xs text-primary font-semibold tabular-nums truncate">{formatCurrency(item.price)} × {item.quantity.toLocaleString()}</p>
+                <p className="text-xs text-primary font-semibold truncate">
+                  <Money value={item.price} /> × {item.quantity.toLocaleString()}
+                </p>
                 <div className="flex items-center justify-between mt-2">
                   <div className="flex items-center gap-1.5">
                     <button
@@ -109,8 +111,8 @@ export function CartPanel() {
                       <Plus className="w-3 h-3" />
                     </button>
                   </div>
-                  <p className="font-bold text-foreground text-sm tabular-nums">
-                    {formatCurrency(item.price * item.quantity)}
+                  <p className="font-bold text-foreground text-sm">
+                    <Money value={item.price * item.quantity} />
                   </p>
                 </div>
               </div>
@@ -124,7 +126,7 @@ export function CartPanel() {
         <div className="space-y-2 text-sm">
           <div className="flex justify-between items-baseline font-bold text-lg text-foreground gap-4">
             <span className="shrink-0">Total</span>
-            <span className="tabular-nums text-right break-all">{formatCurrency(total)}</span>
+            <Money value={total} variant="display" size="lg" align="right" className="break-all" />
           </div>
         </div>
 

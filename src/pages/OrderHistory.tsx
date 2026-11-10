@@ -63,8 +63,7 @@ import { ReceiptData } from '@/data/receiptData';
 import { useOrders, SaleOrder, Payment, sumActivePaymentAmount } from '@/hooks/useOrders';
 import { useCustomers, Customer } from '@/hooks/useCustomers';
 import { toast } from 'sonner';
-import { fc, CURRENCY_SYMBOL } from '@/lib/currency';
-import { formatKES } from '@/lib/formatKES';
+import { CURRENCY_SYMBOL } from '@/lib/currency';
 import { Money } from '@/components/ui/Money';
 import { formatCompactDateRange, formatDate } from '@/lib/formatDate';
 import {
@@ -1019,9 +1018,9 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
             <div className="flex flex-col gap-6 sm:flex-row sm:gap-12">
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold text-ink-2">Takings today</p>
-                <p className="mt-1 text-[32px] font-bold leading-tight text-ink">
-                  {formatKES(todaysRevenue)}
-                </p>
+                <div className="mt-1">
+                  <Money value={todaysRevenue} variant="display" size="xl" />
+                </div>
                 <p className="mt-1 text-sm text-ink-2">
                   {todaysOrders.length === 1
                     ? '1 order today'
@@ -1030,9 +1029,9 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold text-ink-2">Credit outstanding</p>
-                <p className="mt-1 text-[32px] font-bold leading-tight text-ink">
-                  {formatKES(totalOutstanding)}
-                </p>
+                <div className="mt-1">
+                  <Money value={totalOutstanding} variant="display" size="xl" />
+                </div>
                 {customersWithOutstanding.length > 0 ? (
                   <p className="mt-1 text-sm text-ink-2">
                     {customersWithOutstanding.length === 1
@@ -1048,7 +1047,10 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
           {isReportMode && !listLoading ? (
             <p className="mt-4 text-sm text-ink-2">
               Range totals:{' '}
-              {formatKES(sourceOrders.reduce((sum, o) => sum + o.total, 0))}
+              <Money
+                value={sourceOrders.reduce((sum, o) => sum + o.total, 0)}
+                className="inline"
+              />
               {' · '}
               {sourceOrders.length === 1
                 ? '1 order in range'
@@ -1362,20 +1364,19 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                               {formatOrderListDateTime(order.created_at)}
                             </td>
                             <td className="py-3 pr-2 text-right align-top">
-                              <span
-                                className={cn(
-                                  'font-mono text-sm font-semibold tabular-nums text-ink',
-                                  order.status === 'cancelled' && 'line-through',
-                                )}
-                              >
-                                {formatKES(order.total)}
-                              </span>
+                              <Money
+                                value={order.total}
+                                strike={order.status === 'cancelled'}
+                                align="right"
+                                className="text-sm font-semibold"
+                              />
                             </td>
                             <td className="py-3 pr-2 align-top">
                               <StatusChip status={listStatus} />
                               {showDue ? (
-                                <p className="mt-1 font-mono text-[13px] text-ink">
-                                  Due {formatKES(balanceDue)}
+                                <p className="mt-1 text-[13px] text-ink">
+                                  Due{' '}
+                                  <Money value={balanceDue} className="inline text-[13px]" />
                                 </p>
                               ) : null}
                             </td>
@@ -1466,21 +1467,19 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                           <span className="min-w-0 truncate text-sm font-semibold text-ink">
                             {order.customer_name || '—'}
                           </span>
-                          <span
-                            className={cn(
-                              'shrink-0 font-mono text-sm font-semibold tabular-nums text-ink',
-                              order.status === 'cancelled' && 'line-through',
-                            )}
-                          >
-                            {formatKES(order.total)}
-                          </span>
+                          <Money
+                            value={order.total}
+                            strike={order.status === 'cancelled'}
+                            className="shrink-0 text-sm font-semibold"
+                          />
                         </div>
                         <p className="truncate text-xs text-ink-2">{metaParts.join(' · ')}</p>
                         <div className="flex min-w-0 flex-wrap items-center gap-2">
                           <StatusChip status={listStatus} />
                           {showDue ? (
-                            <span className="font-mono text-[13px] text-ink">
-                              Due {formatKES(balanceDue)}
+                            <span className="text-[13px] text-ink">
+                              Due{' '}
+                              <Money value={balanceDue} className="inline text-[13px]" />
                             </span>
                           ) : null}
                         </div>
@@ -1685,7 +1684,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
             </Select>
             {selectedTopPayCustomer ? (
               <p className="text-sm text-ink-2">
-                Owes {formatKES(selectedTopPayCustomer.credit_balance)}
+                Owes <Money value={selectedTopPayCustomer.credit_balance} />
               </p>
             ) : null}
           </div>
@@ -1851,15 +1850,15 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
               {paymentReverseTarget ? (
                 paymentReverseTarget.kind === 'account' ? (
                   <>
-                    Reverse {formatKES(paymentReverseTarget.amount)} (
+                    Reverse <Money value={paymentReverseTarget.amount} /> (
                     {getPaymentMethodLabel(paymentReverseTarget.method)},{' '}
                     {formatDate(new Date(paymentReverseTarget.paidAt))})? This adds{' '}
-                    {formatKES(paymentReverseTarget.amount)} back to{' '}
+                    <Money value={paymentReverseTarget.amount} /> back to{' '}
                     {paymentReverseTarget.customerName}&apos;s balance.
                   </>
                 ) : (
                   <>
-                    Reverse {formatKES(paymentReverseTarget.amount)} (
+                    Reverse <Money value={paymentReverseTarget.amount} /> (
                     {getPaymentMethodLabel(paymentReverseTarget.method)},{' '}
                     {formatDate(new Date(paymentReverseTarget.paidAt))})? The order payment
                     status and any customer credit balance will be recalculated.
@@ -1918,11 +1917,11 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                     </span>{' '}
                     for{' '}
                     <span className="font-medium text-foreground">
-                      {fc(creditCancelTarget.total)}
+                      <Money value={creditCancelTarget.total} />
                     </span>{' '}
                     will be marked cancelled. Stock will be restored (retail).{' '}
                     <span className="font-medium text-foreground">
-                      {fc(getOrderBalanceDue(creditCancelTarget))}
+                      <Money value={getOrderBalanceDue(creditCancelTarget)} />
                     </span>{' '}
                     will be removed from the customer&apos;s account balance.
                   </p>
@@ -1930,9 +1929,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                     <p>
                       Deposits totalling{' '}
                       <span className="font-medium text-foreground">
-                        {fc(
-                          sumActivePaymentAmount(creditCancelTarget.payments),
-                        )}
+                        <Money value={sumActivePaymentAmount(creditCancelTarget.payments)} />
                       </span>{' '}
                       stay on record; refund any cash or M-Pesa separately if needed.
                     </p>

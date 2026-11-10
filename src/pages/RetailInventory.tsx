@@ -56,7 +56,7 @@ import type { Product } from '@/hooks/useProducts';
 import { useStockAdjustments, type StockAdjustmentRow } from '@/hooks/useStockAdjustments';
 import { toast } from 'sonner';
 import { formatDistanceToNow, format } from 'date-fns';
-import { fc } from '@/lib/currency';
+import { Money } from '@/components/ui/Money';
 import { generatePlaceholderUrl } from '@/lib/product-images';
 import { shouldHideSkuColumn } from '@/lib/productSku';
 import TransferToBranchDialog from '@/components/inventory/TransferToBranchDialog';
@@ -772,7 +772,7 @@ export default function RetailInventory({ onNavigate }: RetailInventoryProps) {
                 <p className="text-xs text-muted-foreground mb-1">Total Products</p>
                 <p className="text-2xl font-bold">{stockSummary.totalProducts}</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {fc(stockSummary.totalValue)} value
+                  <Money value={stockSummary.totalValue} /> value
                 </p>
               </div>
               <Package className="w-8 h-8 text-primary opacity-50" />

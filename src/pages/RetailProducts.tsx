@@ -66,7 +66,7 @@ import BulkImportProductsDialog from '@/components/product/BulkImportProductsDia
 import ImageUploader from '@/components/product/ImageUploader';
 import { generatePlaceholderUrl } from '@/lib/product-images';
 import { toast } from 'sonner';
-import { formatCurrency } from '@/lib/currency';
+import { Money } from '@/components/ui/Money';
 import { shouldHideSkuColumn, getDisplaySku } from '@/lib/productSku';
 
 interface RetailProductsProps {
@@ -651,10 +651,10 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
                           </div>
                         )}
                         <div className="col-span-1">
-                          <span className="text-base font-bold text-foreground">{formatCurrency(product.price)}</span>
+                          <span className="text-base font-bold text-foreground"><Money value={product.price} variant="display" size="md" /></span>
                         </div>
                         <div className="col-span-1">
-                          <span className="text-sm text-foreground">{formatCurrency(product.cost)}</span>
+                          <span className="text-sm text-foreground"><Money value={product.cost} /></span>
                           <p className={cn('text-xs', marginLabel === '—' ? 'text-muted-foreground' : 'text-success')}>
                             {marginLabel === '—' ? '—' : marginLabel}
                           </p>
@@ -726,7 +726,7 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
                           </div>
                         </div>
                         <div className="text-right shrink-0">
-                          <p className="text-base font-bold text-foreground">{formatCurrency(product.price)}</p>
+                          <p className="text-base font-bold text-foreground"><Money value={product.price} variant="display" size="md" /></p>
                           <p className={cn('text-[10px]', marginLabel === '—' ? 'text-muted-foreground' : 'text-success')}>
                             {marginLabel === '—' ? '—' : marginLabel}
                           </p>
@@ -778,7 +778,7 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
                           {product.name}
                         </p>
                         <p className="text-sm sm:text-base font-bold text-foreground mb-0.5">
-                          {formatCurrency(product.price)}
+                          <Money value={product.price} variant="display" size="md" />
                         </p>
                         <p className="text-[10px] sm:text-xs text-muted-foreground mb-1.5 sm:mb-2">
                           {product.stock} {product.unit}
@@ -881,13 +881,13 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
                   <div>
                     <p className="text-xs text-muted-foreground">Price</p>
                     <p className="font-bold text-base sm:text-lg">
-                      {formatCurrency(selectedProduct.price)}
+                      <Money value={selectedProduct.price} variant="display" size="md" />
                     </p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Cost</p>
                     <p className="font-bold text-base sm:text-lg">
-                      {formatCurrency(selectedProduct.cost)}
+                      <Money value={selectedProduct.cost} />
                     </p>
                   </div>
                   <div>
@@ -948,7 +948,7 @@ export default function RetailProducts({ onNavigate }: RetailProductsProps) {
                               <span className="font-mono text-[10px] sm:text-xs hidden sm:inline">
                                 {v.sku}
                               </span>
-                              <span>{formatCurrency(v.price)}</span>
+                              <span><Money value={v.price} /></span>
                               <span className="text-muted-foreground">
                                 {v.stock} pcs
                               </span>

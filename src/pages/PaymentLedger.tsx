@@ -42,7 +42,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
-import { fc } from '@/lib/currency';
+import { Money } from '@/components/ui/Money';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
 import { useOrders, Payment, SaleOrder } from '@/hooks/useOrders';
@@ -209,7 +209,7 @@ export default function PaymentLedger({ onNavigate }: PaymentLedgerProps) {
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Total amount</p>
-              <p className="text-xl font-bold tabular-nums">{fc(totalAmount)}</p>
+              <Money value={totalAmount} variant="display" size="xl" />
             </div>
           </CardContent>
         </Card>
@@ -322,8 +322,8 @@ export default function PaymentLedger({ onNavigate }: PaymentLedgerProps) {
                         <TableCell className="text-xs font-mono text-muted-foreground max-w-[120px] truncate">
                           {row.reference || '—'}
                         </TableCell>
-                        <TableCell className="text-right font-semibold tabular-nums">
-                          {fc(row.amount)}
+                        <TableCell className="text-right font-semibold">
+                          <Money value={row.amount} align="right" />
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
@@ -420,7 +420,7 @@ export default function PaymentLedger({ onNavigate }: PaymentLedgerProps) {
                 <>
                   Remove the{' '}
                   <span className="font-medium capitalize">{reverseTarget.row.method}</span>{' '}
-                  payment of <span className="font-medium">{fc(reverseTarget.row.amount)}</span>
+                  payment of <Money value={reverseTarget.row.amount} />
                   {reverseTarget.row.kind === 'order'
                     ? ` on order #${reverseTarget.row.order_number}. Balances will be recalculated.`
                     : ` for ${reverseTarget.row.customer_name || 'this customer'}. Account balance will increase.`}

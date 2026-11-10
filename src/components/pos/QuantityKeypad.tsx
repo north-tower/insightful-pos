@@ -4,6 +4,7 @@ import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import { formatKES } from '@/lib/formatKES';
+import { Money } from '@/components/ui/Money';
 import { TypedNumberHint } from '@/components/ui/typed-number-hint';
 import { formatQty, isDecimalUnit, normalizeUnit } from '@/lib/units';
 import {
@@ -84,8 +85,8 @@ function KeypadBody({
         <h2 className="line-clamp-2 text-left text-base font-semibold leading-snug text-ink">
           {product.name}
         </h2>
-        <p className="font-mono text-sm text-ink num">
-          {formatKES(unitPrice)} / {unitLabel}
+        <p className="text-sm text-ink">
+          <Money value={unitPrice} /> / {unitLabel}
         </p>
         <p className="text-sm text-ink-2">
           {formatQty(product.stock, product.unit)} in stock
@@ -108,7 +109,13 @@ function KeypadBody({
       <TypedNumberHint value={inputValue} className="text-center text-ink-2" />
 
       <p className="text-center text-sm text-ink-2" aria-live="polite">
-        {lineTotal !== null ? `= ${formatKES(lineTotal)}` : '\u00a0'}
+        {lineTotal !== null ? (
+          <>
+            = <Money value={lineTotal} />
+          </>
+        ) : (
+          '\u00a0'
+        )}
       </p>
 
       <div

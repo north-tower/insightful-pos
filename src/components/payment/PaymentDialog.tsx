@@ -323,7 +323,7 @@ export function PaymentDialog({
   const title = isMethodOnly ? 'Set payment method' : 'Record payment';
   const subtitle = isMethodOnly ? (
     <>
-      Full payment {formatKES(balanceDue)} ·{' '}
+      Full payment <Money value={balanceDue} /> ·{' '}
       <span className="font-mono">{invoiceLabel}</span>
       {customerName ? ` · ${customerName}` : null}
     </>
@@ -402,7 +402,7 @@ export function PaymentDialog({
           <CheckCircle2 className="h-14 w-14 text-primary" aria-hidden />
           <p className="text-lg font-semibold text-ink">Payment recorded</p>
           <p className="text-center text-sm text-ink-2">
-            {formatKES(amountToPay)} via {getPaymentMethodLabel(method)}
+            <Money value={amountToPay} /> via {getPaymentMethodLabel(method)}
             {!isMethodOnly && willSpillOver
               ? ` — distributed across ${distribution.length} invoices`
               : null}
@@ -427,7 +427,7 @@ export function PaymentDialog({
             <div className="border-y-2 border-double border-hairline py-3">
               <div className="flex items-baseline justify-between gap-4">
                 <span className="font-semibold text-ink">Balance due</span>
-                <Money value={balanceDue} variant="display" size={28} />
+                <Money value={balanceDue} variant="display" size="lg" />
               </div>
             </div>
             {order.due_date ? (
@@ -437,12 +437,12 @@ export function PaymentDialog({
             ) : null}
             {!isMethodOnly && isAccountPaymentMode ? (
               <p className="text-sm text-ink-2">
-                {customerName} owes {formatKES(accountBalanceBefore)} in total
+                {customerName} owes <Money value={accountBalanceBefore} /> in total
               </p>
             ) : null}
             {!isMethodOnly && !isAccountPaymentMode && otherUnpaidOrders.length > 0 ? (
               <p className="text-sm text-ink-2">
-                {customerName} owes {formatKES(totalCustomerBalance)} in total
+                {customerName} owes <Money value={totalCustomerBalance} /> in total
               </p>
             ) : null}
           </section>
@@ -563,7 +563,7 @@ export function PaymentDialog({
 
           {isMethodOnly && balanceDue > 0 ? (
             <p className="text-center text-sm text-ink-2">
-              Paying <span className="font-semibold tabular-nums text-ink">{formatKES(balanceDue)}</span> in full
+              Paying <Money value={balanceDue} className="font-semibold text-ink" /> in full
             </p>
           ) : null}
 
@@ -629,15 +629,11 @@ export function PaymentDialog({
                 <>
                   <div className="flex justify-between gap-4">
                     <span className="text-ink-2">Account balance before</span>
-                    <span className="font-mono tabular-nums text-ink">
-                      {formatKES(accountBalanceBefore)}
-                    </span>
+                    <Money value={accountBalanceBefore} align="right" />
                   </div>
                   <div className="flex justify-between gap-4 font-medium">
                     <span className="text-ink">Account balance after</span>
-                    <span className="font-mono tabular-nums text-ink">
-                      {formatKES(Math.max(accountBalanceBefore - enteredAmount, 0))}
-                    </span>
+                    <Money value={Math.max(accountBalanceBefore - enteredAmount, 0)} align="right" />
                   </div>
                 </>
               ) : willSpillOver ? (
@@ -660,17 +656,21 @@ export function PaymentDialog({
                             ) : null}
                           </p>
                           <p className="text-ink-2">
-                            Balance {formatKES(line.balanceBefore)}
+                            Balance <Money value={line.balanceBefore} />
                           </p>
                         </div>
                         <div className="shrink-0 text-right">
-                          <p className="font-mono font-bold tabular-nums text-ink">
-                            −{formatKES(line.applied)}
+                          <p className="font-bold text-ink">
+                            <Money value={line.applied} sign="minus" />
                           </p>
-                          <p className="font-mono tabular-nums text-ink-2">
-                            {line.balanceAfter <= 0
-                              ? 'Paid'
-                              : `Rem. ${formatKES(line.balanceAfter)}`}
+                          <p className="text-ink-2">
+                            {line.balanceAfter <= 0 ? (
+                              'Paid'
+                            ) : (
+                              <>
+                                Rem. <Money value={line.balanceAfter} />
+                              </>
+                            )}
                           </p>
                         </div>
                       </li>
@@ -681,9 +681,7 @@ export function PaymentDialog({
                 <>
                   <div className="flex justify-between gap-4">
                     <span className="text-ink-2">Remaining balance</span>
-                    <span className="font-mono tabular-nums text-ink">
-                      {formatKES(Math.max(balanceDue - enteredAmount, 0))}
-                    </span>
+                    <Money value={Math.max(balanceDue - enteredAmount, 0)} align="right" />
                   </div>
                   <p className="text-ink-2">
                     {enteredAmount >= balanceDue ? 'Fully paid after this payment' : 'Partial payment'}
@@ -694,18 +692,14 @@ export function PaymentDialog({
               {excessAfterAll > 0 ? (
                 <div className="flex justify-between gap-4 border-t border-hairline pt-2 font-medium">
                   <span className="text-ink">Overpayment (advance credit)</span>
-                  <span className="font-mono tabular-nums text-ink">
-                    {formatKES(excessAfterAll)}
-                  </span>
+                  <Money value={excessAfterAll} align="right" />
                 </div>
               ) : null}
 
               {!isAccountPaymentMode && otherUnpaidOrders.length > 0 ? (
                 <div className="flex justify-between gap-4 border-t border-hairline pt-2 font-medium">
                   <span className="text-ink">Account balance after</span>
-                  <span className="font-mono tabular-nums text-ink">
-                    {formatKES(Math.max(totalCustomerBalance - totalApplied, 0))}
-                  </span>
+                  <Money value={Math.max(totalCustomerBalance - totalApplied, 0)} align="right" />
                 </div>
               ) : null}
             </div>

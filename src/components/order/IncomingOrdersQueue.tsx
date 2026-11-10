@@ -18,7 +18,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { formatCurrency } from '@/lib/currency';
+import { Money } from '@/components/ui/Money';
 import { tables } from '@/data/tableData';
 
 interface IncomingOrdersQueueProps {
@@ -186,7 +186,7 @@ export function IncomingOrdersQueue({ className }: IncomingOrdersQueueProps) {
                     {/* Elapsed time - monospace, prominent */}
                     <div className="text-right">
                       <div className={cn(
-                        'text-lg font-mono font-semibold',
+                        'text-lg font-sans tabular-nums font-semibold',
                         isUrgent && 'text-destructive timer-critical'
                       )}>
                         {elapsedTime}
@@ -217,7 +217,7 @@ export function IncomingOrdersQueue({ className }: IncomingOrdersQueueProps) {
 
                   {/* Total and item count */}
                   <div className="text-sm text-muted-foreground mb-3">
-                    {order.items.length} items • {formatCurrency(order.total)}
+                    {order.items.length} items • <Money value={order.total} />
                   </div>
 
                   {/* Actions */}
@@ -261,7 +261,7 @@ export function IncomingOrdersQueue({ className }: IncomingOrdersQueueProps) {
               <div>
                 <Label>Order #{selectedOrder.orderNumber}</Label>
                 <p className="text-sm text-muted-foreground mt-1">
-                  {selectedOrder.items.length} items • {formatCurrency(selectedOrder.total)}
+                  {selectedOrder.items.length} items • <Money value={selectedOrder.total} />
                 </p>
               </div>
               {selectedOrder.type === 'dine-in' && (

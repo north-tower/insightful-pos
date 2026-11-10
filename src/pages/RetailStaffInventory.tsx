@@ -28,7 +28,8 @@ import { useProducts } from '@/hooks/useProducts';
 import type { Product } from '@/hooks/useProducts';
 import { toast } from 'sonner';
 import { format, isValid, parseISO } from 'date-fns';
-import { fc } from '@/lib/currency';
+import { formatKES } from '@/lib/formatKES';
+import { Money } from '@/components/ui/Money';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import {
@@ -744,7 +745,7 @@ export default function RetailStaffInventory({ onNavigate }: RetailStaffInventor
 
       if (remainingUnits > 0) {
         toast.success(
-          `${remainingUnits} unsold unit(s) returned to main inventory (${fc(restoredValueKes)})`,
+          `${remainingUnits} unsold unit(s) returned to main inventory (${formatKES(restoredValueKes)})`,
         );
       } else {
         toast.success('Allocation closed — all units were already sold');
@@ -857,7 +858,7 @@ export default function RetailStaffInventory({ onNavigate }: RetailStaffInventor
                         <SelectContent>
                           {retailProducts.map((p) => (
                             <SelectItem key={p.id} value={p.id}>
-                              {p.name} (Main: {getMainStock(p)}) · {fc(p.price)}
+                              {p.name} (Main: {getMainStock(p)}) · <Money value={p.price} />
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -906,7 +907,7 @@ export default function RetailStaffInventory({ onNavigate }: RetailStaffInventor
 
             {assignmentDraftTotalKes != null && (
               <p className="text-sm text-muted-foreground tabular-nums">
-                Assignment total: <span className="font-semibold text-foreground">{fc(assignmentDraftTotalKes)}</span>
+                Assignment total: <Money value={assignmentDraftTotalKes} className="font-semibold text-foreground" />
               </p>
             )}
 
@@ -946,7 +947,7 @@ export default function RetailStaffInventory({ onNavigate }: RetailStaffInventor
                         {formatAssignmentDay(batch.assignmentDate)}
                       </p>
                       <p className="text-xs font-semibold text-foreground tabular-nums mt-1">
-                        Total: {fc(batch.totalValueKes)}
+                        Total: <Money value={batch.totalValueKes} />
                       </p>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap justify-end">
@@ -1049,7 +1050,7 @@ export default function RetailStaffInventory({ onNavigate }: RetailStaffInventor
                             <span className="text-muted-foreground tabular-nums">
                               Assigned {line.assigned_qty} · Sold {line.sold_qty} · Remaining {remaining}
                               {' · '}
-                              {fc(line.assigned_qty * unit)}
+                              <Money value={line.assigned_qty * unit} align="right" />
                             </span>
                             <Button
                               size="sm"
@@ -1106,13 +1107,13 @@ export default function RetailStaffInventory({ onNavigate }: RetailStaffInventor
                     </div>
                     <div className="text-xs text-muted-foreground text-right tabular-nums shrink-0">
                       <p>
-                        Assigned: {entry.assigned} · {fc(entry.assignedValueKes)}
+                        Assigned: {entry.assigned} · <Money value={entry.assignedValueKes} />
                       </p>
                       <p>
-                        Sold: {entry.sold} · {fc(entry.soldValueKes)}
+                        Sold: {entry.sold} · <Money value={entry.soldValueKes} />
                       </p>
                       <p className="font-semibold text-foreground">
-                        Remaining: {entry.remaining} · {fc(entry.remainingValueKes)}
+                        Remaining: {entry.remaining} · <Money value={entry.remainingValueKes} />
                       </p>
                     </div>
                   </button>
@@ -1130,7 +1131,7 @@ export default function RetailStaffInventory({ onNavigate }: RetailStaffInventor
                           </div>
                           <p className="text-[10px] text-muted-foreground tabular-nums text-right">
                             <span className="block font-semibold text-foreground">
-                              Total: {fc(assignment.assignedValueKes)}
+                              Total: <Money value={assignment.assignedValueKes} />
                             </span>
                             <span className="block">
                               {assignment.assigned} assigned · {assignment.sold} sold · {assignment.remaining} remaining
@@ -1158,8 +1159,9 @@ export default function RetailStaffInventory({ onNavigate }: RetailStaffInventor
                                     {line.assigned} / {line.sold} / {line.remaining} units
                                   </span>
                                   <span className="block sm:inline sm:ml-2 text-foreground font-medium">
-                                    {fc(line.assigned * line.unitPrice)} / {fc(line.sold * line.unitPrice)} /{' '}
-                                    {fc(line.remaining * line.unitPrice)}
+                                    <Money value={line.assigned * line.unitPrice} /> /{' '}
+                                    <Money value={line.sold * line.unitPrice} /> /{' '}
+                                    <Money value={line.remaining * line.unitPrice} />
                                   </span>
                                   {!line.isActive ? (
                                     <span className="block sm:inline sm:ml-1 text-muted-foreground">(returned)</span>

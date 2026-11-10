@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { formatCurrency } from '@/lib/currency';
+import { Money } from '@/components/ui/Money';
 type OrderType = 'dine-in' | 'takeaway' | 'delivery';
 type OrderSource = 'kiosk' | 'qr' | 'web';
 
@@ -113,7 +113,7 @@ export default function CustomerOrder() {
             {trackingCode && (
               <div className="p-4 bg-muted rounded-lg">
                 <p className="text-sm text-muted-foreground mb-1">Tracking Code</p>
-                <p className="text-2xl font-bold font-mono">{trackingCode}</p>
+                <p className="text-2xl font-bold font-sans tabular-nums">{trackingCode}</p>
                 <p className="text-xs text-muted-foreground mt-2">
                   Use this code to track your order status
                 </p>
@@ -269,11 +269,11 @@ export default function CustomerOrder() {
                         <div className="flex-1">
                           <p className="font-medium">{item.name}</p>
                           <p className="text-muted-foreground">
-                            {formatCurrency(item.price)} × {item.quantity}
+                            <Money value={item.price} muted /> × {item.quantity}
                           </p>
                         </div>
                         <p className="font-semibold">
-                          {formatCurrency(item.price * item.quantity)}
+                          <Money value={item.price * item.quantity} />
                         </p>
                       </div>
                     ))
@@ -299,15 +299,15 @@ export default function CustomerOrder() {
                   <div className="space-y-2 mb-4 pt-4 border-t">
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Subtotal</span>
-                      <span>{formatCurrency(subtotal)}</span>
+                      <Money value={subtotal} align="right" />
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Tax</span>
-                      <span>{formatCurrency(tax)}</span>
+                      <Money value={tax} align="right" />
                     </div>
-                    <div className="flex justify-between font-bold text-lg pt-2 border-t">
-                      <span>Total</span>
-                      <span>{formatCurrency(total)}</span>
+                    <div className="flex justify-between items-baseline font-bold pt-2 border-t">
+                      <span className="text-lg">Total</span>
+                      <Money value={total} variant="display" size="lg" />
                     </div>
                   </div>
                 )}

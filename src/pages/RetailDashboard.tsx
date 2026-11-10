@@ -6,7 +6,8 @@ import { cn } from '@/lib/utils';
 import { useProducts } from '@/hooks/useProducts';
 import { useDashboardStats } from '@/hooks/useDashboardStats';
 import { RefreshCw, AlertCircle } from 'lucide-react';
-import { formatKES, formatKESAmount } from '@/lib/formatKES';
+import { formatKES } from '@/lib/formatKES';
+import { Money } from '@/components/ui/Money';
 import {
   formatDateWithWeekday,
   formatRecentSaleTime,
@@ -239,11 +240,8 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
                 <p id="takings-heading" className="text-sm font-semibold text-ink-2">
                   Takings today
                 </p>
-                <div className="mt-1 flex items-baseline gap-2">
-                  <span className="text-sm font-semibold text-ink-2 md:text-base">KES</span>
-                  <span className="font-sans text-[40px] font-semibold leading-none tracking-tight text-ink tabular-nums md:text-[56px]">
-                    {formatKESAmount(retailStats.todayRevenue)}
-                  </span>
+                <div className="mt-1">
+                  <Money value={retailStats.todayRevenue} variant="display" size="hero" />
                 </div>
                 <p className="mt-2 text-sm text-ink-2">
                   {retailStats.todaySales} sales · {retailStats.itemsSold} items sold
@@ -381,7 +379,7 @@ export default function RetailDashboard({ onNavigate }: RetailDashboardProps) {
                             {sale.customerName || 'Walk-in'}
                           </span>
                           <span className="shrink-0 font-mono text-sm font-semibold text-ink num">
-                            {formatKES(sale.total)}
+                            <Money value={sale.total} align="right" />
                           </span>
                         </div>
                         <p className="mt-0.5 text-sm text-ink-2">
