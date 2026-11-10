@@ -329,6 +329,7 @@ export function QuantityKeypad({
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent
+        hideClose
         ref={contentRef}
         tabIndex={-1}
         className="max-w-[400px] gap-0 border-hairline bg-paper p-4 motion-reduce:animate-none focus:outline-none sm:rounded-[var(--radius)]"

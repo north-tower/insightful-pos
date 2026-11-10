@@ -1,22 +1,11 @@
 import { forwardRef, type KeyboardEvent, type MouseEvent } from 'react';
-import { Plus, Star } from 'lucide-react';
+import { Star } from 'lucide-react';
 import type { Product } from '@/hooks/useProducts';
 import type { ProductCategory } from '@/data/productData';
 import { cn } from '@/lib/utils';
-import { formatKES } from '@/lib/formatKES';
-import { formatDisplayUnit, formatQtyAmount } from '@/lib/units';
-
-function PosProductStockHint({ status }: { status: 'low' | 'out' }) {
-  const label = status === 'low' ? 'Low stock' : 'Out';
-  const dotClass =
-    status === 'low' ? 'bg-[hsl(var(--wait))]' : 'bg-[hsl(var(--fail))]';
-  return (
-    <span className="inline-flex max-w-full items-center gap-1 text-[11px] font-semibold text-ink-2">
-      <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', dotClass)} aria-hidden />
-      <span className="truncate">{label}</span>
-    </span>
-  );
-}
+import { formatKESAmount } from '@/lib/formatKES';
+import { formatDisplayUnit, formatQty } from '@/lib/units';
+import { StatusChip } from '@/components/ui/StatusChip';
 
 export function getProductCategoryDisplayName(
   product: Product,
@@ -29,10 +18,6 @@ export function getProductCategoryDisplayName(
     fromCatalog?.name ||
     slug.replace(/-/g, ' ');
   return name.trim() || null;
-}
-
-function hasProductImage(product: Product): boolean {
-  return Boolean(product.image?.trim());
 }
 
 export type ProductTileProps = {
@@ -67,37 +52,39 @@ export const ProductTile = forwardRef<HTMLDivElement, ProductTileProps>(
     ref,
   ) {
     const inCart = inCartQty > 0;
-    const showsImage = hasProductImage(product);
     const unitSuffix = formatDisplayUnit(product.unit);
-
-    const handleActivate = () => {
-      if (isOutOfStock) return;
-      onActivate();
-    };
+    const showStockQty = product.stock > 0;
 
     return (
       <div
         ref={ref}
         role="button"
-        tabIndex={isOutOfStock ? -1 : 0}
+        tabIndex={0}
         data-testid={dataTestId}
-        onClick={handleActivate}
+        onClick={onActivate}
         onKeyDown={(e) => {
-          if (isOutOfStock) return;
           onKeyDown?.(e);
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
             onActivate();
           }
         }}
-        aria-disabled={isOutOfStock || undefined}
         className={cn(
-          'focus-ring relative flex h-[104px] min-h-[104px] w-full min-w-0 cursor-pointer flex-col rounded-[var(--radius)] border border-hairline bg-surface p-2.5 text-left active:scale-[0.98] min-[480px]:h-[120px] min-[480px]:min-h-[120px]',
-          inCart && 'border-2 border-primary bg-[hsl(var(--accent-soft))]',
-          isOutOfStock && 'cursor-not-allowed opacity-50 active:scale-100',
+          'focus-ring relative flex min-h-[120px] w-full min-w-0 cursor-pointer flex-col rounded-[var(--radius)] border border-hairline bg-surface p-4 text-left active:scale-[0.98]',
+          inCart && 'border-2 border-primary',
+          isOutOfStock && 'cursor-pointer active:scale-[0.98]',
           className,
         )}
       >
+        {inCart ? (
+          <span
+            className="absolute -left-2 -top-2 z-10 flex h-6 min-w-6 max-w-[calc(100%-1.5rem)] items-center justify-center rounded-[var(--radius)] bg-ink px-1.5 font-sans text-xs font-semibold text-paper tabular-nums"
+            aria-hidden
+          >
+            {formatQty(inCartQty, product.unit)}
+          </span>
+        ) : null}
+
         <div className="absolute right-1 top-1 z-10 flex items-center">
           <button
             type="button"
@@ -107,73 +94,54 @@ export const ProductTile = forwardRef<HTMLDivElement, ProductTileProps>(
               e.stopPropagation();
               onToggleFavorite(e);
             }}
-            className="focus-ring flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius)] active:scale-95"
+            className="focus-ring flex h-12 w-12 shrink-0 items-center justify-center rounded-[var(--radius)] active:scale-95"
           >
             <Star
               className={cn(
-                'h-4 w-4',
+                'h-5 w-5',
                 isFavorite ? 'fill-ink text-ink' : 'fill-none text-ink-2',
               )}
             />
           </button>
-          {inCart ? (
-            <span
-              className="flex h-8 min-w-8 shrink-0 items-center justify-center rounded-full bg-ink px-1.5 font-sans text-xs font-semibold text-paper tabular-nums"
-              aria-hidden
-            >
-              {formatQtyAmount(inCartQty)}
-            </span>
-          ) : null}
         </div>
 
-        <div className="flex min-h-0 flex-1 gap-2 pr-1">
-          <div className="flex min-w-0 flex-1 flex-col pt-0.5">
-            <p
-              className="line-clamp-2 pr-14 text-[16px] font-semibold leading-snug text-ink"
-              title={product.name}
-            >
-              {product.name}
-            </p>
-            {categoryLabel ? (
-              <p className="mt-0.5 truncate text-[12px] text-ink-2">{categoryLabel}</p>
-            ) : null}
-            <div className="mt-auto flex min-w-0 flex-wrap items-baseline gap-x-0.5 pt-1">
-              <span className="text-[20px] font-semibold leading-none text-ink tabular-nums">
-                {formatKES(product.price)}
-              </span>
-              <span className="text-[13px] font-normal text-ink-2">
-                / {unitSuffix}
-              </span>
-            </div>
-          </div>
-          {showsImage ? (
-            <img
-              src={product.image}
-              alt=""
-              className="h-14 w-14 shrink-0 self-center rounded-[calc(var(--radius)-2px)] object-cover"
-            />
-          ) : null}
-        </div>
-
-        {!inCart && !isOutOfStock ? (
-          <button
-            type="button"
-            aria-label={`Add ${product.name}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              onActivate();
-            }}
-            className="focus-ring absolute bottom-2 left-2.5 flex h-11 w-11 items-center justify-center rounded-[var(--radius)] bg-[hsl(var(--accent-soft))] active:scale-95"
+        <div className="flex min-h-0 flex-1 flex-col pr-10">
+          <p
+            className={cn(
+              'line-clamp-2 text-[16px] font-semibold leading-snug text-ink',
+              inCart && 'pl-6',
+            )}
+            title={product.name}
           >
-            <Plus className="h-5 w-5 text-primary" aria-hidden />
-          </button>
-        ) : null}
+            {product.name}
+          </p>
+          {categoryLabel ? (
+            <p className="mt-0.5 truncate text-[12px] text-ink-2">{categoryLabel}</p>
+          ) : null}
 
-        {stockStatus ? (
-          <div className="pointer-events-none absolute bottom-2 right-2.5">
-            <PosProductStockHint status={stockStatus} />
+          <div className="mt-1.5 flex min-h-7 items-center">
+            {stockStatus === 'low' ? <StatusChip status="low" size="sm" /> : null}
+            {stockStatus === 'out' ? <StatusChip status="out" size="sm" /> : null}
           </div>
-        ) : null}
+
+          <div className="mt-auto flex min-w-0 items-end justify-between gap-2 pt-2">
+            <div className="min-w-0">
+              <span className="font-sans text-[20px] font-semibold tabular-nums text-ink num">
+                KES {formatKESAmount(product.price)}
+              </span>
+              <span className="font-sans text-[14px] text-ink-2"> / {unitSuffix}</span>
+            </div>
+            {showStockQty ? (
+              <span className="shrink-0 font-mono text-[13px] tabular-nums text-ink-2 num">
+                {formatQty(product.stock, product.unit)}
+              </span>
+            ) : (
+              <span className="shrink-0 font-mono text-[13px] text-ink-2" aria-hidden>
+                {'\u00a0'}
+              </span>
+            )}
+          </div>
+        </div>
       </div>
     );
   },

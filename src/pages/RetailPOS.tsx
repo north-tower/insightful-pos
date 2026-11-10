@@ -68,6 +68,7 @@ import { notifyInvoiceCreated } from '@/lib/sendSms';
 import { useAuth } from '@/context/AuthContext';
 import { resolveActiveAssignmentId } from '@/lib/activeAssignment';
 import { format } from 'date-fns';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface RetailPOSProps {
   onNavigate: (tab: string) => void;
@@ -1163,6 +1164,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
   const [lastOrder, setLastOrder] = useState<SaleOrder | null>(null);
   const [lastOrderCustomer, setLastOrderCustomer] = useState<Customer | null>(null);
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
+  const isMobileCartViewport = useIsMobile();
   const [productViewMode, setProductViewMode] = useState<ProductViewMode>(getInitialProductViewMode);
   const [searchPlaceholder, setSearchPlaceholder] = useState('Search or scan');
 
@@ -1181,7 +1183,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const mq = window.matchMedia('(min-width: 1024px)');
+    const mq = window.matchMedia('(min-width: 768px)');
     const onDesktop = () => {
       if (mq.matches) setMobileCartOpen(false);
     };
@@ -1913,11 +1915,11 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                       : 'border border-transparent text-ink-2',
                   )}
                   aria-pressed={productViewMode === 'card'}
-                  title="Large tiles"
+                  title="Tiles"
                 >
                   <LayoutGrid className="h-4 w-4 shrink-0" aria-hidden />
-                  <span className="hidden sm:inline">Large tiles</span>
-                  <span className="sr-only sm:hidden">Large tiles</span>
+                  <span className="hidden sm:inline">Tiles</span>
+                  <span className="sr-only sm:hidden">Tiles</span>
                 </button>
                 <button
                   type="button"
@@ -1934,11 +1936,11 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                       : 'border border-transparent text-ink-2',
                   )}
                   aria-pressed={productViewMode === 'list'}
-                  title="Compact list"
+                  title="List"
                 >
                   <List className="h-4 w-4 shrink-0" aria-hidden />
-                  <span className="hidden sm:inline">Compact list</span>
-                  <span className="sr-only sm:hidden">Compact list</span>
+                  <span className="hidden sm:inline">List</span>
+                  <span className="sr-only sm:hidden">List</span>
                 </button>
               </div>
             </div>
@@ -2009,9 +2011,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
               >
                 {showOutOfStock ? (
                   <Check className="h-4 w-4 shrink-0 text-primary" aria-hidden />
-                ) : (
-                  <span className="h-4 w-4 shrink-0" aria-hidden />
-                )}
+                ) : null}
                 Show out of stock
               </button>
             </div>
@@ -2041,7 +2041,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                         isOutOfStock={isOutOfStock}
                         onActivate={() => handleProductRowActivate(product, null)}
                         onToggleFavorite={() => toggleFavorite(product.id)}
-                        className="w-[176px] shrink-0 snap-start"
+                        className="w-[168px] shrink-0 snap-start"
                       />
                     );
                   })}
@@ -2068,7 +2068,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
               ) : (
               <>
               {productViewMode === 'card' ? (
-                <div className="grid grid-cols-2 gap-3 min-[480px]:grid-cols-[repeat(auto-fill,minmax(176px,1fr))]">
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-[repeat(auto-fill,minmax(200px,240px))] md:justify-start">
                   {filteredProducts.map((product) => {
                     const cartItem = cart.find((c) => c.product.id === product.id);
                     const inCart = cartItem ? cartItem.quantity : 0;
@@ -2275,8 +2275,8 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
           {/* Extra scroll padding removed — product list uses pb-28 when cart has items */}
 
           {/* ── Mobile Cart Overlay (slide-up panel) ── */}
-          {mobileCartOpen && (
-            <div className="lg:hidden fixed inset-0 z-50 flex flex-col">
+          {mobileCartOpen && isMobileCartViewport && (
+            <div className="md:hidden fixed inset-0 z-50 flex flex-col">
               {/* Backdrop */}
               <div
                 className="absolute inset-0 bg-black/40"
