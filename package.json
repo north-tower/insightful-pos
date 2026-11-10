@@ -10,8 +10,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test:sms": "npx tsx scripts/test-sms.ts",
-    "fonts:download": "node scripts/download-geist-fonts.mjs",
-    "postinstall": "node scripts/download-geist-fonts.mjs"
+    "fonts:download": "node scripts/download-fonts.mjs",
+    "postinstall": "node scripts/download-fonts.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

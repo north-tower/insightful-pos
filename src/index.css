@@ -197,7 +197,7 @@
 
   .receipt-torn-bottom {
     position: relative;
-    padding-bottom: 0.625rem;
+    padding-bottom: 1rem;
   }
 
   .receipt-torn-bottom::after {
@@ -287,7 +287,12 @@
 
 @layer utilities {
   .num {
-    font-variant-numeric: tabular-nums;
+    @apply font-mono tabular-nums;
+  }
+
+  /* Prices, quantities, and other aligned numerals */
+  .tabular-nums {
+    @apply font-mono;
   }
 
   .scrollbar-hide {

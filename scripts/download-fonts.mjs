@@ -9,12 +9,8 @@ const fontDir = join(root, "public", "fonts");
 
 const files = [
   [
-    "Geist-Variable.woff2",
-    "https://raw.githubusercontent.com/vercel/geist-font/main/packages/next/dist/fonts/geist-sans/Geist-Variable.woff2",
-  ],
-  [
-    "GeistMono-Variable.woff2",
-    "https://raw.githubusercontent.com/vercel/geist-font/main/packages/next/dist/fonts/geist-mono/GeistMono-Variable.woff2",
+    "Inter-Variable.woff2",
+    "https://cdn.jsdelivr.net/npm/@fontsource-variable/inter@5.2.8/files/inter-latin-wght-normal.woff2",
   ],
 ];
 

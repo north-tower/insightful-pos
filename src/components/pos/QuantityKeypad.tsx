@@ -313,6 +313,7 @@ export function QuantityKeypad({
       <Sheet open={open} onOpenChange={handleClose}>
         <SheetContent
           side="bottom"
+          hideClose
           ref={contentRef as React.RefObject<HTMLDivElement>}
           tabIndex={-1}
           className="max-h-[85vh] overflow-y-auto rounded-t-[var(--radius)] border-hairline bg-paper p-4 shadow-float motion-reduce:animate-none focus:outline-none"

@@ -157,6 +157,46 @@ function formatStoredCustomerAddress(c: Customer): string | undefined {
   return parts.length ? parts.join(', ') : undefined;
 }
 
+function CartSelectedCustomerRow({
+  customer,
+  displayName,
+  onRemove,
+}: {
+  customer: Customer;
+  displayName: string;
+  onRemove: () => void;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-2 rounded border border-border bg-muted/40 p-2 text-sm">
+      <div className="flex min-w-0 items-start gap-2">
+        <User className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-foreground">{displayName}</p>
+          <p className="text-xs text-ink-2">
+            Owes{' '}
+            <span className="font-sans text-sm font-semibold tabular-nums text-foreground">
+              {formatKES(customer.credit_balance)}
+            </span>
+          </p>
+          {customer.credit_limit > 0 ? (
+            <p className="text-[11px] text-muted-foreground">
+              Credit limit {formatKES(customer.credit_limit)}
+            </p>
+          ) : null}
+        </div>
+      </div>
+      <button
+        type="button"
+        aria-label={`Remove ${displayName}`}
+        onClick={onRemove}
+        className="focus-ring flex min-h-[var(--tap-min)] min-w-[var(--tap-min)] shrink-0 items-center justify-center rounded-[var(--radius)] text-muted-foreground hover:text-foreground active:scale-95"
+      >
+        <X className="h-4 w-4" aria-hidden />
+      </button>
+    </div>
+  );
+}
+
 /** Collapsed by default; expands when tapped or when fields already have values. */
 function WalkInCustomerFields({
   name,
@@ -548,7 +588,15 @@ function CreditSaleExtras({
       </div>
 
       <div className="space-y-1 border-t border-border/50 pt-2">
-        <p className="text-[11px] text-muted-foreground">Invoice Date</p>
+        <p className="text-[11px] text-muted-foreground">
+          Invoice date
+          {invoiceDate ? (
+            <span className="font-medium text-foreground">
+              {' '}
+              · {formatDate(new Date(`${invoiceDate}T12:00:00`))}
+            </span>
+          ) : null}
+        </p>
         <Input
           type="date"
           value={invoiceDate}
@@ -653,12 +701,12 @@ function CartTotalsSection({
       <div className="space-y-2 font-sans text-sm text-ink-2">
         <div className="flex justify-between">
           <span>Subtotal</span>
-          <span className="font-mono text-ink num">{formatKES(subtotal)}</span>
+          <span className="font-sans tabular-nums text-ink">{formatKES(subtotal)}</span>
         </div>
         {discountAmount > 0 && (
           <div className="flex justify-between">
             <span>Discount</span>
-            <span className="font-mono text-ink num">−{formatKES(discountAmount)}</span>
+            <span className="font-sans tabular-nums text-ink">−{formatKES(discountAmount)}</span>
           </div>
         )}
       </div>
@@ -824,7 +872,7 @@ function CartReceiptLine({
   );
 }
 
-/** Scrollable receipt lines inside torn paper; totals render outside via CartPinnedTotalsSection. */
+/** Receipt lines with torn bottom edge — height fits content (no inner scroll). */
 function CartReceiptPaper({
   className,
   children,
@@ -835,13 +883,11 @@ function CartReceiptPaper({
   return (
     <div
       className={cn(
-        'receipt-paper-block receipt-torn-bottom flex min-h-40 min-w-0 flex-1 flex-col overflow-hidden',
+        'receipt-paper-block receipt-torn-bottom mb-2 min-w-0 shrink-0 overflow-visible',
         className,
       )}
     >
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3 pt-1">
-        {children}
-      </div>
+      <div className="px-3 pb-4 pt-1">{children}</div>
     </div>
   );
 }
@@ -866,7 +912,7 @@ function CartCheckoutFooter({
   onReprint?: () => void;
 }) {
   return (
-    <div className="sticky bottom-0 z-10 shrink-0 border-t border-hairline bg-paper p-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]">
+    <div className="z-10 shrink-0 border-t border-hairline bg-paper p-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]">
       {disabledHint && (
         <p className="mb-2 text-center text-xs text-ink-2">{disabledHint}</p>
       )}
@@ -906,11 +952,48 @@ function CartCheckoutFooter({
   );
 }
 
+const LIST_ROW_GRID =
+  'md:grid md:grid-cols-[minmax(0,1fr)_8.75rem_7.5rem_9rem_2.75rem] md:items-center md:gap-x-3';
 const LIST_STOCK_COL = 'hidden w-[7.5rem] shrink-0 md:flex md:items-center';
 const LIST_PRICE_COL =
-  'w-[5.5rem] shrink-0 text-right font-mono text-xs font-semibold tabular-nums text-ink num sm:text-sm md:w-[8.75rem]';
-const LIST_ACTION_COL = 'flex w-11 shrink-0 justify-end';
-const LIST_FAVORITE_COL = 'flex w-11 shrink-0 justify-end';
+  'hidden shrink-0 text-right text-xs sm:text-sm md:block md:w-[8.75rem]';
+const LIST_ACTION_COL = 'flex w-36 max-w-[9rem] shrink-0 justify-end md:w-[9rem]';
+const LIST_FAVORITE_COL =
+  'hidden h-11 w-11 shrink-0 items-center justify-center md:flex';
+
+function ProductListStockCell({
+  product,
+  stockChipStatus,
+}: {
+  product: Product;
+  stockChipStatus: 'low' | 'out' | null;
+}) {
+  if (stockChipStatus) {
+    return <PosProductStockHint status={stockChipStatus} />;
+  }
+  if (isDecimalUnit(product.unit) && product.stock > 0) {
+    return (
+      <span className="font-mono text-xs tabular-nums text-ink-2 num">
+        {formatQty(product.stock, product.unit)}
+      </span>
+    );
+  }
+  return null;
+}
+
+function ProductListUnitPrice({ product }: { product: Product }) {
+  return (
+  <>
+      <span className="font-mono font-semibold tabular-nums text-ink num">
+        {formatKES(product.price)}
+      </span>
+      <span className="font-sans font-normal text-ink-2">
+        {' '}
+        / {formatDisplayUnit(product.unit)}
+      </span>
+    </>
+  );
+}
 
 function ProductListStepperSlot({
   product,
@@ -929,7 +1012,7 @@ function ProductListStepperSlot({
 }) {
   if (inCart > 0) {
     return (
-      <div className={cn(LIST_ACTION_COL, 'min-w-[8.75rem] justify-end')}>
+      <div className={LIST_ACTION_COL}>
         <ProductListQtyStepper
           productId={product.id}
           quantity={inCart}
@@ -957,7 +1040,7 @@ function ProductListStepperSlot({
           onAdd();
         }}
         className={cn(
-          'focus-ring flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius)] bg-[hsl(var(--accent-soft))] active:scale-95',
+          'focus-ring flex min-h-[var(--tap-min)] min-w-[var(--tap-min)] shrink-0 items-center justify-center rounded-[var(--radius)] border-2 border-hairline bg-surface active:scale-95 md:border-0 md:bg-[hsl(var(--accent-soft))]',
           isOutOfStock && 'cursor-not-allowed opacity-100',
         )}
       >
@@ -1094,6 +1177,17 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
     apply();
     mq.addEventListener('change', apply);
     return () => mq.removeEventListener('change', apply);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const onDesktop = () => {
+      if (mq.matches) setMobileCartOpen(false);
+    };
+    onDesktop();
+    mq.addEventListener('change', onDesktop);
+    return () => mq.removeEventListener('change', onDesktop);
   }, []);
 
   useEffect(() => {
@@ -1403,7 +1497,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
     if (!showOutOfStock && hiddenOutOfStockCount > 0) {
       return `No in-stock products. ${hiddenOutOfStockCount} out-of-stock item${
         hiddenOutOfStockCount === 1 ? '' : 's'
-      } hidden — turn on Out of stock to view them.`;
+      } hidden — turn on Show out of stock to view them.`;
     }
     return 'No products found';
   }, [activeBrowseKey, hiddenOutOfStockCount, searchQuery, showOutOfStock]);
@@ -1773,7 +1867,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
           {/* Product Grid Area */}
           <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
             {/* Search + scan + view mode */}
-            <div className="flex gap-2 p-2 pb-2 sm:gap-3 sm:p-3 lg:p-4 lg:pb-2">
+            <div className="flex gap-2 p-2 pb-2 sm:gap-3 sm:p-3 lg:p-4 lg:pb-2 lg:pr-4">
               <div className="relative min-w-0 flex-1">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-2" aria-hidden />
                 <Input
@@ -1850,7 +1944,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
             </div>
 
             {/* Browse: All / Recent / Favorites / categories + OOS */}
-            <div className="flex flex-nowrap snap-x snap-mandatory gap-2 overflow-x-auto px-2 pb-2 sm:px-3 lg:px-4 scrollbar-hide">
+            <div className="flex flex-nowrap snap-x snap-mandatory gap-2 overflow-x-auto px-2 pb-2 sm:px-3 lg:px-4 lg:pr-4 scrollbar-hide">
               {(
                 [
                   { key: 'all', label: 'All', icon: Layers },
@@ -1893,12 +1987,16 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                     <span className="font-mono text-xs text-ink-2 num">({chip.count})</span>
                   </button>
                 ))}
+              <span
+                className="mx-0.5 w-px shrink-0 self-stretch bg-hairline"
+                aria-hidden
+              />
               <button
                 type="button"
                 onClick={toggleShowOutOfStock}
                 aria-pressed={showOutOfStock}
                 className={cn(
-                  'focus-ring flex min-h-[var(--tap-min)] shrink-0 snap-start items-center gap-1.5 rounded-[var(--radius)] border px-3 text-sm font-semibold active:scale-[0.98]',
+                  'focus-ring ml-auto flex min-h-[var(--tap-min)] shrink-0 snap-start items-center gap-1.5 rounded-[var(--radius)] border px-3 text-sm font-semibold active:scale-[0.98] md:ml-0',
                   showOutOfStock
                     ? 'border-primary bg-[hsl(var(--accent-soft))] text-ink'
                     : 'border-hairline bg-surface text-ink-2',
@@ -1909,8 +2007,12 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                     : `Include out-of-stock products (${hiddenOutOfStockCount})`
                 }
               >
-                <Package className="h-4 w-4 shrink-0" aria-hidden />
-                Out of stock
+                {showOutOfStock ? (
+                  <Check className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+                ) : (
+                  <span className="h-4 w-4 shrink-0" aria-hidden />
+                )}
+                Show out of stock
               </button>
             </div>
 
@@ -2002,7 +2104,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                   })}
                 </div>
               ) : (
-                <div className="mx-auto w-full max-w-[880px] divide-y divide-hairline border-y border-hairline">
+                <div className="w-full divide-y divide-hairline border-y border-hairline min-[1280px]:grid min-[1280px]:grid-cols-2 min-[1280px]:gap-x-4 min-[1280px]:divide-y-0">
                   {filteredProducts.map((product) => {
                     const cartItem = cart.find((c) => c.product.id === product.id);
                     const inCart = cartItem ? cartItem.quantity : 0;
@@ -2040,40 +2142,54 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                             );
                           }
                         }}
-                        className="focus-ring grid min-h-[var(--tap-min)] cursor-pointer grid-cols-[minmax(0,1fr)_5.5rem_2.75rem_2.75rem] items-center gap-x-2 border-b border-hairline py-2 pl-0 pr-0 active:bg-[hsl(var(--accent-soft))]/40 md:grid-cols-[minmax(0,1fr)_7.5rem_8.75rem_auto_2.75rem]"
+                        className={cn(
+                          'focus-ring flex min-h-[var(--tap-min)] min-w-0 cursor-pointer items-start gap-2 border-b border-hairline py-2 pl-0 pr-0 active:bg-[hsl(var(--accent-soft))]/40 min-[1280px]:min-w-[480px]',
+                          LIST_ROW_GRID,
+                        )}
                       >
-                        <div className="flex min-w-0 items-center gap-2">
+                        <div className="flex min-w-0 flex-1 items-start gap-2">
                           {showsImage ? (
                             <img
                               src={product.image}
                               alt=""
-                              className="h-11 w-11 shrink-0 rounded-[calc(var(--radius)-2px)] object-cover"
+                              className="hidden h-11 w-11 shrink-0 rounded-[calc(var(--radius)-2px)] object-cover md:block"
                             />
                           ) : null}
                           <div className="min-w-0 flex-1">
-                            <p
-                              className="line-clamp-2 text-sm font-semibold leading-snug text-ink"
-                              title={product.name}
-                            >
-                              {product.name}
+                            <div className="flex min-w-0 items-start gap-1.5">
+                              <p
+                                className="line-clamp-2 min-w-0 flex-1 text-sm font-semibold leading-snug text-ink"
+                                title={product.name}
+                              >
+                                {product.name}
+                              </p>
+                              {stockChipStatus ? (
+                                <span className="shrink-0 md:hidden">
+                                  <PosProductStockHint status={stockChipStatus} />
+                                </span>
+                              ) : null}
+                            </div>
+                            <p className="mt-0.5 text-xs leading-snug text-ink-2 md:hidden">
+                              <ProductListUnitPrice product={product} />
+                              {isDecimalUnit(product.unit) && product.stock > 0 ? (
+                                <>
+                                  <span aria-hidden> · </span>
+                                  <span className="font-mono tabular-nums num">
+                                    {formatQty(product.stock, product.unit)}
+                                  </span>
+                                </>
+                              ) : null}
                             </p>
-                            {stockChipStatus && (
-                              <div className="mt-0.5 md:hidden">
-                                <PosProductStockHint status={stockChipStatus} />
-                              </div>
-                            )}
                           </div>
                         </div>
                         <div className={LIST_STOCK_COL}>
-                          {stockChipStatus ? (
-                            <PosProductStockHint status={stockChipStatus} />
-                          ) : null}
+                          <ProductListStockCell
+                            product={product}
+                            stockChipStatus={stockChipStatus}
+                          />
                         </div>
                         <span className={LIST_PRICE_COL}>
-                          {formatKES(product.price)}
-                          <span className="block truncate font-normal text-[11px] text-ink-2 sm:inline sm:text-xs">
-                            / {formatDisplayUnit(product.unit)}
-                          </span>
+                          <ProductListUnitPrice product={product} />
                         </span>
                         <ProductListStepperSlot
                           product={product}
@@ -2104,7 +2220,10 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                             e.stopPropagation();
                             toggleFavorite(product.id);
                           }}
-                          className="focus-ring flex h-11 w-11 shrink-0 items-center justify-center justify-self-end rounded-[var(--radius)] active:scale-95"
+                          className={cn(
+                            'focus-ring justify-self-end rounded-[var(--radius)] active:scale-95',
+                            LIST_FAVORITE_COL,
+                          )}
                         >
                           <Star
                             className={cn(
@@ -2164,7 +2283,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                 onClick={() => { if (!isProcessing) setMobileCartOpen(false); }}
               />
               {/* Panel — fills above home indicator; Complete Sale sticks to bottom */}
-              <div className="relative mt-auto flex max-h-[90vh] min-h-0 flex-col bg-paper shadow-float motion-safe:animate-in motion-safe:slide-in-from-bottom motion-safe:duration-200">
+              <div className="relative mt-auto flex max-h-[90vh] min-h-0 flex-col overflow-hidden bg-paper shadow-float motion-safe:animate-in motion-safe:slide-in-from-bottom motion-safe:duration-200">
                 <div className="flex h-14 min-h-14 shrink-0 items-center gap-1 border-b border-hairline px-2">
                   <button
                     type="button"
@@ -2220,34 +2339,14 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                   {saleType === 'credit' && !showCustomerPicker && (
                     <>
                       {selectedCustomer ? (
-                        <div className="flex items-center justify-between rounded border border-border bg-muted/40 p-2 text-sm">
-                          <div className="flex items-center gap-2">
-                            <User className="h-4 w-4 shrink-0 text-muted-foreground" />
-                            <div className="min-w-0">
-                              <p className="text-sm text-foreground">
-                                {getCustomerDisplayName(selectedCustomer)}
-                              </p>
-                              <p className="text-base font-semibold tabular-nums text-foreground">
-                                {formatKES(selectedCustomer.credit_balance)}
-                              </p>
-                              {selectedCustomer.credit_limit > 0 && (
-                                <p className="text-xs text-muted-foreground">
-                                  Limit {formatKES(selectedCustomer.credit_limit)}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedCustomer(null);
-                              setShowCustomerPicker(true);
-                            }}
-                            className="flex min-h-9 min-w-9 items-center justify-center text-muted-foreground hover:text-foreground"
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
+                        <CartSelectedCustomerRow
+                          customer={selectedCustomer}
+                          displayName={getCustomerDisplayName(selectedCustomer)}
+                          onRemove={() => {
+                            setSelectedCustomer(null);
+                            setShowCustomerPicker(true);
+                          }}
+                        />
                       ) : (
                         <button
                           type="button"
@@ -2337,7 +2436,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                   )}
                 </div>
 
-                <div className="flex min-h-0 flex-1 flex-col px-3 pt-2">
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pt-2">
                   {cart.length > 0 && (
                     <>
                       <CartReceiptPaper className="mt-0">
@@ -2372,7 +2471,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                         />
                       </div>
                       {saleType === 'credit' && (
-                        <div className="max-h-28 shrink-0 overflow-y-auto pb-1">
+                        <div className="pb-2">
                           <CreditSaleExtras
                             total={total}
                             recordDepositNow={recordDepositNow}
@@ -2429,7 +2528,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
           )}
 
           {/* ── Desktop Cart Sidebar (hidden on mobile) ── */}
-          <div className="hidden h-full w-[380px] min-w-[360px] max-w-[380px] shrink-0 flex-col border-l border-hairline bg-paper lg:flex">
+          <div className="hidden h-full min-h-0 w-[380px] min-w-[360px] max-w-[380px] shrink-0 flex-col overflow-hidden border-l border-hairline bg-paper lg:flex">
             <div className="shrink-0 border-b border-hairline">
               <CartReceiptHeader
                 cartLineCount={cartLineCount}
@@ -2463,34 +2562,14 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
               {saleType === 'credit' && !showCustomerPicker && (
                 <div className="mt-2">
                   {selectedCustomer ? (
-                    <div className="flex items-center justify-between rounded border border-border bg-muted/40 p-2 text-sm">
-                      <div className="flex items-center gap-2">
-                        <User className="h-4 w-4 shrink-0 text-muted-foreground" />
-                        <div className="min-w-0">
-                          <p className="text-sm text-foreground">
-                            {getCustomerDisplayName(selectedCustomer)}
-                          </p>
-                          <p className="text-base font-semibold tabular-nums text-foreground">
-                            {formatKES(selectedCustomer.credit_balance)}
-                          </p>
-                          {selectedCustomer.credit_limit > 0 && (
-                            <p className="text-xs text-muted-foreground">
-                              Limit {formatKES(selectedCustomer.credit_limit)}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedCustomer(null);
-                          setShowCustomerPicker(true);
-                        }}
-                        className="flex min-h-9 min-w-9 items-center justify-center text-muted-foreground hover:text-foreground"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
+                    <CartSelectedCustomerRow
+                      customer={selectedCustomer}
+                      displayName={getCustomerDisplayName(selectedCustomer)}
+                      onRemove={() => {
+                        setSelectedCustomer(null);
+                        setShowCustomerPicker(true);
+                      }}
+                    />
                   ) : (
                     <button
                       type="button"
@@ -2585,7 +2664,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
               )}
             </div>
 
-            <div className="flex min-h-0 flex-1 flex-col pb-2">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-2">
               {cart.length === 0 && (
                 <div className="px-4 py-12 text-center text-ink-2">
                   <ShoppingCart className="mx-auto mb-3 h-10 w-10 opacity-50" aria-hidden />
@@ -2629,7 +2708,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
                   </div>
 
                   {saleType === 'credit' && (
-                    <div className="max-h-40 shrink-0 overflow-y-auto px-4 pb-2 pt-1">
+                    <div className="px-4 pb-2 pt-1">
                       <CreditSaleExtras
                         total={total}
                         recordDepositNow={recordDepositNow}
