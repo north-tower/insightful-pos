@@ -65,6 +65,38 @@ const NAIROBI_DAY_MONTH = new Intl.DateTimeFormat('en-GB', {
 });
 
 /** Recent sale row time: HH:mm today; "Yesterday HH:mm"; "12 Oct" when older. */
+const nairobiParts = (date: Date) => {
+  const day = new Intl.DateTimeFormat('en-GB', {
+    timeZone: NAIROBI,
+    day: 'numeric',
+  }).format(date);
+  const month = new Intl.DateTimeFormat('en-GB', {
+    timeZone: NAIROBI,
+    month: 'short',
+  }).format(date);
+  const year = new Intl.DateTimeFormat('en-GB', {
+    timeZone: NAIROBI,
+    year: 'numeric',
+  }).format(date);
+  return { day, month, year };
+};
+
+/** Compact range for toolbar buttons; use full formatDate pair for aria-label. */
+export function formatCompactDateRange(from: Date, to: Date): string {
+  const fullFrom = formatDate(from);
+  const fullTo = formatDate(to);
+  const f = nairobiParts(from);
+  const t = nairobiParts(to);
+
+  if (f.year === t.year && f.month === t.month) {
+    return `${f.day}–${t.day} ${f.month} ${f.year}`;
+  }
+  if (f.year === t.year) {
+    return `${f.day} ${f.month} – ${t.day} ${t.month} ${f.year}`;
+  }
+  return `${fullFrom} – ${fullTo}`;
+}
+
 export function formatRecentSaleTime(iso: string, referenceNow: Date = new Date()): string {
   const sale = new Date(iso);
   const saleKey = nairobiCalendarKey(sale);

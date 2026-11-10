@@ -116,7 +116,7 @@ function isItemVisibleInNav(
 const restaurantNavItems: NavItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'order-line', label: 'Order Line', icon: ClipboardList },
-  { id: 'order-history', label: 'Order History', icon: History },
+  { id: 'order-history', label: 'Sales history', icon: History },
   { id: 'payments', label: 'Payments', icon: Wallet, roles: ['admin', 'manager'] },
   { id: 'accounts', label: 'Accounts', icon: CircleDollarSign, roles: ['admin', 'manager', 'cashier'] },
   { id: 'purchases', label: 'Purchases', icon: Truck, roles: ['admin', 'manager'] },
@@ -133,7 +133,7 @@ const retailNavSections: NavSection[] = [
     items: [
       { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
       { id: 'pos', label: 'Point of Sale', icon: ShoppingCart },
-      { id: 'order-history', label: 'Transactions', icon: Receipt },
+      { id: 'order-history', label: 'Sales history', icon: Receipt },
       { id: 'payments', label: 'Payments', icon: Wallet, roles: ['admin', 'manager'] },
     ],
   },

@@ -1,7 +1,6 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { PageLayout } from '@/components/pos/PageLayout';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { StatusChip } from '@/components/ui/StatusChip';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,13 +13,16 @@ import {
 } from '@/components/ui/select';
 import { PaginationControls } from '@/components/ui/pagination-controls';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import {
   Sheet,
   SheetContent,
@@ -29,12 +31,18 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible';
-import { Search, RotateCcw, Eye, Printer, X, Loader2, ShoppingBag, AlertTriangle, FileText, CreditCard, Banknote, CircleDollarSign, Pencil, SlidersHorizontal, ChevronDown, Undo2 } from 'lucide-react';
-import { CurrencyIcon } from '@/components/icons/CurrencyIcon';
+  Search,
+  X,
+  Loader2,
+  CreditCard,
+  Banknote,
+  CircleDollarSign,
+  SlidersHorizontal,
+  Undo2,
+  MoreHorizontal,
+  CalendarRange,
+  AlertCircle,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import {
@@ -44,6 +52,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { OrderDetailDrawer } from '@/components/order/OrderDetailDrawer';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -62,6 +71,9 @@ import { useOrders, SaleOrder, Payment, sumActivePaymentAmount } from '@/hooks/u
 import { useCustomers, Customer } from '@/hooks/useCustomers';
 import { toast } from 'sonner';
 import { fc, CURRENCY_SYMBOL } from '@/lib/currency';
+import { formatKES } from '@/lib/formatKES';
+import { formatCompactDateRange, formatDate } from '@/lib/formatDate';
+import { getOrderListStatus } from '@/lib/orderListStatus';
 import { TypedNumberHint } from '@/components/ui/typed-number-hint';
 import { useCompanySettings } from '@/context/BusinessSettingsContext';
 import { notifyAccountPaymentReceived, notifyInvoiceCancelled } from '@/lib/sendSms';
@@ -87,27 +99,53 @@ type PaymentReverseTarget =
   | { kind: 'order'; paymentId: string; amount: number; method: string }
   | { kind: 'account'; paymentId: string; amount: number; method: string; customerId: string };
 
-const statusColors: Record<string, string> = {
-  pending: 'bg-warning/10 text-warning',
-  preparing: 'bg-primary/10 text-primary',
-  ready: 'bg-success/10 text-success',
-  completed: 'bg-muted text-muted-foreground',
-  cancelled: 'bg-destructive/10 text-destructive',
-  voided: 'bg-muted text-muted-foreground line-through',
-};
+const ACCENT_BTN =
+  'focus-ring inline-flex min-h-[var(--tap-min)] items-center justify-center rounded-[var(--radius)] bg-primary px-4 text-sm font-semibold text-primary-foreground active:scale-[0.98]';
 
-const paymentStatusColors: Record<string, string> = {
-  unpaid: 'bg-warning/10 text-warning',
-  partial: 'bg-info/10 text-info',
-  paid: 'bg-success/10 text-success',
-  refunded: 'bg-destructive/10 text-destructive',
-  voided: 'bg-muted text-muted-foreground',
-};
+const OUTLINED_BTN =
+  'focus-ring inline-flex h-10 items-center justify-center rounded-[var(--radius)] border border-hairline bg-surface px-3 text-sm font-semibold text-ink active:scale-[0.98]';
 
-const saleTypeConfig: Record<string, { label: string; icon: typeof Banknote; className: string }> = {
-  cash: { label: 'Cash Sale', icon: Banknote, className: 'bg-success/10 text-success' },
-  credit: { label: 'Credit Sale', icon: CreditCard, className: 'bg-warning/10 text-warning' },
-};
+const RECORD_PAYMENT_BTN =
+  'focus-ring inline-flex h-10 min-h-10 shrink-0 items-center justify-center whitespace-nowrap rounded-[var(--radius)] border border-hairline bg-surface px-3 text-sm font-semibold text-ink active:scale-[0.98]';
+
+const ROW_MORE_BTN =
+  'focus-ring inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius)] border border-hairline bg-surface text-ink';
+
+const DATE_RANGE_BTN =
+  'focus-ring inline-flex h-10 min-h-10 shrink-0 items-center justify-center gap-2 rounded-[var(--radius)] border border-hairline bg-surface px-3 text-sm font-semibold text-ink active:scale-[0.98] [@media(pointer:coarse)]:h-12 [@media(pointer:coarse)]:min-h-12';
+
+function formatOrderListDateTime(iso: string): string {
+  const date = new Date(iso);
+  const time = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Africa/Nairobi',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date);
+  return `${formatDate(date)}, ${time}`;
+}
+
+function orderItemsCaption(order: SaleOrder): string {
+  const n = order.items.length;
+  const items = n === 1 ? '1 item' : `${n} items`;
+  if (order.sale_type === 'credit') {
+    return `Credit · ${items}`;
+  }
+  return items;
+}
+
+function RuledPlaceholderRows({ count = 6 }: { count?: number }) {
+  return (
+    <div className="divide-y divide-hairline border-y border-hairline">
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="flex min-h-[var(--tap-min)] items-center gap-3 py-2">
+          <div className="h-3 flex-1 max-w-[40%] rounded-sm bg-hairline/80" aria-hidden />
+          <div className="ml-auto h-3 w-16 rounded-sm bg-hairline/60" aria-hidden />
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function orderToReceiptData(order: SaleOrder): ReceiptData {
   return {
@@ -151,8 +189,30 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
   const statusFilterOptions = isRestaurant
     ? ['all', 'completed', 'pending', 'preparing', 'cancelled', 'voided']
     : ['all', 'completed', 'pending', 'cancelled', 'voided'];
-  const { orders, loading, refundOrder, cancelCreditInvoice, updatePayment, deletePayment, todaysOrders, todaysRevenue, getOrderBalanceDue, recordPayment } = useOrders();
-  const { customers, getCustomerById, getCustomerDisplayName, makePaymentOnAccount, reverseCustomerAccountPayment, refetch: refetchCustomers } = useCustomers();
+  const {
+    orders,
+    loading,
+    error: ordersError,
+    refetch: refetchOrders,
+    refundOrder,
+    cancelCreditInvoice,
+    updatePayment,
+    deletePayment,
+    todaysOrders,
+    todaysRevenue,
+    unpaidCreditOrders,
+    getOrderBalanceDue,
+    recordPayment,
+  } = useOrders();
+  const {
+    customers,
+    totalOutstanding,
+    getCustomerById,
+    getCustomerDisplayName,
+    makePaymentOnAccount,
+    reverseCustomerAccountPayment,
+    refetch: refetchCustomers,
+  } = useCustomers();
   const { isAdmin, isManager } = useAuth();
   const canReversePayments = isAdmin || isManager;
   const canCancelCreditInvoices = canReversePayments;
@@ -202,7 +262,27 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
   const [isReportLoading, setIsReportLoading] = useState(false);
   const [isReportMode, setIsReportMode] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [reportOpen, setReportOpen] = useState(false);
+  const [dateRangeOpen, setDateRangeOpen] = useState(false);
+  const [isDesktopMd, setIsDesktopMd] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches,
+  );
+  const detailReturnFocusRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)');
+    const onChange = () => setIsDesktopMd(mq.matches);
+    onChange();
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
+  useEffect(() => {
+    const prevTitle = document.title;
+    document.title = 'Sales history';
+    return () => {
+      document.title = prevTitle;
+    };
+  }, []);
 
   const activeFilterCount = useMemo(() => {
     let count = 0;
@@ -244,7 +324,19 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
       result = result.filter((o) => o.status === statusFilter);
     }
 
-    if (saleTypeFilter !== 'all') {
+    const isCreditDueTab =
+      saleTypeFilter === 'credit' &&
+      statusFilter === 'all' &&
+      paymentMethodFilter === 'all';
+
+    if (isCreditDueTab) {
+      result = result.filter(
+        (o) =>
+          o.sale_type === 'credit' &&
+          o.status !== 'cancelled' &&
+          getOrderBalanceDue(o) > 0,
+      );
+    } else if (saleTypeFilter !== 'all') {
       result = result.filter((o) => o.sale_type === saleTypeFilter);
     }
 
@@ -261,8 +353,22 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
       );
     }
 
-    return result;
-  }, [sourceOrders, searchQuery, statusFilter, saleTypeFilter, paymentMethodFilter]);
+    return [...result].sort((a, b) => {
+      const byDate =
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      if (byDate !== 0) return byDate;
+      return b.order_number.localeCompare(a.order_number, undefined, {
+        numeric: true,
+      });
+    });
+  }, [
+    sourceOrders,
+    searchQuery,
+    statusFilter,
+    saleTypeFilter,
+    paymentMethodFilter,
+    getOrderBalanceDue,
+  ]);
 
   // Reset to page 1 when filters change
   useEffect(() => {
@@ -290,32 +396,23 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
     [filteredOrders, currentPage, pageSize],
   );
 
-  // Computed stats — use getOrderBalanceDue for single source of truth
-  const unpaidCreditOrders = useMemo(
+  /** Credit due tab count matches list rows in view (balance due via getOrderBalanceDue). */
+  const creditDueOrdersInView = useMemo(
     () =>
       sourceOrders.filter(
         (o) =>
           o.sale_type === 'credit' &&
-          (o.payment_status === 'unpaid' || o.payment_status === 'partial') &&
-          o.status !== 'voided' &&
-          o.status !== 'cancelled',
+          o.status !== 'cancelled' &&
+          getOrderBalanceDue(o) > 0,
       ),
-    [sourceOrders],
+    [sourceOrders, getOrderBalanceDue],
   );
-  const totalCreditBalance = useMemo(
-    () =>
-      unpaidCreditOrders.reduce((sum, o) => {
-        const paid = sumActivePaymentAmount(o.payments);
-        return sum + Math.max(o.total - paid, 0);
-      }, 0),
-    [unpaidCreditOrders],
-  );
-  const salesInView = useMemo(
-    () => sourceOrders.reduce((sum, o) => sum + o.total, 0),
-    [sourceOrders],
-  );
-
-  const handleViewOrder = (order: SaleOrder) => {
+  const handleViewOrder = (order: SaleOrder, returnFocus?: HTMLElement | null) => {
+    if (returnFocus) {
+      detailReturnFocusRef.current = returnFocus;
+    } else if (document.activeElement instanceof HTMLElement) {
+      detailReturnFocusRef.current = document.activeElement;
+    }
     setSelectedOrder(order);
     setIsDetailOpen(true);
   };
@@ -429,11 +526,6 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
 
   const handlePaymentComplete = () => {
     toast.success('Payment recorded successfully');
-    // If the detail dialog was showing this order, refresh its data
-    if (selectedOrder && paymentOrder && selectedOrder.id === paymentOrder.id) {
-      // The orders list will re-render from the hook refetch
-      setIsDetailOpen(false);
-    }
   };
 
   const handleEditPayment = (payment: Payment) => {
@@ -764,202 +856,300 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
     setCurrentPage(1);
   };
 
+  const cancelledTabCount = useMemo(
+    () => sourceOrders.filter((o) => o.status === 'cancelled').length,
+    [sourceOrders],
+  );
+
+  const toolbarTab = useMemo((): 'all' | 'credit' | 'cancelled' => {
+    if (statusFilter === 'cancelled') return 'cancelled';
+    if (
+      saleTypeFilter === 'credit' &&
+      statusFilter === 'all' &&
+      paymentMethodFilter === 'all'
+    ) {
+      return 'credit';
+    }
+    return 'all';
+  }, [statusFilter, saleTypeFilter, paymentMethodFilter]);
+
+  const handleToolbarTab = (tab: 'all' | 'credit' | 'cancelled') => {
+    if (tab === 'all') {
+      clearFilters();
+      return;
+    }
+    if (tab === 'cancelled') {
+      setStatusFilter('cancelled');
+      setSaleTypeFilter('all');
+      setPaymentMethodFilter('all');
+      return;
+    }
+    setSaleTypeFilter('credit');
+    setStatusFilter('all');
+    setPaymentMethodFilter('all');
+  };
+
+  const dateRangeLabel = useMemo(() => {
+    const from = new Date(`${reportFromDate}T12:00:00`);
+    const to = new Date(`${reportToDate}T12:00:00`);
+    return formatCompactDateRange(from, to);
+  }, [reportFromDate, reportToDate]);
+
+  const dateRangeAriaLabel = useMemo(() => {
+    const from = formatDate(new Date(`${reportFromDate}T12:00:00`));
+    const to = formatDate(new Date(`${reportToDate}T12:00:00`));
+    return `Date range, ${from} – ${to}`;
+  }, [reportFromDate, reportToDate]);
+
+  const listLoading = loading || isReportLoading;
+  const filtersActive = activeFilterCount > 0 || Boolean(searchQuery);
+
+  const dateRangeControls = (
+    <div className="space-y-3">
+      <p id="date-range-heading" className="sr-only">
+        Date range
+      </p>
+      <section aria-labelledby="date-range-heading">
+        {isReportMode ? (
+          <p className="text-xs font-medium text-ink-2">Report mode — list and totals use this range.</p>
+        ) : null}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="report-from">From</Label>
+            <Input
+              id="report-from"
+              type="date"
+              value={reportFromDate}
+              onChange={(e) => setReportFromDate(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="report-to">To</Label>
+            <Input
+              id="report-to"
+              type="date"
+              value={reportToDate}
+              onChange={(e) => setReportToDate(e.target.value)}
+            />
+          </div>
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button
+            className={cn('w-full sm:flex-1', ACCENT_BTN)}
+            onClick={() => void fetchSalesReport()}
+            disabled={isReportLoading}
+          >
+            {isReportLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />}
+            Fetch Report
+          </Button>
+          <Button
+            variant="outline"
+            className="w-full border-hairline sm:flex-1"
+            onClick={clearSalesReport}
+            disabled={!isReportMode}
+          >
+            Clear Report
+          </Button>
+        </div>
+      </section>
+    </div>
+  );
+
   return (
-    <PageLayout activeTab="order-history" onNavigate={onNavigate}>
-          {/* Page Header with Stats */}
-          <div className="mb-6 flex items-start justify-between gap-3">
-            <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">Order History</h1>
-            <p className="text-muted-foreground">View and manage past orders</p>
+    <PageLayout
+      activeTab="order-history"
+      onNavigate={onNavigate}
+      headerTitle="Sales history"
+    >
+      <div className="mx-auto flex w-full min-w-0 max-w-[1280px] flex-col gap-6 md:gap-4">
+        <header className="flex min-w-0 items-start justify-between gap-3 border-b border-hairline pb-6 md:pb-4">
+          <h1 className="min-w-0 text-2xl font-bold text-ink md:text-3xl">Sales history</h1>
+          <button type="button" className={ACCENT_BTN} onClick={() => setIsTopPayOpen(true)}>
+            Record payment
+          </button>
+        </header>
+
+        <section
+          aria-labelledby="oh-summary-heading"
+          className="border-b border-hairline pb-6 md:pb-4"
+        >
+          <h2 id="oh-summary-heading" className="sr-only">
+            Summary
+          </h2>
+          {listLoading ? (
+            <div className="flex flex-col gap-4 sm:flex-row sm:gap-8">
+              <div className="h-10 w-40 rounded-sm bg-hairline/80" aria-hidden />
+              <div className="h-10 w-40 rounded-sm bg-hairline/80" aria-hidden />
             </div>
-            <Button
-              className="gap-2 bg-success hover:bg-success/90 text-white"
-              onClick={() => setIsTopPayOpen(true)}
+          ) : (
+            <div className="flex flex-col gap-6 sm:flex-row sm:gap-12">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-ink-2">Takings today</p>
+                <p className="mt-1 text-[32px] font-bold leading-tight text-ink">
+                  {formatKES(todaysRevenue)}
+                </p>
+                <p className="mt-1 text-sm text-ink-2">
+                  {todaysOrders.length === 1
+                    ? '1 order today'
+                    : `${todaysOrders.length} orders today`}
+                </p>
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-ink-2">Credit outstanding</p>
+                <p className="mt-1 text-[32px] font-bold leading-tight text-ink">
+                  {formatKES(totalOutstanding)}
+                </p>
+                {customersWithOutstanding.length > 0 ? (
+                  <p className="mt-1 text-sm text-ink-2">
+                    {customersWithOutstanding.length === 1
+                      ? '1 customer with account balance'
+                      : `${customersWithOutstanding.length} customers with account balance`}
+                  </p>
+                ) : (
+                  <p className="mt-1 text-sm text-ink-2">Customer ledger balances</p>
+                )}
+              </div>
+            </div>
+          )}
+          {isReportMode && !listLoading ? (
+            <p className="mt-4 text-sm text-ink-2">
+              Range totals:{' '}
+              {formatKES(sourceOrders.reduce((sum, o) => sum + o.total, 0))}
+              {' · '}
+              {sourceOrders.length === 1
+                ? '1 order in range'
+                : `${sourceOrders.length} orders in range`}
+            </p>
+          ) : null}
+        </section>
+
+        {ordersError && !listLoading ? (
+          <div
+            className="flex flex-wrap items-center gap-3 border-b border-hairline pb-4 text-sm text-ink"
+            role="alert"
+          >
+            <span className="inline-flex min-w-0 items-center gap-2">
+              <AlertCircle className="h-5 w-5 shrink-0 text-fail" aria-hidden />
+              {ordersError}
+            </span>
+            <button type="button" className={OUTLINED_BTN} onClick={() => void refetchOrders()}>
+              Retry
+            </button>
+          </div>
+        ) : null}
+
+        <section aria-label="Sales history filters" className="space-y-3 border-b border-hairline pb-4">
+          <div className="relative w-full min-w-0 md:max-w-md">
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-2"
+              aria-hidden
+            />
+            <Input
+              type="search"
+              placeholder="Search orders…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="h-10 min-h-10 border-hairline pl-10 [@media(pointer:coarse)]:h-12 [@media(pointer:coarse)]:min-h-12"
+              aria-label="Search orders"
+            />
+          </div>
+
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div
+              className="scrollbar-hide -mx-1 flex min-w-0 gap-1 overflow-x-auto px-1 pb-0.5"
+              role="tablist"
+              aria-label="Sales list filters"
             >
-              <CircleDollarSign className="w-4 h-4" />
-              Pay
-            </Button>
-          </div>
+              {(
+                [
+                  { id: 'all' as const, label: 'All', count: sourceOrders.length },
+                  { id: 'credit' as const, label: 'Credit due', count: creditDueOrdersInView.length },
+                  { id: 'cancelled' as const, label: 'Cancelled', count: cancelledTabCount },
+                ] as const
+              ).map((tab) => {
+                const selected = toolbarTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={selected}
+                    className={cn(
+                      'focus-ring shrink-0 whitespace-nowrap border-b-2 px-3 pb-2 pt-1 text-sm text-ink-2 transition-colors',
+                      '[@media(pointer:coarse)]:min-h-12',
+                      selected
+                        ? 'border-primary font-semibold text-ink'
+                        : 'border-transparent font-medium hover:text-ink',
+                    )}
+                    onClick={() => handleToolbarTab(tab.id)}
+                  >
+                    {tab.label}
+                    <span className="ml-1 font-mono text-xs font-normal tabular-nums">
+                      ({tab.count})
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
 
-          {/* Quick Stats */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-6">
-            <Card>
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className="h-10 w-10 rounded bg-primary/10 flex items-center justify-center">
-                  <ShoppingBag className="w-5 h-5 text-primary" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">
-                    {isReportMode ? 'Orders in Range' : "Today's Orders"}
-                  </p>
-                  <p className="text-xl font-bold">
-                    {isReportMode ? sourceOrders.length : todaysOrders.length}
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className="h-10 w-10 rounded bg-success/10 flex items-center justify-center">
-                  <CurrencyIcon className="w-5 h-5 text-success" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">
-                    {isReportMode ? 'Revenue in Range' : "Today's Revenue"}
-                  </p>
-                  <p className="text-xl font-bold">{fc(isReportMode ? salesInView : todaysRevenue)}</p>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className="h-10 w-10 rounded bg-warning/10 flex items-center justify-center">
-                  <CreditCard className="w-5 h-5 text-warning" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Credit Outstanding</p>
-                  <p className="text-xl font-bold text-warning">{fc(totalCreditBalance)}</p>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className="h-10 w-10 rounded bg-info/10 flex items-center justify-center">
-                  <FileText className="w-5 h-5 text-info" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Total Orders</p>
-                  <p className="text-xl font-bold">{sourceOrders.length}</p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Search, report & filters */}
-          <div className="mb-4 space-y-3">
-            <Collapsible open={reportOpen} onOpenChange={setReportOpen}>
-              <Card>
-                <CollapsibleTrigger asChild>
+            <div className="flex w-full shrink-0 flex-col gap-2 md:w-auto md:flex-row md:flex-wrap md:items-center">
+              {isDesktopMd ? (
+                <Popover open={dateRangeOpen} onOpenChange={setDateRangeOpen}>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className={DATE_RANGE_BTN}
+                      aria-haspopup="dialog"
+                      aria-label={dateRangeAriaLabel}
+                    >
+                      <CalendarRange className="h-4 w-4 shrink-0 text-ink-2" aria-hidden />
+                      <span className="whitespace-nowrap">{dateRangeLabel}</span>
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-80 border-hairline" align="end">
+                    {dateRangeControls}
+                  </PopoverContent>
+                </Popover>
+              ) : (
+                <>
                   <button
                     type="button"
-                    className="flex w-full items-center justify-between gap-2 p-4 text-left"
+                    className={cn(DATE_RANGE_BTN, 'w-full')}
+                    aria-haspopup="dialog"
+                    aria-label={dateRangeAriaLabel}
+                    onClick={() => setDateRangeOpen(true)}
                   >
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-semibold">Sales report timeframe</h3>
-                      {isReportMode && (
-                        <Badge variant="outline" className="text-info border-info/30">
-                          Report mode
-                        </Badge>
-                      )}
-                    </div>
-                    <ChevronDown
-                      className={cn(
-                        'h-4 w-4 text-muted-foreground transition-transform',
-                        reportOpen && 'rotate-180',
-                      )}
-                    />
+                    <CalendarRange className="h-4 w-4 shrink-0 text-ink-2" aria-hidden />
+                    <span className="whitespace-nowrap">{dateRangeLabel}</span>
                   </button>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <CardContent className="space-y-3 border-t pt-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                      <div className="space-y-1.5">
-                        <Label htmlFor="report-from">From</Label>
-                        <Input
-                          id="report-from"
-                          type="date"
-                          value={reportFromDate}
-                          onChange={(e) => setReportFromDate(e.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label htmlFor="report-to">To</Label>
-                        <Input
-                          id="report-to"
-                          type="date"
-                          value={reportToDate}
-                          onChange={(e) => setReportToDate(e.target.value)}
-                        />
-                      </div>
-                      <div className="flex items-end">
-                        <Button
-                          className="w-full"
-                          onClick={fetchSalesReport}
-                          disabled={isReportLoading}
-                        >
-                          {isReportLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                          Fetch Report
-                        </Button>
-                      </div>
-                      <div className="flex items-end">
-                        <Button
-                          variant="outline"
-                          className="w-full"
-                          onClick={clearSalesReport}
-                          disabled={!isReportMode}
-                        >
-                          Clear Report
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </CollapsibleContent>
-              </Card>
-            </Collapsible>
+                  <Sheet open={dateRangeOpen} onOpenChange={setDateRangeOpen}>
+                    <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto">
+                      <SheetHeader>
+                        <SheetTitle>Date range</SheetTitle>
+                        <SheetDescription>
+                          Fetch sales for a custom date range into the list below.
+                        </SheetDescription>
+                      </SheetHeader>
+                      <div className="mt-4">{dateRangeControls}</div>
+                    </SheetContent>
+                  </Sheet>
+                </>
+              )}
 
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <div className="relative flex-1 sm:max-w-md">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search orders..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 h-9"
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-2"
-                  onClick={() => setFiltersOpen(true)}
-                >
-                  <SlidersHorizontal className="w-4 h-4" />
-                  Filters
-                  {activeFilterCount > 0 && (
-                    <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
-                      {activeFilterCount}
-                    </Badge>
-                  )}
-                </Button>
-                {activeFilterCount > 0 && (
-                  <Button variant="ghost" size="sm" onClick={clearFilters}>
-                    Clear
-                  </Button>
-                )}
-              </div>
+              <button
+                type="button"
+                className={DATE_RANGE_BTN}
+                onClick={() => setFiltersOpen(true)}
+              >
+                <SlidersHorizontal className="h-4 w-4 text-ink-2" aria-hidden />
+                More filters
+                {activeFilterCount > 0 ? (
+                  <span className="font-mono text-xs text-ink-2">({activeFilterCount})</span>
+                ) : null}
+              </button>
             </div>
-
-            {activeFilterCount > 0 && (
-              <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                {statusFilter !== 'all' && (
-                  <Badge variant="outline" className="capitalize">
-                    Status: {statusFilter}
-                  </Badge>
-                )}
-                {saleTypeFilter !== 'all' && (
-                  <Badge variant="outline">
-                    {saleTypeFilter === 'cash' ? 'Cash sales' : 'Credit sales'}
-                  </Badge>
-                )}
-                {paymentMethodFilter !== 'all' && (
-                  <Badge variant="outline" className="capitalize">
-                    Payment: {paymentMethodFilter}
-                  </Badge>
-                )}
-              </div>
-            )}
           </div>
+        </section>
 
           <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
             <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
@@ -1038,546 +1228,270 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
             </SheetContent>
           </Sheet>
 
-          {/* Loading */}
-          {(loading || isReportLoading) && (
-            <div className="flex items-center justify-center py-16">
-              <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            </div>
-          )}
+        {listLoading ? (
+          <RuledPlaceholderRows count={8} />
+        ) : (
+          <div className="min-w-0 space-y-4">
+            {paginatedOrders.length > 0 ? (
+              <p className="text-sm text-ink-2">
+                {filteredOrders.length === 1
+                  ? '1 order'
+                  : `${filteredOrders.length} orders`}
+                {isReportMode ? ' in range' : null}
+              </p>
+            ) : null}
 
-          {/* Orders List */}
-          {!loading && !isReportLoading && (
-          <div className="space-y-3">
-              {filteredOrders.length === 0 && (
-                <div className="text-center py-12 text-muted-foreground">
-                  <ShoppingBag className="w-10 h-10 mx-auto mb-3 opacity-50" />
-                  <p className="text-base font-medium">No orders found</p>
-                  <p className="text-sm mt-1">
-                    {searchQuery || activeFilterCount > 0
-                      ? 'Try adjusting your search or filters'
-                      : 'Orders will appear here once sales are made'}
-                  </p>
-                </div>
-              )}
+            {filteredOrders.length === 0 ? (
+              <div className="flex flex-wrap items-center gap-3 border-b border-hairline py-4 text-sm text-ink">
+                <span>No orders match these filters.</span>
+                {filtersActive ? (
+                  <button
+                    type="button"
+                    className="focus-ring text-sm font-semibold text-primary underline-offset-2 hover:underline"
+                    onClick={() => {
+                      clearFilters();
+                      setSearchQuery('');
+                    }}
+                  >
+                    Clear filters
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
 
-              {paginatedOrders.length > 0 && (
-                <Card className="hidden lg:block overflow-hidden">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Order</TableHead>
-                        <TableHead>Customer</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead className="text-right">Items</TableHead>
-                        <TableHead className="text-right">Total</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
+            {paginatedOrders.length > 0 ? (
+              <>
+                <div className="hidden min-w-0 md:block">
+                  <table className="w-full table-fixed border-collapse">
+                    <colgroup>
+                      <col style={{ width: '18%' }} />
+                      <col style={{ width: '20%' }} />
+                      <col style={{ width: '20%' }} />
+                      <col style={{ width: '12%' }} />
+                      <col style={{ width: '12%' }} />
+                      <col style={{ width: '220px' }} />
+                    </colgroup>
+                    <thead>
+                      <tr className="border-b border-hairline text-left text-xs font-semibold text-ink-2">
+                        <th className="pb-2 pr-2 font-semibold">Order</th>
+                        <th className="pb-2 pr-2 font-semibold">Customer</th>
+                        <th className="pb-2 pr-2 font-semibold">Date</th>
+                        <th className="pb-2 pr-2 text-right font-semibold">Total</th>
+                        <th className="pb-2 pr-2 font-semibold">Status</th>
+                        <th className="pb-2 font-semibold">
+                          <span className="sr-only">Actions</span>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
                       {paginatedOrders.map((order) => {
-                        const saleConfig = saleTypeConfig[order.sale_type || 'cash'];
-                        const balanceDue =
-                          order.sale_type === 'credit' &&
-                          (order.payment_status === 'unpaid' || order.payment_status === 'partial') &&
-                          order.status !== 'voided' &&
-                          order.status !== 'cancelled'
-                            ? getOrderBalanceDue(order)
-                            : null;
-
+                        const balanceDue = getOrderBalanceDue(order);
+                        const listStatus = getOrderListStatus(order, getOrderBalanceDue);
+                        const showDue = balanceDue > 0 && order.status !== 'cancelled';
                         return (
-                          <TableRow
+                          <tr
                             key={order.id}
-                            className={cn(
-                              balanceDue !== null && balanceDue > 0 && 'bg-warning/5',
-                            )}
+                            data-order-focus={order.id}
+                            tabIndex={-1}
+                            className="cursor-pointer border-b border-hairline [@media(hover:hover)]:hover:bg-[hsl(var(--accent-soft))]/40"
+                            onClick={(e) =>
+                              handleViewOrder(order, e.currentTarget as HTMLElement)
+                            }
                           >
-                            <TableCell className="font-medium">
-                              <div className="flex flex-col">
-                                <span>#{order.order_number}</span>
-                                <span className="text-xs text-muted-foreground">
-                                  {saleConfig?.label || 'Cash Sale'}
-                                </span>
-                              </div>
-                            </TableCell>
-                            <TableCell className="max-w-[160px] truncate">
-                              {order.customer_name || '—'}
-                            </TableCell>
-                            <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                              {format(new Date(order.created_at), 'MMM dd, HH:mm')}
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums">
-                              {order.items.length}
-                            </TableCell>
-                            <TableCell className="text-right font-semibold tabular-nums">
-                              <div>{fc(order.total)}</div>
-                              {balanceDue !== null && balanceDue > 0 && (
-                                <div className="text-xs text-warning">
-                                  Due {fc(balanceDue)}
-                                </div>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <Badge className={cn('text-xs capitalize', statusColors[order.status] || '')}>
-                                {order.status}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <div className="flex justify-end gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => handleViewOrder(order)}
-                                  title="View"
-                                >
-                                  <Eye className="w-4 h-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => handlePrintReceipt(order)}
-                                  title={order.sale_type === 'credit' ? 'Invoice' : 'Receipt'}
-                                >
-                                  <FileText className="w-4 h-4" />
-                                </Button>
-                                {canRecordPaymentForOrder(order) && (
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 text-success"
-                                    onClick={() => handleRecordPayment(order)}
-                                    title="Record payment"
-                                  >
-                                    <CircleDollarSign className="w-4 h-4" />
-                                  </Button>
+                            <td className="py-3 pr-2 align-top">
+                              <button
+                                type="button"
+                                data-order-focus={order.id}
+                                className="focus-ring font-mono text-sm font-semibold text-ink underline-offset-2 hover:underline"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleViewOrder(order, e.currentTarget as HTMLElement);
+                                }}
+                              >
+                                #{order.order_number}
+                              </button>
+                              <p className="mt-0.5 text-xs text-ink-2">{orderItemsCaption(order)}</p>
+                            </td>
+                            <td className="max-w-0 py-3 pr-2 align-top">
+                              <span className="block truncate text-sm text-ink">
+                                {order.customer_name || '—'}
+                              </span>
+                            </td>
+                            <td className="py-3 pr-2 align-top text-sm whitespace-nowrap text-ink-2">
+                              {formatOrderListDateTime(order.created_at)}
+                            </td>
+                            <td className="py-3 pr-2 text-right align-top">
+                              <span
+                                className={cn(
+                                  'font-mono text-sm font-semibold tabular-nums text-ink',
+                                  order.status === 'cancelled' && 'line-through',
                                 )}
+                              >
+                                {formatKES(order.total)}
+                              </span>
+                            </td>
+                            <td className="py-3 pr-2 align-top">
+                              <StatusChip status={listStatus} />
+                              {showDue ? (
+                                <p className="mt-1 font-mono text-[13px] text-ink">
+                                  Due {formatKES(balanceDue)}
+                                </p>
+                              ) : null}
+                            </td>
+                            <td className="py-3 align-top">
+                              <div
+                                className="flex w-[220px] items-center justify-end gap-1"
+                                onClick={(e) => e.stopPropagation()}
+                                onKeyDown={(e) => e.stopPropagation()}
+                              >
+                                {canRecordPaymentForOrder(order) ? (
+                                  <button
+                                    type="button"
+                                    className={RECORD_PAYMENT_BTN}
+                                    onClick={() => handleRecordPayment(order)}
+                                  >
+                                    Record payment
+                                  </button>
+                                ) : (
+                                  <span
+                                    className="inline-block h-10 w-[9.25rem] shrink-0"
+                                    aria-hidden
+                                  />
+                                )}
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <button
+                                      type="button"
+                                      className={ROW_MORE_BTN}
+                                      aria-label={`More actions for #${order.order_number}`}
+                                    >
+                                      <MoreHorizontal className="h-5 w-5" aria-hidden />
+                                    </button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end" className="border-hairline">
+                                    <DropdownMenuItem
+                                      className="cursor-pointer"
+                                      onSelect={() => handleViewOrder(order)}
+                                    >
+                                      View details
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      className="cursor-pointer"
+                                      onSelect={() => handlePrintReceipt(order)}
+                                    >
+                                      View receipt
+                                    </DropdownMenuItem>
+                                    {canRecordPaymentForOrder(order) ? (
+                                      <DropdownMenuItem
+                                        className="cursor-pointer"
+                                        onSelect={() => handleRecordPayment(order)}
+                                      >
+                                        Record payment
+                                      </DropdownMenuItem>
+                                    ) : null}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
                               </div>
-                            </TableCell>
-                          </TableRow>
+                            </td>
+                          </tr>
                         );
                       })}
-                    </TableBody>
-                  </Table>
-                </Card>
-              )}
+                    </tbody>
+                  </table>
+                </div>
 
-              <div className="space-y-2 lg:hidden">
-              {paginatedOrders.map((order) => {
-                const primaryPayment =
-                  order.payments.length > 1
-                    ? 'split'
-                    : order.payments[0]?.method || '—';
-                const saleConfig = saleTypeConfig[order.sale_type || 'cash'];
-                const SaleIcon = saleConfig?.icon || Banknote;
+                <div className="divide-y divide-hairline border-y border-hairline md:hidden">
+                  {paginatedOrders.map((order) => {
+                    const balanceDue = getOrderBalanceDue(order);
+                    const listStatus = getOrderListStatus(order, getOrderBalanceDue);
+                    const showDue = balanceDue > 0 && order.status !== 'cancelled';
+                    const metaParts = [
+                      `#${order.order_number}`,
+                      ...(order.sale_type === 'credit' ? ['Credit'] : []),
+                      formatDate(new Date(order.created_at)),
+                    ];
 
-                return (
-                  <Card
-                    key={order.id}
-                    className={cn(
-                      order.sale_type === 'credit' && order.payment_status === 'unpaid' && 'border-l-4 border-l-warning',
-                    )}
-                  >
-                <CardContent className="p-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                          <div className="mb-1 flex flex-wrap items-center gap-1.5">
-                            <h3 className="font-semibold text-sm text-foreground">
-                              #{order.order_number}
-                            </h3>
-                            <Badge className={cn('text-[10px]', statusColors[order.status] || '')}>
-                          {order.status}
-                        </Badge>
-                            <Badge className={cn('text-[10px] gap-1', saleConfig?.className || '')}>
-                              <SaleIcon className="w-3 h-3" />
-                              {saleConfig?.label || 'Cash'}
-                        </Badge>
-                      </div>
-
-                          <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-                            {order.customer_name && <span>{order.customer_name}</span>}
-                            <span>{format(new Date(order.created_at), 'MMM dd, HH:mm')}</span>
-                            <span>{order.items.length} items</span>
-                            {primaryPayment !== 'split' && primaryPayment !== '—' && (
-                              <span className="capitalize">{primaryPayment}</span>
-                            )}
-                      </div>
-                      <p className="mt-1 text-sm font-bold tabular-nums">{fc(order.total)}</p>
-                    </div>
-
-                    <div className="flex shrink-0 gap-1">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => handleViewOrder(order)}
+                    return (
+                      <button
+                        key={order.id}
+                        type="button"
+                        data-order-focus={order.id}
+                        className="focus-ring flex min-h-[5.5rem] w-full flex-col justify-center gap-1 bg-transparent py-3 text-left focus:bg-transparent focus-visible:bg-transparent [@media(hover:hover)]:hover:bg-[hsl(var(--accent-soft))]/40 active:bg-[hsl(var(--accent-soft))]/40"
+                        onClick={(e) =>
+                          handleViewOrder(order, e.currentTarget as HTMLElement)
+                        }
                       >
-                        <Eye className="w-4 h-4" />
-                      </Button>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-8 w-8"
-                            onClick={() => handlePrintReceipt(order)}
-                        >
-                            <FileText className="w-4 h-4" />
-                          </Button>
-                          {canRecordPaymentForOrder(order) && (
-                              <Button
-                                size="icon"
-                                className="h-8 w-8 bg-success hover:bg-success/90 text-white"
-                                onClick={() => handleRecordPayment(order)}
-                              >
-                                <CircleDollarSign className="w-4 h-4" />
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-                );
-              })}
-              </div>
-            {/* Pagination */}
-            {filteredOrders.length > 0 && (
+                        <div className="flex min-w-0 items-baseline justify-between gap-2">
+                          <span className="min-w-0 truncate text-sm font-semibold text-ink">
+                            {order.customer_name || '—'}
+                          </span>
+                          <span
+                            className={cn(
+                              'shrink-0 font-mono text-sm font-semibold tabular-nums text-ink',
+                              order.status === 'cancelled' && 'line-through',
+                            )}
+                          >
+                            {formatKES(order.total)}
+                          </span>
+                        </div>
+                        <p className="truncate text-xs text-ink-2">{metaParts.join(' · ')}</p>
+                        <div className="flex min-w-0 flex-wrap items-center gap-2">
+                          <StatusChip status={listStatus} />
+                          {showDue ? (
+                            <span className="font-mono text-[13px] text-ink">
+                              Due {formatKES(balanceDue)}
+                            </span>
+                          ) : null}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            ) : null}
+
+            {filteredOrders.length > 0 ? (
               <PaginationControls
                 currentPage={currentPage}
                 totalPages={totalPages}
                 totalItems={filteredOrders.length}
                 pageSize={pageSize}
                 onPageChange={setCurrentPage}
-                onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
+                onPageSizeChange={(size) => {
+                  setPageSize(size);
+                  setCurrentPage(1);
+                }}
               />
-            )}
+            ) : null}
           </div>
-          )}
+        )}
+      </div>
 
-      {/* Order Detail Dialog */}
-      <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Order Details #{selectedOrder?.order_number}</DialogTitle>
-            <DialogDescription>
-              {selectedOrder
-                ? format(new Date(selectedOrder.created_at), 'MMM dd, yyyy HH:mm')
-                : ''}
-            </DialogDescription>
-          </DialogHeader>
-
-          {selectedOrder && (() => {
-            const detailCustomer = selectedOrder.customer_id ? getCustomerById(selectedOrder.customer_id) : null;
-            const detailSaleConfig = saleTypeConfig[selectedOrder.sale_type || 'cash'];
-
-            return (
-            <div className="space-y-6">
-              {/* Order Info */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-muted-foreground">Status</p>
-                  <Badge className={cn('mt-1', statusColors[selectedOrder.status] || '')}>
-                    {selectedOrder.status}
-                  </Badge>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Payment Status</p>
-                  <Badge
-                    className={cn(
-                      'mt-1',
-                      paymentStatusColors[selectedOrder.payment_status] || '',
-                    )}
-                  >
-                    {selectedOrder.payment_status}
-                  </Badge>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Sale Type</p>
-                  <Badge className={cn('mt-1 gap-1', detailSaleConfig?.className || '')}>
-                    {detailSaleConfig?.label || 'Cash Sale'}
-                  </Badge>
-                </div>
-                {selectedOrder.invoice_number && (
-                  <div>
-                    <p className="text-sm text-muted-foreground">Invoice #</p>
-                    <p className="font-medium font-mono">{selectedOrder.invoice_number}</p>
-                  </div>
-                )}
-                {selectedOrder.table_number && (
-                  <div>
-                    <p className="text-sm text-muted-foreground">Table</p>
-                    <p className="font-medium">#{selectedOrder.table_number}</p>
-                  </div>
-                )}
-                {selectedOrder.customer_name && (
-                  <div>
-                    <p className="text-sm text-muted-foreground">Customer</p>
-                    <p className="font-medium">{selectedOrder.customer_name}</p>
-                    {detailCustomer && detailCustomer.credit_balance > 0 && (
-                      <p className="text-xs text-warning mt-0.5">
-                        Account Balance: {fc(detailCustomer.credit_balance)}
-                      </p>
-                    )}
-                  </div>
-                )}
-                {selectedOrder.staff_name && (
-                  <div>
-                    <p className="text-sm text-muted-foreground">Staff</p>
-                    <p className="font-medium">{selectedOrder.staff_name}</p>
-                  </div>
-                )}
-                {selectedOrder.due_date && (
-                  <div>
-                    <p className="text-sm text-muted-foreground">Due Date</p>
-                    <p className="font-medium">{format(new Date(selectedOrder.due_date), 'MMM dd, yyyy')}</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Items */}
-              <div>
-                <h4 className="font-semibold mb-3">Items</h4>
-                <div className="space-y-3">
-                  {selectedOrder.items.map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg"
-                    >
-                      {item.product_image && (
-                        <img
-                          src={item.product_image}
-                          alt={item.product_name}
-                        className="w-16 h-16 rounded-lg object-cover"
-                      />
-                      )}
-                      <div className="flex-1">
-                        <p className="font-medium">{item.product_name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {fc(item.unit_price)} × {item.quantity}
-                        </p>
-                        {item.sku && (
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            SKU: {item.sku}
-                          </p>
-                        )}
-                        {item.notes && (
-                          <p className="text-sm text-muted-foreground mt-1">
-                            Note: {item.notes}
-                          </p>
-                        )}
-                        {item.modifiers && item.modifiers.length > 0 && (
-                          <div className="mt-2 space-y-1">
-                            {item.modifiers.map((mod) => (
-                              <p key={mod.id} className="text-xs text-muted-foreground">
-                                {mod.type}: {mod.name}{' '}
-                                {mod.price ? `(+${fc(mod.price)})` : ''}
-                              </p>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      <p className="font-medium">{fc(item.line_total)}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Payments */}
-              {selectedOrder.payments.length > 0 && (
-                <div>
-                  <h4 className="font-semibold mb-3">
-                    Payments ({selectedOrder.payments.length})
-                  </h4>
-                  <div className="space-y-2">
-                    {selectedOrder.payments.map((payment) => (
-                      <div
-                        key={payment.id}
-                        className={cn(
-                          'flex items-center justify-between p-3 bg-muted/50 rounded-lg group',
-                          payment.reversed_at && 'opacity-60',
-                        )}
-                      >
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="capitalize font-medium">{payment.method}</span>
-                            {payment.reversed_at && (
-                              <Badge variant="outline" className="text-xs border-warning/40 text-warning">
-                                Reversed
-                              </Badge>
-                            )}
-                            {payment.reference && (
-                              <span className="text-xs text-muted-foreground font-mono">
-                                ({payment.reference})
-                              </span>
-                            )}
-                          </div>
-                          {payment.description && (
-                            <p className="text-xs text-muted-foreground">
-                              {payment.description}
-                            </p>
-                          )}
-                          <span className="text-xs text-muted-foreground">
-                            {format(new Date(payment.paid_at), 'MMM dd, yyyy · HH:mm')}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <span className="font-semibold text-base tabular-nums">
-                            {fc(payment.amount)}
-                          </span>
-                          {canModifyOrderPayments(selectedOrder) && !payment.reversed_at && (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                title="Edit payment"
-                                onClick={() => handleEditPayment(payment)}
-                              >
-                                <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
-                              </Button>
-                              {canReversePayments && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-destructive hover:text-destructive"
-                                  title="Reverse payment"
-                                  onClick={() => requestReverseOrderPayment(payment)}
-                                  disabled={deletingPaymentId === payment.id}
-                                >
-                                  {deletingPaymentId === payment.id ? (
-                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                  ) : (
-                                    <Undo2 className="w-3.5 h-3.5" />
-                                  )}
-                                </Button>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                    {/* Payments total */}
-                    <div className="flex justify-between pt-2 border-t border-border/50 text-sm">
-                      <span className="text-muted-foreground">Total Paid</span>
-                      <span className="font-semibold text-success">
-                        {fc(sumActivePaymentAmount(selectedOrder.payments))}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Order Notes */}
-              {selectedOrder.notes && (
-                <div>
-                  <h4 className="font-semibold mb-2">Order Notes</h4>
-                  <p className="text-sm text-muted-foreground">{selectedOrder.notes}</p>
-                </div>
-              )}
-
-              {/* Summary */}
-              <div className="border-t pt-4 space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Subtotal</span>
-                  <span>{fc(selectedOrder.subtotal)}</span>
-                </div>
-                {selectedOrder.discount_amount > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Discount</span>
-                    <span className="text-success">
-                      -{fc(selectedOrder.discount_amount)}
-                    </span>
-                  </div>
-                )}
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">
-                    Tax ({(selectedOrder.tax_rate * 100).toFixed(0)}%)
-                  </span>
-                  <span>{fc(selectedOrder.tax_amount)}</span>
-                </div>
-                <div className="flex justify-between font-bold text-lg pt-2 border-t">
-                  <span>Total</span>
-                  <span>{fc(selectedOrder.total)}</span>
-                </div>
-              </div>
-
-              {/* Credit Sale Balance Info */}
-              {canRecordPaymentForOrder(selectedOrder) && (
-                <div className="p-4 bg-warning/5 border border-warning/20 rounded-lg">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2 text-warning font-semibold">
-                      <CreditCard className="w-4 h-4" />
-                      {selectedOrder.sale_type === 'credit'
-                        ? 'Credit Sale — Balance Due'
-                        : 'Payment Pending — Set Method'}
-                    </div>
-                    <Button
-                      size="sm"
-                      onClick={() => handleRecordPayment(selectedOrder)}
-                      className="gap-1.5 bg-success hover:bg-success/90 text-white"
-                    >
-                      <CircleDollarSign className="w-4 h-4" />
-                      {selectedOrder.sale_type === 'credit'
-                        ? 'Record Payment'
-                        : 'Set Payment Method'}
-                    </Button>
-                  </div>
-                  <p className="text-lg font-bold text-warning">
-                    {fc(getOrderBalanceDue(selectedOrder))}
-                  </p>
-                  {selectedOrder.sale_type === 'credit' && selectedOrder.due_date && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Due by {format(new Date(selectedOrder.due_date), 'MMMM dd, yyyy')}
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {/* Actions */}
-              <div className="flex flex-wrap gap-2 pt-4 border-t">
-                <Button 
-                  variant="outline" 
-                  className="flex-1 min-w-[140px] gap-2"
-                  onClick={() => handlePrintReceipt(selectedOrder)}
-                >
-                  <FileText className="w-4 h-4" />
-                  {selectedOrder.sale_type === 'credit' ? 'View Invoice' : 'Print Receipt'}
-                </Button>
-                {canCancelCreditInvoiceForOrder(selectedOrder) && (
-                  <Button
-                    variant="outline"
-                    className="flex-1 min-w-[140px] gap-2 text-destructive hover:text-destructive"
-                    onClick={() => setCreditCancelTarget(selectedOrder)}
-                    disabled={cancellingOrderId === selectedOrder.id}
-                  >
-                    {cancellingOrderId === selectedOrder.id ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <X className="w-4 h-4" />
-                    )}
-                    Cancel invoice
-                  </Button>
-                )}
-                {canShowRefundForOrder(selectedOrder) && (
-                  <Button
-                    variant="outline"
-                      className="flex-1 min-w-[140px] gap-2 text-destructive hover:text-destructive"
-                      onClick={() => handleRefund(selectedOrder)}
-                      disabled={refundingOrderId === selectedOrder.id}
-                  >
-                    {refundingOrderId === selectedOrder.id ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <RotateCcw className="w-4 h-4" />
-                    )}
-                      Refund
-                  </Button>
-                )}
-              </div>
-            </div>
-            );
-          })()}
-        </DialogContent>
-      </Dialog>
+      <OrderDetailDrawer
+        open={isDetailOpen}
+        onOpenChange={setIsDetailOpen}
+        order={selectedOrder}
+        isDesktopMd={isDesktopMd}
+        customer={
+          selectedOrder?.customer_id
+            ? getCustomerById(selectedOrder.customer_id) ?? null
+            : null
+        }
+        getOrderBalanceDue={getOrderBalanceDue}
+        onPrintReceipt={handlePrintReceipt}
+        onRecordPayment={handleRecordPayment}
+        canRecordPayment={
+          selectedOrder ? canRecordPaymentForOrder(selectedOrder) : false
+        }
+        onEditPayment={handleEditPayment}
+        onReversePayment={requestReverseOrderPayment}
+        canModifyPayments={
+          selectedOrder ? canModifyOrderPayments(selectedOrder) : false
+        }
+        canReversePayments={canReversePayments}
+        reversingPaymentId={deletingPaymentId}
+        returnFocusRef={detailReturnFocusRef}
+      />
 
       {/* Invoice/Receipt Dialog */}
       {selectedOrderForInvoice && (

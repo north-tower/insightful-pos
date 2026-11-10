@@ -1,6 +1,7 @@
 import {
   AlertTriangle,
   BadgeCheck,
+  Ban,
   CheckCircle2,
   Circle,
   CloudOff,
@@ -16,7 +17,11 @@ export type StatusChipStatus =
   | 'waiting'
   | 'low'
   | 'out'
-  | 'rejected';
+  | 'rejected'
+  | 'partpaid'
+  | 'unpaid'
+  | 'overdue'
+  | 'cancelled';
 
 type StatusChipSize = 'sm' | 'md';
 
@@ -31,6 +36,10 @@ const STATUS_CONFIG: Record<
   low: { label: 'Low', Icon: AlertTriangle, iconClassName: 'text-wait' },
   out: { label: 'Out of stock', Icon: XCircle, iconClassName: 'text-fail' },
   rejected: { label: 'Rejected', Icon: XCircle, iconClassName: 'text-fail' },
+  partpaid: { label: 'Part paid', Icon: AlertTriangle, iconClassName: 'text-wait' },
+  unpaid: { label: 'Unpaid', Icon: AlertTriangle, iconClassName: 'text-wait' },
+  overdue: { label: 'Overdue', Icon: XCircle, iconClassName: 'text-fail' },
+  cancelled: { label: 'Cancelled', Icon: Ban, iconClassName: 'text-ink-2' },
 };
 
 export interface StatusChipProps {
