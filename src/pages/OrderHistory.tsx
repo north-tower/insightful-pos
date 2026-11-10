@@ -36,22 +36,15 @@ import {
   Loader2,
   CreditCard,
   Banknote,
-  CircleDollarSign,
   SlidersHorizontal,
   Undo2,
   MoreHorizontal,
   CalendarRange,
   AlertCircle,
+  CheckCircle2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { OrderDetailDrawer } from '@/components/order/OrderDetailDrawer';
 import {
   AlertDialog,
@@ -73,6 +66,19 @@ import { toast } from 'sonner';
 import { fc, CURRENCY_SYMBOL } from '@/lib/currency';
 import { formatKES } from '@/lib/formatKES';
 import { formatCompactDateRange, formatDate } from '@/lib/formatDate';
+import {
+  getPaymentMethodLabel,
+  getPaymentReferenceFieldLabel,
+} from '@/lib/paymentMethods';
+import {
+  RecordDialogShell,
+  RECORD_OUTLINED_BTN,
+  RECORD_PRIMARY_BTN,
+} from '@/components/payment/RecordDialogShell';
+import {
+  ACCOUNT_QUICK_PAYMENT_TILES,
+  PaymentMethodTiles,
+} from '@/components/payment/PaymentMethodTiles';
 import { getOrderListStatus } from '@/lib/orderListStatus';
 import { TypedNumberHint } from '@/components/ui/typed-number-hint';
 import { useCompanySettings } from '@/context/BusinessSettingsContext';
@@ -96,8 +102,23 @@ interface CustomerAccountPayment {
 }
 
 type PaymentReverseTarget =
-  | { kind: 'order'; paymentId: string; amount: number; method: string }
-  | { kind: 'account'; paymentId: string; amount: number; method: string; customerId: string };
+  | {
+      kind: 'order';
+      paymentId: string;
+      amount: number;
+      method: string;
+      paidAt: string;
+      customerName?: string;
+    }
+  | {
+      kind: 'account';
+      paymentId: string;
+      amount: number;
+      method: string;
+      customerId: string;
+      paidAt: string;
+      customerName: string;
+    };
 
 const ACCENT_BTN =
   'focus-ring inline-flex min-h-[var(--tap-min)] items-center justify-center rounded-[var(--radius)] bg-primary px-4 text-sm font-semibold text-primary-foreground active:scale-[0.98]';
@@ -255,6 +276,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
   const [isTopPaySaving, setIsTopPaySaving] = useState(false);
   const [accountPayments, setAccountPayments] = useState<CustomerAccountPayment[]>([]);
   const [accountPaymentsLoading, setAccountPaymentsLoading] = useState(false);
+  const [showAllAccountPayments, setShowAllAccountPayments] = useState(false);
   const [reportFromDate, setReportFromDate] = useState(
     () => new Date(new Date().setDate(new Date().getDate() - 7)).toISOString().slice(0, 10),
   );
@@ -552,16 +574,24 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
       paymentId: payment.id,
       amount: payment.amount,
       method: payment.method,
+      paidAt: payment.paid_at,
+      customerName: selectedOrder?.customer_name,
     });
   };
 
   const requestReverseAccountPayment = (payment: CustomerAccountPayment) => {
+    const cust = getCustomerById(payment.customer_id);
+    const name = cust
+      ? `${cust.first_name} ${cust.last_name}`.trim()
+      : getCustomerDisplayName(payment.customer_id);
     setPaymentReverseTarget({
       kind: 'account',
       paymentId: payment.id,
       amount: payment.amount,
       method: payment.method,
       customerId: payment.customer_id,
+      paidAt: payment.created_at,
+      customerName: name,
     });
   };
 
@@ -1558,8 +1588,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
         />
       )}
 
-      {/* Top Pay + Customer Payment History */}
-      <Dialog
+      <RecordDialogShell
         open={isTopPayOpen}
         onOpenChange={(open) => {
           if (!isTopPaySaving) setIsTopPayOpen(open);
@@ -1570,178 +1599,237 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
             setTopPayDescription('');
             setTopPayDate(new Date().toISOString().slice(0, 10));
             setAccountPayments([]);
+            setShowAllAccountPayments(false);
           }
         }}
-      >
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Record Customer Payment</DialogTitle>
-            <DialogDescription>
-              Best view for a particular customer: keep payments in chronological order with method, reference and amount.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Customer</Label>
-                <Select value={topPayCustomerId} onValueChange={setTopPayCustomerId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select customer with balance" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {customersWithOutstanding.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {`${c.first_name} ${c.last_name}`.trim()} ({fc(c.credit_balance)})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Method</Label>
-                <Select
-                  value={topPayMethod}
-                  onValueChange={(v) => setTopPayMethod(v as 'cash' | 'card' | 'qr')}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="cash">Cash</SelectItem>
-                    <SelectItem value="card">Card</SelectItem>
-                    <SelectItem value="qr">QR / Mobile</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+        isDesktopMd={isDesktopMd}
+        blockClose={isTopPaySaving}
+        title="Record customer payment"
+        subtitle="Choose a customer, then add the payment."
+        titleId="record-customer-payment-title"
+        descriptionId="record-customer-payment-desc"
+        footer={
+          <div className="space-y-2">
+            {(!topPayAmount || parseFloat(topPayAmount) <= 0) && topPayCustomerId ? (
+              <p className="text-center text-sm text-ink-2">Enter an amount</p>
+            ) : null}
+            <div className="flex gap-3">
+              <button
+                type="button"
+                className={RECORD_OUTLINED_BTN}
+                onClick={() => {
+                  if (!isTopPaySaving) setIsTopPayOpen(false);
+                }}
+                disabled={isTopPaySaving}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={RECORD_PRIMARY_BTN}
+                onClick={() => void handleSubmitTopPay()}
+                disabled={
+                  isTopPaySaving ||
+                  !topPayCustomerId ||
+                  !topPayAmount ||
+                  parseFloat(topPayAmount) <= 0
+                }
+              >
+                {isTopPaySaving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                    Processing…
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden />
+                    <span className="truncate tabular-nums">
+                      Record{' '}
+                      {parseFloat(topPayAmount) > 0
+                        ? formatKES(parseFloat(topPayAmount))
+                        : formatKES(0)}
+                    </span>
+                  </>
+                )}
+              </button>
             </div>
+          </div>
+        }
+      >
+        <div className="space-y-6">
+          <div className="space-y-2">
+            <Label className="text-sm font-semibold text-ink">Customer</Label>
+            <Select
+              value={topPayCustomerId}
+              onValueChange={(id) => {
+                setTopPayCustomerId(id);
+                setShowAllAccountPayments(false);
+              }}
+            >
+              <SelectTrigger className="min-h-12 border-hairline">
+                <SelectValue placeholder="Select customer with balance" />
+              </SelectTrigger>
+              <SelectContent>
+                {customersWithOutstanding.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {`${c.first_name} ${c.last_name}`.trim()}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selectedTopPayCustomer ? (
+              <p className="text-sm text-ink-2">
+                Owes {formatKES(selectedTopPayCustomer.credit_balance)}
+              </p>
+            ) : null}
+          </div>
 
-            {selectedTopPayCustomer && (
-              <div className="p-3 rounded-lg bg-muted/40 text-sm flex items-center justify-between">
-                <span className="text-muted-foreground">Current Account Balance</span>
-                <span className="font-semibold text-warning tabular-nums">
-                  {fc(selectedTopPayCustomer.credit_balance)}
+          <div className="space-y-2">
+            <Label className="text-sm font-semibold text-ink">Payment method</Label>
+            <PaymentMethodTiles
+              methods={ACCOUNT_QUICK_PAYMENT_TILES}
+              value={topPayMethod}
+              onChange={setTopPayMethod}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="top-pay-amount" className="text-sm font-semibold text-ink">
+                Amount
+              </Label>
+              <div className="relative">
+                <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-ink-2">
+                  KES
                 </span>
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Amount</Label>
                 <Input
-                  type="number"
-                  min="0.01"
-                  step="0.01"
+                  id="top-pay-amount"
+                  type="text"
+                  inputMode="decimal"
                   value={topPayAmount}
                   onChange={(e) => setTopPayAmount(e.target.value)}
                   placeholder="0.00"
-                />
-                <TypedNumberHint value={topPayAmount} prefix={`${CURRENCY_SYMBOL} `} />
-              </div>
-              <div className="space-y-2">
-                <Label>Payment Date</Label>
-                <Input
-                  type="date"
-                  value={topPayDate}
-                  onChange={(e) => setTopPayDate(e.target.value)}
+                  className="h-14 border-hairline pl-14 font-sans text-[28px] font-bold tabular-nums"
                 />
               </div>
-              <div className="space-y-2">
-                <Label>Reference (optional)</Label>
-                <Input
-                  value={topPayReference}
-                  onChange={(e) => setTopPayReference(e.target.value)}
-                  placeholder="Txn ID / receipt no."
-                />
-              </div>
+              <TypedNumberHint value={topPayAmount} prefix={`${CURRENCY_SYMBOL} `} />
             </div>
-
             <div className="space-y-2">
-              <Label>Description (optional)</Label>
+              <Label htmlFor="top-pay-date" className="text-sm font-semibold text-ink">
+                Payment date · {formatDate(new Date(`${topPayDate}T12:00:00`))}
+              </Label>
               <Input
+                id="top-pay-date"
+                type="date"
+                value={topPayDate}
+                onChange={(e) => setTopPayDate(e.target.value)}
+                className="min-h-12 border-hairline"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="top-pay-ref" className="text-sm font-semibold text-ink">
+                {getPaymentReferenceFieldLabel(topPayMethod)}
+              </Label>
+              <Input
+                id="top-pay-ref"
+                value={topPayReference}
+                onChange={(e) => setTopPayReference(e.target.value)}
+                className="min-h-12 border-hairline"
+                placeholder="Txn ID / receipt no."
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="top-pay-desc" className="text-sm font-semibold text-ink">
+                Description (optional)
+              </Label>
+              <Input
+                id="top-pay-desc"
                 value={topPayDescription}
                 onChange={(e) => setTopPayDescription(e.target.value)}
+                className="min-h-12 border-hairline"
                 placeholder="e.g. Weekly settlement, bank transfer"
               />
             </div>
+          </div>
 
-            <div className="flex justify-end">
-              <Button
-                onClick={handleSubmitTopPay}
-                disabled={isTopPaySaving || !topPayCustomerId}
-                className="gap-2 bg-success hover:bg-success/90 text-white"
-              >
-                {isTopPaySaving ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <CircleDollarSign className="w-4 h-4" />
-                )}
-                Record Payment
-              </Button>
+          <section className="border-t border-hairline pt-4" aria-labelledby="recent-payments-heading">
+            <div className="mb-3 flex items-baseline justify-between gap-2">
+              <h3 id="recent-payments-heading" className="text-sm font-semibold text-ink">
+                Recent payments ({accountPayments.length})
+              </h3>
             </div>
-
-            <div className="border-t pt-4">
-              <h4 className="font-semibold mb-2">Payments Received (Selected Customer)</h4>
-              {accountPaymentsLoading ? (
-                <div className="py-8 flex items-center justify-center">
-                  <Loader2 className="w-5 h-5 animate-spin text-primary" />
-                </div>
-              ) : accountPayments.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4">
-                  {topPayCustomerId
-                    ? 'No recorded account payments yet.'
-                    : 'Select a customer to view payment history.'}
-                </p>
-              ) : (
-                <div className="space-y-2 max-h-[280px] overflow-y-auto">
-                  {accountPayments.map((p) => (
-                    <div
+            {accountPaymentsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-5 w-5 animate-spin text-primary" aria-hidden />
+              </div>
+            ) : accountPayments.length === 0 ? (
+              <p className="py-4 text-sm text-ink-2">
+                {topPayCustomerId
+                  ? 'No recorded account payments yet.'
+                  : 'Select a customer to view payment history.'}
+              </p>
+            ) : (
+              <>
+                <ul className="divide-y divide-hairline border-y border-hairline">
+                  {(showAllAccountPayments
+                    ? accountPayments
+                    : accountPayments.slice(0, 5)
+                  ).map((p) => (
+                    <li
                       key={p.id}
-                      className="flex items-center justify-between p-2.5 rounded border bg-muted/30 gap-2"
+                      className="flex w-full items-start justify-between gap-3 py-3"
                     >
-                      <div className="min-w-0">
-                        <p className="text-sm capitalize font-medium">
-                          {p.method}
-                          {p.reference && (
-                            <span className="text-xs text-muted-foreground font-mono ml-2">
-                              ({p.reference})
-                            </span>
-                          )}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-ink">
+                          {formatDate(new Date(p.created_at))}
                         </p>
-                        <p className="text-xs text-muted-foreground">
-                          {format(new Date(p.created_at), 'MMM dd, yyyy · HH:mm')}
+                        <p className="mt-0.5 text-sm text-ink-2">
+                          {getPaymentMethodLabel(p.method)}
+                          {p.reference ? (
+                            <span className="ml-1 font-mono text-xs">({p.reference})</span>
+                          ) : null}
                         </p>
-                        {p.notes && (
-                          <p className="text-xs text-muted-foreground">{p.notes}</p>
-                        )}
+                        {p.notes ? (
+                          <p className="mt-0.5 text-xs text-ink-2">{p.notes}</p>
+                        ) : null}
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <p className="font-semibold text-success tabular-nums">{fc(p.amount)}</p>
-                        {canReversePayments && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8 gap-1 text-destructive hover:text-destructive"
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        <p className="font-mono text-sm font-semibold tabular-nums text-ink">
+                          {formatKES(p.amount)}
+                        </p>
+                        {canReversePayments ? (
+                          <button
+                            type="button"
+                            className="focus-ring inline-flex h-12 min-h-12 items-center gap-1 px-2 text-sm font-semibold text-ink"
                             onClick={() => requestReverseAccountPayment(p)}
                             disabled={deletingPaymentId === p.id}
                           >
                             {deletingPaymentId === p.id ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
                             ) : (
-                              <Undo2 className="w-3.5 h-3.5" />
+                              <Undo2 className="h-4 w-4 text-fail" aria-hidden />
                             )}
                             Reverse
-                          </Button>
-                        )}
+                          </button>
+                        ) : null}
                       </div>
-                    </div>
+                    </li>
                   ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+                </ul>
+                {accountPayments.length > 5 && !showAllAccountPayments ? (
+                  <button
+                    type="button"
+                    className="focus-ring mt-3 inline-flex h-12 min-h-12 items-center text-sm font-semibold text-ink underline-offset-2 hover:underline"
+                    onClick={() => setShowAllAccountPayments(true)}
+                  >
+                    Show all {accountPayments.length}
+                  </button>
+                ) : null}
+              </>
+            )}
+          </section>
+        </div>
+      </RecordDialogShell>
 
       <AlertDialog
         open={!!paymentReverseTarget}
@@ -1749,26 +1837,39 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
           if (!open && !isReversingPayment) setPaymentReverseTarget(null);
         }}
       >
-        <AlertDialogContent>
+        <AlertDialogContent className="border-hairline">
           <AlertDialogHeader>
-            <AlertDialogTitle>Reverse this payment?</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogTitle className="text-ink">Reverse payment?</AlertDialogTitle>
+            <AlertDialogDescription className="text-ink-2">
               {paymentReverseTarget ? (
-                <>
-                  This will remove the{' '}
-                  <span className="font-medium capitalize">{paymentReverseTarget.method}</span>{' '}
-                  payment of <span className="font-medium">{fc(paymentReverseTarget.amount)}</span>.
-                  {paymentReverseTarget.kind === 'order'
-                    ? ' The order payment status and any customer credit balance will be recalculated.'
-                    : ' The amount will be added back to the customer account balance.'}
-                </>
+                paymentReverseTarget.kind === 'account' ? (
+                  <>
+                    Reverse {formatKES(paymentReverseTarget.amount)} (
+                    {getPaymentMethodLabel(paymentReverseTarget.method)},{' '}
+                    {formatDate(new Date(paymentReverseTarget.paidAt))})? This adds{' '}
+                    {formatKES(paymentReverseTarget.amount)} back to{' '}
+                    {paymentReverseTarget.customerName}&apos;s balance.
+                  </>
+                ) : (
+                  <>
+                    Reverse {formatKES(paymentReverseTarget.amount)} (
+                    {getPaymentMethodLabel(paymentReverseTarget.method)},{' '}
+                    {formatDate(new Date(paymentReverseTarget.paidAt))})? The order payment
+                    status and any customer credit balance will be recalculated.
+                  </>
+                )
               ) : null}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isReversingPayment}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel
+              disabled={isReversingPayment}
+              className="min-h-12 border-hairline"
+            >
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="min-h-12 gap-2 bg-surface text-ink hover:bg-surface border border-hairline"
               disabled={isReversingPayment}
               onClick={(e) => {
                 e.preventDefault();
@@ -1777,11 +1878,14 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
             >
               {isReversingPayment ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
                   Reversing…
                 </>
               ) : (
-                'Reverse payment'
+                <>
+                  <Undo2 className="h-4 w-4 text-fail" aria-hidden />
+                  Reverse payment
+                </>
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

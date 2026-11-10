@@ -10,7 +10,8 @@ import { useOrders, SaleOrder, SaleType, PaymentMethod } from '@/hooks/useOrders
 import { useCustomers, Customer } from '@/hooks/useCustomers';
 import type { Product } from '@/hooks/useProducts';
 import { InvoiceDialog } from '@/components/receipt/InvoiceDialog';
-import { PaymentDialog, paymentMethodLabel } from '@/components/payment/PaymentDialog';
+import { PaymentDialog } from '@/components/payment/PaymentDialog';
+import { getPaymentMethodLabel } from '@/lib/paymentMethods';
 import { ReceiptData } from '@/data/receiptData';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -287,12 +288,11 @@ function WalkInCustomerFields({
 
 const cashPaymentOptions: Array<{
   id: PaymentMethod;
-  label: string;
   icon: typeof Banknote;
 }> = [
-  { id: 'cash', label: 'Cash', icon: Banknote },
-  { id: 'mpesa', label: 'M-Pesa / Paybill', icon: Smartphone },
-  { id: 'card', label: 'Direct Bank', icon: Landmark },
+  { id: 'cash', icon: Banknote },
+  { id: 'mpesa', icon: Smartphone },
+  { id: 'card', icon: Landmark },
 ];
 
 function CartPaymentMethodSection({
@@ -312,7 +312,8 @@ function CartPaymentMethodSection({
     <div className="space-y-2">
       <p className="text-xs font-medium text-ink-2">Payment method</p>
       <div className="grid grid-cols-3 gap-2">
-        {cashPaymentOptions.map(({ id, label, icon: Icon }) => {
+        {cashPaymentOptions.map(({ id, icon: Icon }) => {
+          const label = getPaymentMethodLabel(id);
           const selected = method === id;
           return (
           <button
@@ -526,11 +527,12 @@ function CreditSaleExtras({
             <div className="grid grid-cols-3 gap-2">
               {(
                 [
-                  { id: 'cash' as const, icon: Banknote, label: 'Cash' },
-                  { id: 'card' as const, icon: CreditCard, label: 'Card' },
-                  { id: 'qr' as const, icon: QrCode, label: 'QR' },
+                  { id: 'cash' as const, icon: Banknote },
+                  { id: 'card' as const, icon: CreditCard },
+                  { id: 'qr' as const, icon: QrCode },
                 ]
-              ).map(({ id, icon: Icon, label }) => {
+              ).map(({ id, icon: Icon }) => {
+                const label = getPaymentMethodLabel(id);
                 const selected = creditPaymentMethod === id;
                 return (
                 <button
@@ -1779,7 +1781,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
         const label = saleType === 'credit' ? 'Credit invoice' : 'Sale';
         const paidVia =
           saleType === 'cash' && order.payments[0]
-            ? ` · ${paymentMethodLabel(order.payments[0].method)}`
+            ? ` · ${getPaymentMethodLabel(order.payments[0].method)}`
             : '';
         toast.success(
           `${label} #${order.invoice_number || order.order_number} — ${formatKES(order.total)}${paidVia}`,
@@ -1849,7 +1851,7 @@ export default function RetailPOS({ onNavigate }: RetailPOSProps) {
       discount: order.discount_amount > 0 ? order.discount_amount : undefined,
       total: order.total,
       paymentMethod: order.payments[0]?.method
-        ? paymentMethodLabel(order.payments[0].method)
+        ? getPaymentMethodLabel(order.payments[0].method)
         : 'Cash',
       type: 'dine-in', // Retail doesn't use this field, but type requires it
       staffName: order.staff_name,

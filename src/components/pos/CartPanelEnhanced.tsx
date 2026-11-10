@@ -4,6 +4,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { useCart } from '@/context/CartContext';
 import { cn } from '@/lib/utils';
+import { getPaymentMethodLabel } from '@/lib/paymentMethods';
 import { useState, useMemo } from 'react';
 import { toast } from 'sonner';
 import { SplitBillDialog } from '@/components/order/SplitBillDialog';
@@ -667,11 +668,13 @@ export function CartPanelEnhanced() {
             <p className="text-sm font-medium text-foreground mb-2">Payment Method</p>
             <div className="grid grid-cols-2 gap-2">
               {[
-                { id: 'cash' as PaymentMethod, icon: Banknote, label: 'Cash' },
-                { id: 'card' as PaymentMethod, icon: CreditCard, label: 'Card' },
-                { id: 'qr' as PaymentMethod, icon: QrCode, label: 'Scan' },
+                { id: 'cash' as PaymentMethod, icon: Banknote },
+                { id: 'card' as PaymentMethod, icon: CreditCard },
+                { id: 'qr' as PaymentMethod, icon: QrCode },
                 { id: 'split' as PaymentMethod, icon: Split, label: 'Split' },
-              ].map(({ id, icon: Icon, label }) => (
+              ].map(({ id, icon: Icon, label: fixedLabel }) => {
+                const label = fixedLabel ?? getPaymentMethodLabel(id);
+                return (
                 <button
                   key={id}
                   onClick={() => {
@@ -690,7 +693,8 @@ export function CartPanelEnhanced() {
                   <Icon className="w-4 h-4" />
                   {label}
                 </button>
-              ))}
+              );
+              })}
             </div>
           </div>
           )}
@@ -738,11 +742,13 @@ export function CartPanelEnhanced() {
               <div className="grid grid-cols-3 gap-2">
                 {(
                   [
-                    { id: 'cash' as const, icon: Banknote, label: 'Cash' },
-                    { id: 'card' as const, icon: CreditCard, label: 'Card' },
-                    { id: 'qr' as const, icon: QrCode, label: 'QR' },
-                  ]
-                ).map(({ id, icon: Icon, label }) => (
+                  { id: 'cash' as const, icon: Banknote },
+                  { id: 'card' as const, icon: CreditCard },
+                  { id: 'qr' as const, icon: QrCode },
+                ]
+              ).map(({ id, icon: Icon }) => {
+                const label = getPaymentMethodLabel(id);
+                return (
                   <button
                     key={id}
                     onClick={() => setPaymentMethod(id)}
@@ -756,7 +762,8 @@ export function CartPanelEnhanced() {
                     <Icon className="w-3 h-3" />
                     {label}
                   </button>
-                ))}
+                );
+              })}
               </div>
             </div>
           )}
