@@ -8,7 +8,7 @@ import {
 } from '@/components/ui/sheet';
 import { StatusChip } from '@/components/ui/StatusChip';
 import { cn } from '@/lib/utils';
-import { formatKES } from '@/lib/formatKES';
+import { formatKES, formatKESAmount } from '@/lib/formatKES';
 import { formatDate } from '@/lib/formatDate';
 import { formatQty, formatQtyAmount } from '@/lib/units';
 import { getOrderListStatus } from '@/lib/orderListStatus';
@@ -35,10 +35,39 @@ function formatPaymentDateTime(iso: string): string {
   return formatOrderDetailDateTime(iso);
 }
 
-function orderFulfillmentCaption(status: string): string | null {
-  if (status === 'cancelled' || status === 'voided') return null;
-  if (status === 'completed') return 'Completed';
-  return null;
+function orderStatusCaption(status: string): string | null {
+  if (status === 'cancelled' || status === 'voided' || status === 'completed') {
+    return null;
+  }
+  if (status === 'preparing') return 'Preparing';
+  if (status === 'pending') return 'Pending';
+  if (status === 'ready') return 'Ready';
+  return status.charAt(0).toUpperCase() + status.slice(1);
+}
+
+const DRAWER_PAD = 'px-5';
+
+function SansKesFigure({
+  amount,
+  size,
+  className,
+}: {
+  amount: number;
+  size: 32 | 28;
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        'inline-flex items-baseline gap-1.5 font-sans font-bold tabular-nums text-ink',
+        size === 32 ? 'text-[32px] leading-tight' : 'text-[28px] leading-tight',
+        className,
+      )}
+    >
+      <span className="text-sm font-semibold text-ink-2">KES</span>
+      <span>{formatKESAmount(amount)}</span>
+    </span>
+  );
 }
 
 function itemQtyUnitLine(
@@ -65,8 +94,8 @@ const ROW_TEXT_BTN =
 const ACCENT_FOOTER_BTN =
   'focus-ring flex h-14 w-full min-h-14 items-center justify-center rounded-[var(--radius)] bg-primary text-base font-semibold text-primary-foreground active:scale-[0.98]';
 
-const RECEIPT_ZIGZAG =
-  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='6' viewBox='0 0 12 6' preserveAspectRatio='none'%3E%3Cpath d='M0 0 L6 6 L12 0 Z' fill='hsl(var(--background))'/%3E%3Cpath d='M0 0 L6 6 L12 0' fill='none' stroke='hsl(var(--hairline))' stroke-width='1'/%3E%3C/svg%3E\")";
+const RECEIPT_TEAR_MASK =
+  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='6' viewBox='0 0 12 6'%3E%3Crect width='12' height='3' fill='white'/%3E%3Cpolygon points='0,3 6,6 12,3' fill='black'/%3E%3Cline x1='0' y1='3' x2='12' y2='3' stroke='black' stroke-width='0.25'/%3E%3C/svg%3E\")";
 
 export interface OrderDetailDrawerProps {
   open: boolean;
@@ -113,13 +142,28 @@ export function OrderDetailDrawer({
   const showBalanceBlock = Boolean(order && balanceDue > 0 && !isCancelled);
   const showFooterRecord = Boolean(order && canRecordPayment && balanceDue > 0 && !isCancelled);
   const paidTotal = order ? sumActivePaymentAmount(order.payments) : 0;
-  const fulfillment = order ? orderFulfillmentCaption(order.status) : null;
+  const statusCaption = order ? orderStatusCaption(order.status) : null;
+  const showDueDateInDetails = Boolean(
+    order?.due_date && !showBalanceBlock && !isCancelled,
+  );
+  const headerSubtitle = order
+    ? [order.customer_name, formatOrderDetailDateTime(order.created_at)]
+        .filter(Boolean)
+        .join(' · ')
+    : '';
   const saleTypeLabel =
     order?.sale_type === 'credit' ? 'Credit sale' : 'Cash sale';
   const taxRatePercent = order ? Math.round((order.tax_rate || 0) * 100) : 0;
   const showTax =
     order &&
     (order.tax_amount > 0 || (order.tax_rate != null && order.tax_rate > 0));
+  const hasCompactDetails = Boolean(
+    order &&
+      ((customer && order.customer_name) ||
+        order.invoice_number ||
+        order.staff_name ||
+        showDueDateInDetails),
+  );
   const handleCloseAutoFocus = (event: Event) => {
     event.preventDefault();
     const fromRef = returnFocusRef?.current;
@@ -155,7 +199,12 @@ export function OrderDetailDrawer({
               Order details for {formatOrderDetailDateTime(order.created_at)}
             </SheetDescription>
 
-            <header className="shrink-0 border-b border-hairline bg-background px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+            <header
+              className={cn(
+                'shrink-0 border-b border-hairline bg-background pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]',
+                DRAWER_PAD,
+              )}
+            >
               <div className="flex items-start gap-2">
                 {!isDesktopMd ? (
                   <button
@@ -170,11 +219,12 @@ export function OrderDetailDrawer({
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <h2 className="font-mono text-lg font-bold text-ink">
-                        Order #{order.order_number}
+                      <h2 className="text-xl font-semibold text-ink">
+                        <span className="font-sans">Order </span>
+                        <span className="font-mono">#{order.order_number}</span>
                       </h2>
-                      <p className="mt-0.5 text-sm text-ink-2">
-                        {formatOrderDetailDateTime(order.created_at)}
+                      <p className="mt-0.5 truncate text-sm text-ink-2">
+                        {headerSubtitle}
                       </p>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
@@ -201,8 +251,13 @@ export function OrderDetailDrawer({
               </div>
             </header>
 
-            <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-4">
-              <section className="border-b border-hairline py-4">
+            <div
+              className={cn(
+                'min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain [scrollbar-gutter:stable]',
+                DRAWER_PAD,
+              )}
+            >
+              <section className="border-b border-hairline py-3">
                 {isCancelled ? (
                   <p className="flex items-center gap-2 text-sm font-semibold text-ink">
                     <Ban className="h-4 w-4 shrink-0 text-ink-2" aria-hidden />
@@ -213,21 +268,15 @@ export function OrderDetailDrawer({
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                       {listStatus ? <StatusChip status={listStatus} size="md" /> : null}
                       <span className="text-sm font-medium text-ink">{saleTypeLabel}</span>
-                      {fulfillment ? (
-                        <span className="text-sm font-medium text-ink">{fulfillment}</span>
+                      {statusCaption ? (
+                        <span className="text-sm font-medium text-ink">{statusCaption}</span>
                       ) : null}
                     </div>
                     {showBalanceBlock ? (
-                      <div className="mt-4">
+                      <div className="mt-3">
                         <p className="text-xs font-semibold text-ink-2">Balance due</p>
                         <div className="mt-1 flex flex-wrap items-end gap-x-3 gap-y-1">
-                          <p
-                            className={cn(
-                              'text-[32px] font-bold leading-tight tabular-nums text-ink',
-                            )}
-                          >
-                            {formatKES(balanceDue)}
-                          </p>
+                          <SansKesFigure amount={balanceDue} size={32} />
                           {order.due_date ? (
                             <div className="flex flex-wrap items-center gap-2 pb-1">
                               <p className="text-sm text-ink-2">
@@ -245,52 +294,12 @@ export function OrderDetailDrawer({
                 )}
               </section>
 
-              <dl className="grid grid-cols-1 gap-4 border-b border-hairline py-4 md:grid-cols-2">
-                {order.customer_name ? (
-                  <div className="min-w-0 md:col-span-2">
-                    <dt className="text-xs font-semibold text-ink-2">Customer</dt>
-                    <dd className="mt-1 text-base text-ink">{order.customer_name}</dd>
-                    {customer ? (
-                      <p className="mt-0.5 text-sm text-ink-2">
-                        Account balance {formatKES(customer.credit_balance)}
-                      </p>
-                    ) : null}
-                  </div>
-                ) : null}
-                {order.invoice_number ? (
-                  <div>
-                    <dt className="text-xs font-semibold text-ink-2">Invoice</dt>
-                    <dd className="mt-1 font-mono text-sm text-ink">{order.invoice_number}</dd>
-                  </div>
-                ) : null}
-                {order.staff_name ? (
-                  <div>
-                    <dt className="text-xs font-semibold text-ink-2">Staff</dt>
-                    <dd className="mt-1 text-sm text-ink">{order.staff_name}</dd>
-                  </div>
-                ) : null}
-                <div>
-                  <dt className="text-xs font-semibold text-ink-2">Sale type</dt>
-                  <dd className="mt-1 text-sm text-ink">
-                    {order.sale_type === 'credit' ? 'Credit' : 'Cash'}
-                  </dd>
-                </div>
-                {order.due_date ? (
-                  <div>
-                    <dt className="text-xs font-semibold text-ink-2">Due date</dt>
-                    <dd className="mt-1 text-sm text-ink">
-                      {formatDate(new Date(order.due_date))}
-                    </dd>
-                  </div>
-                ) : null}
-              </dl>
-
-              <section className="py-4" aria-labelledby="order-receipt-paper-heading">
+              <section className="py-3" aria-labelledby="order-receipt-paper-heading">
                 <h3 id="order-receipt-paper-heading" className="sr-only">
                   Receipt
                 </h3>
                 <div className="overflow-hidden rounded-t-2xl border border-b-0 border-hairline bg-surface">
-                  <div className="p-4">
+                  <div className="p-5">
                     <p className="text-xs font-semibold text-ink-2">Items</p>
                     <ul className="mt-3 space-y-0">
                       {order.items.map((item, index) => (
@@ -366,16 +375,13 @@ export function OrderDetailDrawer({
                         className="border-t-2 border-double border-hairline pt-3"
                         role="separator"
                       >
-                        <div className="flex justify-between gap-3">
+                        <div className="flex items-baseline justify-between gap-3">
                           <span className="text-sm font-semibold text-ink">Total</span>
-                          <span
-                            className={cn(
-                              'text-[28px] font-bold leading-tight tabular-nums text-ink',
-                              isCancelled && 'line-through',
-                            )}
-                          >
-                            {formatKES(order.total)}
-                          </span>
+                          <SansKesFigure
+                            amount={order.total}
+                            size={28}
+                            className={cn(isCancelled && 'line-through')}
+                          />
                         </div>
                         <div className="mt-3 space-y-1 text-sm">
                           <div className="flex justify-between gap-3 text-ink">
@@ -403,18 +409,21 @@ export function OrderDetailDrawer({
                   </div>
                 </div>
                 <div
-                  className="h-3 w-full bg-surface"
+                  className="h-[6px] w-full bg-surface"
                   style={{
-                    backgroundImage: RECEIPT_ZIGZAG,
-                    backgroundRepeat: 'repeat-x',
-                    backgroundSize: '12px 6px',
+                    maskImage: RECEIPT_TEAR_MASK,
+                    WebkitMaskImage: RECEIPT_TEAR_MASK,
+                    maskRepeat: 'repeat-x',
+                    WebkitMaskRepeat: 'repeat-x',
+                    maskSize: '12px 6px',
+                    WebkitMaskSize: '12px 6px',
                   }}
                   aria-hidden
                 />
               </section>
 
               {!isCancelled ? (
-                <section className="border-t border-hairline py-4" aria-labelledby="order-payments-heading">
+                <section className="border-t border-hairline py-3" aria-labelledby="order-payments-heading">
                   <h3 id="order-payments-heading" className="text-sm font-semibold text-ink">
                     Payments ({order.payments.length})
                   </h3>
@@ -426,7 +435,7 @@ export function OrderDetailDrawer({
                         <li
                           key={payment.id}
                           className={cn(
-                            'flex flex-wrap items-start justify-between gap-3 py-3',
+                            'flex w-full items-start justify-between gap-3 py-3',
                             payment.reversed_at && 'opacity-60',
                           )}
                         >
@@ -487,11 +496,50 @@ export function OrderDetailDrawer({
                 </section>
               ) : null}
 
+              {hasCompactDetails ? (
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-3 border-t border-hairline py-3 text-sm">
+                  {customer && order.customer_name ? (
+                    <div className="col-span-2 min-w-0">
+                      <dt className="sr-only">Account balance</dt>
+                      <dd className="text-ink">
+                        {order.customer_name} account balance{' '}
+                        {formatKES(customer.credit_balance)}
+                      </dd>
+                    </div>
+                  ) : null}
+                  {order.invoice_number ? (
+                    <div className="min-w-0">
+                      <dt className="text-ink-2">Invoice</dt>
+                      <dd className="mt-1 font-mono text-ink">{order.invoice_number}</dd>
+                    </div>
+                  ) : null}
+                  {order.staff_name ? (
+                    <div className="min-w-0">
+                      <dt className="text-ink-2">Staff</dt>
+                      <dd className="mt-1 text-ink">{order.staff_name}</dd>
+                    </div>
+                  ) : null}
+                  {showDueDateInDetails ? (
+                    <div className="min-w-0">
+                      <dt className="text-ink-2">Due date</dt>
+                      <dd className="mt-1 text-ink">
+                        {formatDate(new Date(order.due_date!))}
+                      </dd>
+                    </div>
+                  ) : null}
+                </dl>
+              ) : null}
+
               <div className="h-4 shrink-0" aria-hidden />
             </div>
 
             {showFooterRecord ? (
-              <footer className="shrink-0 border-t border-hairline bg-background px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
+              <footer
+                className={cn(
+                  'shrink-0 border-t border-hairline bg-background pb-[max(1rem,env(safe-area-inset-bottom))] pt-3',
+                  DRAWER_PAD,
+                )}
+              >
                 <button
                   type="button"
                   className={ACCENT_FOOTER_BTN}

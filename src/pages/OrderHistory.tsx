@@ -112,7 +112,10 @@ const ROW_MORE_BTN =
   'focus-ring inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius)] border border-hairline bg-surface text-ink';
 
 const DATE_RANGE_BTN =
-  'focus-ring inline-flex h-10 min-h-10 shrink-0 items-center justify-center gap-2 rounded-[var(--radius)] border border-hairline bg-surface px-3 text-sm font-semibold text-ink active:scale-[0.98] [@media(pointer:coarse)]:h-12 [@media(pointer:coarse)]:min-h-12';
+  'focus-ring inline-flex h-10 min-h-10 items-center justify-center gap-2 rounded-[var(--radius)] border border-hairline bg-surface px-3 text-sm font-semibold text-ink active:scale-[0.98]';
+
+const PHONE_FILTER_BTN =
+  'focus-ring inline-flex h-12 min-h-12 min-w-0 items-center justify-center gap-2 rounded-[var(--radius)] border border-hairline bg-surface px-3 text-sm font-semibold text-ink active:scale-[0.98]';
 
 function formatOrderListDateTime(iso: string): string {
   const date = new Date(iso);
@@ -1092,7 +1095,12 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
               })}
             </div>
 
-            <div className="flex w-full shrink-0 flex-col gap-2 md:w-auto md:flex-row md:flex-wrap md:items-center">
+            <div
+              className={cn(
+                'w-full shrink-0 gap-2 md:w-auto md:flex md:flex-row md:flex-wrap md:items-center',
+                isDesktopMd ? 'flex flex-row flex-wrap items-center' : 'grid grid-cols-2',
+              )}
+            >
               {isDesktopMd ? (
                 <Popover open={dateRangeOpen} onOpenChange={setDateRangeOpen}>
                   <PopoverTrigger asChild>
@@ -1114,13 +1122,13 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
                 <>
                   <button
                     type="button"
-                    className={cn(DATE_RANGE_BTN, 'w-full')}
+                    className={cn(PHONE_FILTER_BTN, 'w-full')}
                     aria-haspopup="dialog"
                     aria-label={dateRangeAriaLabel}
                     onClick={() => setDateRangeOpen(true)}
                   >
                     <CalendarRange className="h-4 w-4 shrink-0 text-ink-2" aria-hidden />
-                    <span className="whitespace-nowrap">{dateRangeLabel}</span>
+                    <span className="min-w-0 truncate">{dateRangeLabel}</span>
                   </button>
                   <Sheet open={dateRangeOpen} onOpenChange={setDateRangeOpen}>
                     <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto">
@@ -1138,13 +1146,15 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
 
               <button
                 type="button"
-                className={DATE_RANGE_BTN}
+                className={cn(isDesktopMd ? DATE_RANGE_BTN : PHONE_FILTER_BTN, 'w-full')}
                 onClick={() => setFiltersOpen(true)}
               >
-                <SlidersHorizontal className="h-4 w-4 text-ink-2" aria-hidden />
-                More filters
+                <SlidersHorizontal className="h-4 w-4 shrink-0 text-ink-2" aria-hidden />
+                <span className="truncate">More filters</span>
                 {activeFilterCount > 0 ? (
-                  <span className="font-mono text-xs text-ink-2">({activeFilterCount})</span>
+                  <span className="shrink-0 font-mono text-xs text-ink-2">
+                    ({activeFilterCount})
+                  </span>
                 ) : null}
               </button>
             </div>
