@@ -5,7 +5,7 @@
  * but never throws, so the calling code is never blocked.
  */
 import { supabase } from '@/lib/supabase';
-import { SaleOrder } from '@/hooks/useOrders';
+import { SaleOrder, sumActivePaymentAmount } from '@/hooks/useOrders';
 import {
   buildAccountPaymentReceivedCustomerMessage,
   buildAccountPaymentReceivedOwnerMessage,
@@ -57,6 +57,26 @@ async function canSendSmsInCurrentStore(): Promise<boolean> {
   }
 
   return canSendSmsInCurrentStorePromise;
+}
+
+/** Normalize Kenya mobiles for the SMS gateway (2547XXXXXXXX). */
+export function normalizeKenyaMobile(input: string): string {
+  const digits = input.replace(/\D/g, '');
+  if (digits.startsWith('254')) return digits;
+  if (digits.startsWith('0') && digits.length === 10) return `254${digits.slice(1)}`;
+  if (digits.length === 9 && digits.startsWith('7')) return `254${digits}`;
+  return digits;
+}
+
+export function estimateInvoiceSmsBalances(
+  order: SaleOrder,
+  customerCreditBalance?: number | null,
+): { previousBalance: number; overallBalance: number } {
+  const overallBalance = customerCreditBalance ?? order.total;
+  const paidAtCreation = sumActivePaymentAmount(order.payments);
+  const netIncrease = Math.max(Number(order.total) - paidAtCreation, 0);
+  const previousBalance = Math.max(overallBalance - netIncrease, 0);
+  return { previousBalance, overallBalance };
 }
 
 // ─── Low-level send ────────────────────────────────────────────────────────
@@ -298,4 +318,54 @@ export function notifyAccountPaymentReceived(
     paymentDescription,
   );
   sendOwnerAlert(ownerMsg);
+}
+
+/**
+ * Manually send (or resend) the credit-invoice SMS to any number — for staff resend / testing.
+ * Does not send owner alerts.
+ */
+export async function sendInvoiceNotificationSms(
+  mobile: string,
+  order: SaleOrder,
+  companyName: string,
+  customerCreditBalance?: number | null,
+): Promise<{ ok: boolean; error?: string }> {
+  const trimmed = mobile.trim();
+  if (!trimmed) return { ok: false, error: 'Enter a phone number' };
+
+  const normalized = normalizeKenyaMobile(trimmed);
+  if (normalized.length < 11) {
+    return { ok: false, error: 'Enter a valid Kenya mobile number' };
+  }
+
+  const canSend = await canSendSmsInCurrentStore();
+  if (!canSend) {
+    return { ok: false, error: 'SMS can only be sent from the main store.' };
+  }
+
+  const { previousBalance, overallBalance } = estimateInvoiceSmsBalances(
+    order,
+    customerCreditBalance,
+  );
+  const msg = buildInvoiceCreatedCustomerMessage(
+    order,
+    companyName,
+    previousBalance,
+    overallBalance,
+    order.consignment_info,
+  );
+
+  try {
+    const { data, error } = await supabase.functions.invoke('send-sms', {
+      body: { mobile: normalized, message: msg },
+    });
+    if (error) return { ok: false, error: error.message };
+    if (data && typeof data === 'object' && 'error' in data && data.error) {
+      return { ok: false, error: String(data.error) };
+    }
+    return { ok: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to send SMS';
+    return { ok: false, error: message };
+  }
 }

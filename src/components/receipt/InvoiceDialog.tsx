@@ -7,10 +7,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Printer, Mail, Download, FileText, Receipt, Loader2 } from 'lucide-react';
+import { Printer, Mail, MessageSquare, Download, FileText, Receipt, Loader2 } from 'lucide-react';
 import { InvoicePreview } from './InvoicePreview';
 import { ReceiptPreview } from './ReceiptPreview';
 import { SendInvoiceEmailDialog } from './SendInvoiceEmailDialog';
+import { SendInvoiceSmsDialog } from './SendInvoiceSmsDialog';
 import { ReceiptData, receiptTemplates } from '@/data/receiptData';
 import { SaleOrder } from '@/hooks/useOrders';
 import { Customer } from '@/hooks/useCustomers';
@@ -40,6 +41,7 @@ export function InvoiceDialog({
   const [viewMode, setViewMode] = useState<ViewMode>(defaultView);
   const [isSavingPdf, setIsSavingPdf] = useState(false);
   const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
+  const [isSmsDialogOpen, setIsSmsDialogOpen] = useState(false);
   const previewRef = useRef<HTMLDivElement>(null);
   const { settings: companySettings } = useCompanySettings();
 
@@ -349,6 +351,16 @@ export function InvoiceDialog({
                 <Mail className="w-4 h-4 shrink-0" />
                 Email
               </Button>
+              {order.sale_type === 'credit' && (
+                <Button
+                  variant="outline"
+                  onClick={() => setIsSmsDialogOpen(true)}
+                  className="flex-1 gap-2 text-xs sm:text-sm"
+                >
+                  <MessageSquare className="w-4 h-4 shrink-0" />
+                  SMS
+                </Button>
+              )}
               <Button
                 variant="outline"
                 onClick={handleSavePdf}
@@ -375,6 +387,15 @@ export function InvoiceDialog({
         customerEmail={customer?.email || undefined}
         companyName={companySettings.fullName}
       />
+      {order.sale_type === 'credit' && (
+        <SendInvoiceSmsDialog
+          open={isSmsDialogOpen}
+          onOpenChange={setIsSmsDialogOpen}
+          order={order}
+          customer={customer}
+          companyName={companySettings.fullName}
+        />
+      )}
     </>
   );
 }
