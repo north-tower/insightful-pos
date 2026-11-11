@@ -46,6 +46,7 @@ export function usePaymentLedger() {
             reference,
             description,
             paid_at,
+            created_at,
             reversed_at,
             orders!inner (
               order_number,
@@ -58,7 +59,7 @@ export function usePaymentLedger() {
           `,
           )
           .eq('orders.business_mode', mode)
-          .order('paid_at', { ascending: false })
+          .order('created_at', { ascending: false })
           .limit(FETCH_LIMIT),
         supabase
           .from('customer_account_payments')
@@ -95,7 +96,7 @@ export function usePaymentLedger() {
           amount: Number(p.amount),
           reference: p.reference || undefined,
           description: p.description || undefined,
-          paid_at: p.paid_at,
+          paid_at: p.created_at || p.paid_at,
           reversed_at: p.reversed_at || null,
           order_id: p.order_id,
           order_number: order?.order_number,

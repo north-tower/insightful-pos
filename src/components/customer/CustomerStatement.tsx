@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Customer } from '@/hooks/useCustomers';
-import { SaleOrder } from '@/hooks/useOrders';
+import { Payment, SaleOrder } from '@/hooks/useOrders';
 import { format } from 'date-fns';
 import {
   FileText,
@@ -37,7 +37,7 @@ import { supabase } from '@/lib/supabase';
 
 interface StatementEntry {
   id: string;
-  /** ISO timestamp from DB (orders / account payments / ledger `created_at`; order payments use `paid_at`). */
+  /** ISO timestamp from DB (`orders.created_at`, `payments.created_at`, account/ledger `created_at`). */
   recordedAt: string;
   date: Date;
   type: 'opening' | 'invoice' | 'payment' | 'reversal';
@@ -50,6 +50,8 @@ interface StatementEntry {
   orderId?: string;
   /** Snapshot at statement build time (line items for print / display). */
   invoiceOrder?: SaleOrder;
+  /** Deposit(s) recorded when the invoice was created — shown with the invoice, not as separate rows. */
+  invoiceDeposits?: InvoiceDepositSnapshot[];
   paymentMethod?: string;
   reversalKind?: 'order_payment_reversed' | 'account_payment_reversed' | 'invoice_cancelled';
 }
@@ -86,9 +88,36 @@ interface LedgerEntryRow {
 
 type DateRange = 'all' | '30' | '60' | '90' | 'this-month' | 'this-year';
 
+interface InvoiceDepositSnapshot {
+  id: string;
+  amount: number;
+  method: string;
+  description: string;
+  recordedAt: string;
+}
+
+const INVOICE_DEPOSIT_DESCRIPTION = 'deposit at invoice creation';
+
+function orderPaymentCreatedAt(payment: Payment): string {
+  return payment.created_at || payment.paid_at;
+}
+
+function isInvoiceCreationDeposit(payment: Payment, order: SaleOrder): boolean {
+  const description = payment.description?.trim().toLowerCase();
+  if (description === INVOICE_DEPOSIT_DESCRIPTION) return true;
+
+  const orderMs = new Date(order.created_at).getTime();
+  const payMs = new Date(orderPaymentCreatedAt(payment)).getTime();
+  return Math.abs(orderMs - payMs) < 1000;
+}
+
+function nestedDepositCredit(entry: Pick<StatementEntry, 'invoiceDeposits'>): number {
+  return (entry.invoiceDeposits ?? []).reduce((sum, d) => sum + d.amount, 0);
+}
+
 type StatementSortable = Pick<
   StatementEntry,
-  'recordedAt' | 'type' | 'id' | 'debit'
+  'recordedAt' | 'type' | 'id' | 'debit' | 'orderId'
 >;
 
 function statementRecordedAtMs(entry: StatementSortable): number {
@@ -110,6 +139,12 @@ function compareStatementChronological(a: StatementSortable, b: StatementSortabl
   };
   const byType = rank(a) - rank(b);
   if (byType !== 0) return byType;
+
+  if (a.orderId && b.orderId && a.orderId === b.orderId) {
+    if (a.type === 'invoice' && b.type === 'payment') return -1;
+    if (a.type === 'payment' && b.type === 'invoice') return 1;
+  }
+
   return a.id.localeCompare(b.id);
 }
 
@@ -134,15 +169,29 @@ function escapeHtml(text: string): string {
     .replace(/"/g, '&quot;');
 }
 
-function invoiceHasDetail(order: SaleOrder): boolean {
-  return (order.items?.length ?? 0) > 0 || Boolean(order.consignment_info?.trim());
+function invoiceHasDetail(
+  order: SaleOrder,
+  deposits?: InvoiceDepositSnapshot[],
+): boolean {
+  return (
+    (order.items?.length ?? 0) > 0 ||
+    Boolean(order.consignment_info?.trim()) ||
+    (deposits?.length ?? 0) > 0
+  );
 }
 
-function InvoiceDetailBlock({ order }: { order: SaleOrder }) {
+function InvoiceDetailBlock({
+  order,
+  deposits = [],
+}: {
+  order: SaleOrder;
+  deposits?: InvoiceDepositSnapshot[];
+}) {
   const hasItems = (order.items?.length ?? 0) > 0;
   const consignment = order.consignment_info?.trim();
+  const hasDeposits = deposits.length > 0;
 
-  if (!hasItems && !consignment) return null;
+  if (!hasItems && !consignment && !hasDeposits) return null;
 
   return (
     <div className="text-xs text-muted-foreground space-y-2">
@@ -180,6 +229,19 @@ function InvoiceDetailBlock({ order }: { order: SaleOrder }) {
           </tbody>
         </table>
       )}
+      {hasDeposits && (
+        <ul className="space-y-1">
+          {deposits.map((deposit) => (
+            <li key={deposit.id} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+              <span className="text-foreground font-medium">{deposit.description}</span>
+              <span className="text-success font-semibold tabular-nums">
+                <Money value={deposit.amount} sign="minus" />
+              </span>
+              <span className="text-muted-foreground capitalize">({deposit.method})</span>
+            </li>
+          ))}
+        </ul>
+      )}
       {consignment && (
         <p>
           <span className="uppercase text-[10px] tracking-wide font-medium">Consignment</span>
@@ -196,8 +258,11 @@ function InvoiceDetailBlock({ order }: { order: SaleOrder }) {
   );
 }
 
-function buildInvoiceDetailPrintHtml(order: SaleOrder): string {
-  if (!invoiceHasDetail(order)) return '';
+function buildInvoiceDetailPrintHtml(
+  order: SaleOrder,
+  deposits: InvoiceDepositSnapshot[] = [],
+): string {
+  if (!invoiceHasDetail(order, deposits)) return '';
 
   const itemRows = (order.items || [])
     .map(
@@ -225,6 +290,13 @@ function buildInvoiceDetailPrintHtml(order: SaleOrder): string {
       </table>`
     : '';
 
+  const depositLines = deposits
+    .map(
+      (d) =>
+        `<p class="invoice-deposit">${escapeHtml(d.description)}: ${fc(d.amount)} (${escapeHtml(d.method)})</p>`,
+    )
+    .join('');
+
   const consignment = order.consignment_info?.trim()
     ? `<p class="consignment">
         <span class="muted">Consignment:</span>
@@ -233,7 +305,7 @@ function buildInvoiceDetailPrintHtml(order: SaleOrder): string {
       </p>`
     : '';
 
-  return `${itemsTable}${consignment}`;
+  return `${itemsTable}${depositLines}${consignment}`;
 }
 
 function resolveInvoiceOrder(
@@ -251,7 +323,9 @@ function buildStatementPrintRows(
   return entries
     .map((e) => {
       const order = resolveInvoiceOrder(e, ordersById);
-      const detailHtml = order ? buildInvoiceDetailPrintHtml(order) : '';
+      const detailHtml = order
+        ? buildInvoiceDetailPrintHtml(order, e.invoiceDeposits)
+        : '';
       const descriptionCell = detailHtml
         ? `${escapeHtml(e.description)}<div class="invoice-detail-inline">${detailHtml}</div>`
         : escapeHtml(e.description);
@@ -393,6 +467,25 @@ export function CustomerStatement({
 
     creditOrders.forEach((order) => {
       const cancelled = order.status === 'cancelled';
+      const activePayments = order.payments.filter((payment) => !payment.reversed_at);
+      const invoiceDeposits: InvoiceDepositSnapshot[] = [];
+      const followUpPayments: Payment[] = [];
+
+      activePayments.forEach((payment) => {
+        if (isInvoiceCreationDeposit(payment, order)) {
+          invoiceDeposits.push({
+            id: payment.id,
+            amount: payment.amount,
+            method: payment.method,
+            description:
+              payment.description?.trim() || 'Deposit at invoice creation',
+            recordedAt: order.created_at,
+          });
+        } else {
+          followUpPayments.push(payment);
+        }
+      });
+
       raw.push(
         draftEntry({
           id: `inv-${order.id}`,
@@ -406,33 +499,31 @@ export function CustomerStatement({
           credit: 0,
           orderId: order.id,
           invoiceOrder: order,
+          invoiceDeposits:
+            invoiceDeposits.length > 0 ? invoiceDeposits : undefined,
         }),
       );
 
-      order.payments
-        .filter((payment) => !payment.reversed_at)
-        .forEach((payment) => {
-          const paymentDescription =
-            payment.description?.trim() ||
-            `Payment (${payment.method.charAt(0).toUpperCase() + payment.method.slice(1)})`;
-          // payments table has paid_at (record time); not a separate created_at column.
-          const recordedAt = payment.paid_at;
+      followUpPayments.forEach((payment) => {
+        const paymentDescription =
+          payment.description?.trim() ||
+          `Payment (${payment.method.charAt(0).toUpperCase() + payment.method.slice(1)})`;
 
-          raw.push(
-            draftEntry({
-              id: `pay-${payment.id}`,
-              recordedAt,
-              type: 'payment',
-              reference:
-                payment.reference || `PAY-${payment.id.slice(0, 8).toUpperCase()}`,
-              description: paymentDescription,
-              debit: 0,
-              credit: payment.amount,
-              orderId: order.id,
-              paymentMethod: payment.method,
-            }),
-          );
-        });
+        raw.push(
+          draftEntry({
+            id: `pay-${payment.id}`,
+            recordedAt: orderPaymentCreatedAt(payment),
+            type: 'payment',
+            reference:
+              payment.reference || `PAY-${payment.id.slice(0, 8).toUpperCase()}`,
+            description: paymentDescription,
+            debit: 0,
+            credit: payment.amount,
+            orderId: order.id,
+            paymentMethod: payment.method,
+          }),
+        );
+      });
     });
 
     ledgerEntries.forEach((entry) => {
@@ -500,7 +591,11 @@ export function CustomerStatement({
     const openingCarriedForward = periodStartMs
       ? raw
           .filter((entry) => statementRecordedAtMs(entry) < periodStartMs)
-          .reduce((sum, entry) => sum + entry.debit - entry.credit, 0)
+          .reduce(
+            (sum, entry) =>
+              sum + entry.debit - entry.credit - nestedDepositCredit(entry),
+            0,
+          )
       : 0;
 
     const filtered = raw.filter(
@@ -529,7 +624,7 @@ export function CustomerStatement({
     }
 
     filtered.forEach((entry) => {
-      runningBalance += entry.debit - entry.credit;
+      runningBalance += entry.debit - entry.credit - nestedDepositCredit(entry);
       withBalance.push({ ...entry, balance: runningBalance });
     });
 
@@ -537,7 +632,9 @@ export function CustomerStatement({
 
     // Compute totals
     const totalDebit = withBalance.reduce((s, e) => s + e.debit, 0);
-    const totalCredit = withBalance.reduce((s, e) => s + e.credit, 0);
+    const totalCredit =
+      withBalance.reduce((s, e) => s + e.credit, 0) +
+      withBalance.reduce((s, e) => s + nestedDepositCredit(e), 0);
     const closingBalance = runningBalance;
 
     return {
@@ -593,6 +690,7 @@ export function CustomerStatement({
             .invoice-items th { font-size: 10px; padding: 4px 8px; border-bottom: 1px solid #e5e5e5; text-transform: uppercase; color: #666; }
             .invoice-items td { padding: 4px 8px; border-bottom: none; }
             .consignment { font-size: 11px; margin-top: 8px; color: #444; }
+            .invoice-deposit { font-size: 11px; margin-top: 6px; color: #166534; }
             .muted { color: #666; }
             @media print { body { padding: 0; } }
           </style>
@@ -784,8 +882,10 @@ export function CustomerStatement({
                   <tbody>
                     {entries.map((entry) => {
                       const invoiceOrder = resolveInvoiceOrder(entry, ordersById);
-                      const showInvoiceDetail =
-                        Boolean(invoiceOrder && invoiceHasDetail(invoiceOrder));
+                      const showInvoiceDetail = Boolean(
+                        invoiceOrder &&
+                          invoiceHasDetail(invoiceOrder, entry.invoiceDeposits),
+                      );
 
                       return (
                         <tr
@@ -811,7 +911,10 @@ export function CustomerStatement({
                             </div>
                             {showInvoiceDetail && invoiceOrder && (
                               <div className="mt-2 pl-5 border-l-2 border-border/60">
-                                <InvoiceDetailBlock order={invoiceOrder} />
+                                <InvoiceDetailBlock
+                                  order={invoiceOrder}
+                                  deposits={entry.invoiceDeposits}
+                                />
                               </div>
                             )}
                           </td>
@@ -934,9 +1037,13 @@ export function CustomerStatement({
                       <p className="text-sm text-muted-foreground mb-2">
                         {entry.description}
                       </p>
-                      {invoiceOrder && invoiceHasDetail(invoiceOrder) && (
+                      {invoiceOrder &&
+                        invoiceHasDetail(invoiceOrder, entry.invoiceDeposits) && (
                         <div className="mb-2 pl-0.5 border-l-2 border-border/60 pl-2">
-                          <InvoiceDetailBlock order={invoiceOrder} />
+                          <InvoiceDetailBlock
+                            order={invoiceOrder}
+                            deposits={entry.invoiceDeposits}
+                          />
                         </div>
                       )}
                       <div className="flex items-center justify-between text-sm gap-3">

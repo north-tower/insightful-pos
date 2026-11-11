@@ -67,6 +67,7 @@ export interface Payment {
   reference?: string;
   description?: string;
   paid_at: string;
+  created_at: string;
   reversed_at?: string | null;
 }
 
@@ -427,14 +428,18 @@ export function useOrders() {
       // 4. Insert payments
       let insertedPayments: any[] = [];
       if (params.payments.length > 0) {
-        const paymentRows = params.payments.map((p) => ({
-          order_id: orderId,
-          method: p.method,
-          amount: p.amount,
-          reference: p.reference || null,
-          description: p.description || null,
-          paid_at: p.paid_at || orderCreatedAt,
-        }));
+        const paymentRows = params.payments.map((p) => {
+          const paidAt = p.paid_at || orderCreatedAt;
+          return {
+            order_id: orderId,
+            method: p.method,
+            amount: p.amount,
+            reference: p.reference || null,
+            description: p.description || null,
+            paid_at: paidAt,
+            created_at: paidAt,
+          };
+        });
 
         const { data: payData, error: payErr } = await supabase
           .from('payments')
@@ -497,6 +502,7 @@ export function useOrders() {
           reference: p.reference,
           description: p.description,
           paid_at: p.paid_at,
+          created_at: p.created_at || p.paid_at,
         })),
       };
     },
@@ -586,6 +592,7 @@ export function useOrders() {
           reference: p.reference,
           description: p.description,
           paid_at: p.paid_at,
+          created_at: p.created_at || p.paid_at,
           reversed_at: p.reversed_at || null,
         });
         paymentsByOrder.set(p.order_id, list);
@@ -792,15 +799,19 @@ export function useOrders() {
             barcode: item.barcode,
           };
           }),
-          payments: params.payments.map((p, index) => ({
-            id: `local-payment-${localOrderId}-${index}`,
-            order_id: localOrderId,
-            method: p.method,
-            amount: p.amount,
-            reference: p.reference,
-            description: p.description,
-            paid_at: p.paid_at || localCreatedAt,
-          })),
+          payments: params.payments.map((p, index) => {
+            const paidAt = p.paid_at || localCreatedAt;
+            return {
+              id: `local-payment-${localOrderId}-${index}`,
+              order_id: localOrderId,
+              method: p.method,
+              amount: p.amount,
+              reference: p.reference,
+              description: p.description,
+              paid_at: paidAt,
+              created_at: paidAt,
+            };
+          }),
         };
 
         const nextOrders = [localOrder, ...orders];
@@ -937,6 +948,7 @@ export function useOrders() {
 
       // Supabase: insert payment row — the DB trigger handles customer balance + order status
       try {
+        const paidAt = payment.paid_at || new Date().toISOString();
         const { data, error: payErr } = await supabase
           .from('payments')
           .insert({
@@ -945,7 +957,8 @@ export function useOrders() {
             amount: payment.amount,
             reference: payment.reference || null,
             description: payment.description || null,
-            paid_at: payment.paid_at || null,
+            paid_at: paidAt,
+            created_at: paidAt,
           })
           .select()
           .single();
@@ -963,6 +976,7 @@ export function useOrders() {
           reference: data.reference,
           description: data.description,
           paid_at: data.paid_at,
+          created_at: data.created_at || data.paid_at,
         };
       } catch (err: any) {
         console.error('Failed to record payment:', err);
@@ -1025,6 +1039,7 @@ export function useOrders() {
           reference: data.reference,
           description: data.description,
           paid_at: data.paid_at,
+          created_at: data.created_at || data.paid_at,
         };
       } catch (err: any) {
         console.error('Failed to update payment:', err);
