@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef, useEffect, Fragment } from 'react';
+import { useMemo, useState, useRef, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -37,6 +37,8 @@ import { supabase } from '@/lib/supabase';
 
 interface StatementEntry {
   id: string;
+  /** ISO timestamp from DB (orders / account payments / ledger `created_at`; order payments use `paid_at`). */
+  recordedAt: string;
   date: Date;
   type: 'opening' | 'invoice' | 'payment' | 'reversal';
   reference: string;
@@ -46,6 +48,8 @@ interface StatementEntry {
   balance: number; // running balance (computed)
   // Extra context
   orderId?: string;
+  /** Snapshot at statement build time (line items for print / display). */
+  invoiceOrder?: SaleOrder;
   paymentMethod?: string;
   reversalKind?: 'order_payment_reversed' | 'account_payment_reversed' | 'invoice_cancelled';
 }
@@ -81,6 +85,46 @@ interface LedgerEntryRow {
 }
 
 type DateRange = 'all' | '30' | '60' | '90' | 'this-month' | 'this-year';
+
+type StatementSortable = Pick<
+  StatementEntry,
+  'recordedAt' | 'type' | 'id' | 'debit'
+>;
+
+function statementRecordedAtMs(entry: StatementSortable): number {
+  return new Date(entry.recordedAt).getTime();
+}
+
+/** Oldest first — used for running balance. */
+function compareStatementChronological(a: StatementSortable, b: StatementSortable): number {
+  const byTime = statementRecordedAtMs(a) - statementRecordedAtMs(b);
+  if (byTime !== 0) return byTime;
+
+  const rank = (e: StatementSortable) => {
+    if (e.type === 'opening') return 0;
+    if (e.type === 'invoice') return 1;
+    if (e.type === 'reversal' && e.debit > 0) return 2;
+    if (e.type === 'reversal') return 3;
+    if (e.type === 'payment') return 4;
+    return 5;
+  };
+  const byType = rank(a) - rank(b);
+  if (byType !== 0) return byType;
+  return a.id.localeCompare(b.id);
+}
+
+function compareStatementNewestFirst(a: StatementSortable, b: StatementSortable): number {
+  return -compareStatementChronological(a, b);
+}
+
+function draftEntry(
+  draft: Omit<StatementEntry, 'balance' | 'date'> & { recordedAt: string },
+): Omit<StatementEntry, 'balance'> {
+  return {
+    ...draft,
+    date: new Date(draft.recordedAt),
+  };
+}
 
 function escapeHtml(text: string): string {
   return text
@@ -192,28 +236,35 @@ function buildInvoiceDetailPrintHtml(order: SaleOrder): string {
   return `${itemsTable}${consignment}`;
 }
 
+function resolveInvoiceOrder(
+  entry: StatementEntry,
+  ordersById: Map<string, SaleOrder>,
+): SaleOrder | undefined {
+  if (entry.type !== 'invoice') return undefined;
+  return entry.invoiceOrder ?? (entry.orderId ? ordersById.get(entry.orderId) : undefined);
+}
+
 function buildStatementPrintRows(
   entries: StatementEntry[],
   ordersById: Map<string, SaleOrder>,
 ): string {
   return entries
     .map((e) => {
-      const order = e.orderId ? ordersById.get(e.orderId) : undefined;
-      const detailHtml =
-        e.type === 'invoice' && order ? buildInvoiceDetailPrintHtml(order) : '';
-      const mainRow = `
+      const order = resolveInvoiceOrder(e, ordersById);
+      const detailHtml = order ? buildInvoiceDetailPrintHtml(order) : '';
+      const descriptionCell = detailHtml
+        ? `${escapeHtml(e.description)}<div class="invoice-detail-inline">${detailHtml}</div>`
+        : escapeHtml(e.description);
+
+      return `
         <tr>
           <td>${format(e.date, 'MMM dd, yyyy')}</td>
           <td class="bold">${escapeHtml(e.reference)}</td>
-          <td>${escapeHtml(e.description)}</td>
+          <td>${descriptionCell}</td>
           <td class="text-right ${e.debit > 0 ? 'debit bold' : ''}">${e.debit > 0 ? fc(e.debit) : '—'}</td>
           <td class="text-right ${e.credit > 0 ? 'credit bold' : ''}">${e.credit > 0 ? fc(e.credit) : '—'}</td>
           <td class="text-right bold">${fc(e.balance)}</td>
         </tr>`;
-      const detailRow = detailHtml
-        ? `<tr class="invoice-detail-row"><td></td><td></td><td colspan="4">${detailHtml}</td></tr>`
-        : '';
-      return mainRow + detailRow;
     })
     .join('');
 }
@@ -250,7 +301,7 @@ export function CustomerStatement({
           .from('customer_account_payments')
           .select('id, customer_id, method, amount, reference, notes, created_at, reversed_at')
           .eq('customer_id', customer.id)
-          .order('created_at', { ascending: true });
+          .order('created_at', { ascending: false });
         if (error) throw error;
         setAccountPayments(
           (data || []).map((p: any) => ({
@@ -284,7 +335,7 @@ export function CustomerStatement({
           .from('customer_ledger_entries')
           .select('id, entry_type, debit, credit, reference, description, order_id, created_at')
           .eq('customer_id', customer.id)
-          .order('created_at', { ascending: true });
+          .order('created_at', { ascending: false });
         if (error) throw error;
         setLedgerEntries(
           (data || []).map((row: any) => ({
@@ -311,128 +362,123 @@ export function CustomerStatement({
 
   // Build the statement entries from orders + payments
   const { entries, summary } = useMemo(() => {
+    const customerDisplayName = displayName;
+
     // Only include credit orders for this customer
     const creditOrders = orders.filter(
       (o) =>
         o.sale_type === 'credit' &&
         o.status !== 'voided' &&
-        o.customer_id === customer.id,
+        (o.customer_id === customer.id ||
+          (!o.customer_id &&
+            o.customer_name?.trim() === customerDisplayName)),
     );
 
     const raw: Omit<StatementEntry, 'balance'>[] = [];
 
     // Opening balance (migration/import baseline)
     if ((customer.opening_balance || 0) > 0) {
-      raw.push({
-        id: `opening-${customer.id}`,
-        date: new Date(customer.created_at),
-        type: 'opening',
-        reference: 'OPENING',
-        description: 'Opening Balance',
-        debit: customer.opening_balance,
-        credit: 0,
-      });
+      raw.push(
+        draftEntry({
+          id: `opening-${customer.id}`,
+          recordedAt: customer.created_at,
+          type: 'opening',
+          reference: 'OPENING',
+          description: 'Opening Balance',
+          debit: customer.opening_balance,
+          credit: 0,
+        }),
+      );
     }
 
-    // Add invoice entries (newest invoices processed first; final order is by date below)
-  [...creditOrders]
-      .sort(
-        (a, b) =>
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-      )
-      .forEach((order) => {
+    creditOrders.forEach((order) => {
       const cancelled = order.status === 'cancelled';
-      raw.push({
-        id: `inv-${order.id}`,
-        date: new Date(order.created_at),
-        type: 'invoice',
-        reference: order.invoice_number || order.order_number,
-        description: cancelled
-          ? `Credit Sale — ${order.items.length} item${order.items.length > 1 ? 's' : ''} (Cancelled)`
-          : `Credit Sale — ${order.items.length} item${order.items.length > 1 ? 's' : ''}`,
-        debit: order.total,
-        credit: 0,
-        orderId: order.id,
-      });
-
-      // Add payment entries for each active payment on this order
-      [...order.payments]
-        .filter((payment) => !payment.reversed_at)
-        .sort(
-          (a, b) =>
-            new Date(b.paid_at).getTime() - new Date(a.paid_at).getTime(),
-        )
-        .forEach((payment) => {
-        const paymentDescription =
-          payment.description?.trim() ||
-          `Payment (${payment.method.charAt(0).toUpperCase() + payment.method.slice(1)})`;
-
-        raw.push({
-          id: `pay-${payment.id}`,
-          date: new Date(payment.paid_at),
-          type: 'payment',
-          reference: payment.reference || `PAY-${payment.id.slice(0, 8).toUpperCase()}`,
-          description: paymentDescription,
-          debit: 0,
-          credit: payment.amount,
+      raw.push(
+        draftEntry({
+          id: `inv-${order.id}`,
+          recordedAt: order.created_at,
+          type: 'invoice',
+          reference: order.invoice_number || order.order_number,
+          description: cancelled
+            ? `Credit Sale — ${order.items.length} item${order.items.length > 1 ? 's' : ''} (Cancelled)`
+            : `Credit Sale — ${order.items.length} item${order.items.length > 1 ? 's' : ''}`,
+          debit: order.total,
+          credit: 0,
           orderId: order.id,
-          paymentMethod: payment.method,
+          invoiceOrder: order,
+        }),
+      );
+
+      order.payments
+        .filter((payment) => !payment.reversed_at)
+        .forEach((payment) => {
+          const paymentDescription =
+            payment.description?.trim() ||
+            `Payment (${payment.method.charAt(0).toUpperCase() + payment.method.slice(1)})`;
+          // payments table has paid_at (record time); not a separate created_at column.
+          const recordedAt = payment.paid_at;
+
+          raw.push(
+            draftEntry({
+              id: `pay-${payment.id}`,
+              recordedAt,
+              type: 'payment',
+              reference:
+                payment.reference || `PAY-${payment.id.slice(0, 8).toUpperCase()}`,
+              description: paymentDescription,
+              debit: 0,
+              credit: payment.amount,
+              orderId: order.id,
+              paymentMethod: payment.method,
+            }),
+          );
         });
-      });
     });
 
-    ledgerEntries
-      .slice()
-      .sort(
-        (a, b) =>
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-      )
-      .forEach((entry) => {
+    ledgerEntries.forEach((entry) => {
       if (
         entry.entry_type === 'order_payment_reversed' ||
         entry.entry_type === 'account_payment_reversed'
       ) {
         return;
       }
-      raw.push({
-        id: `ledger-${entry.id}`,
-        date: new Date(entry.created_at),
-        type: 'reversal',
-        reference: entry.reference || 'ADJ',
-        description: entry.description,
-        debit: entry.debit,
-        credit: entry.credit,
-        orderId: entry.order_id || undefined,
-        reversalKind: entry.entry_type,
-      });
+      raw.push(
+        draftEntry({
+          id: `ledger-${entry.id}`,
+          recordedAt: entry.created_at,
+          type: 'reversal',
+          reference: entry.reference || 'ADJ',
+          description: entry.description,
+          debit: entry.debit,
+          credit: entry.credit,
+          orderId: entry.order_id || undefined,
+          reversalKind: entry.entry_type,
+        }),
+      );
     });
 
-    // Add account-level payments (not tied to specific invoices).
     accountPayments
       .filter((payment) => !payment.reversed_at)
-      .sort(
-        (a, b) =>
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-      )
       .forEach((payment) => {
-      raw.push({
-        id: `acct-pay-${payment.id}`,
-        date: new Date(payment.created_at),
-        type: 'payment',
-        reference:
-          payment.reference ||
-          `APAY-${payment.id.slice(0, 8).toUpperCase()}`,
-        description:
-          payment.notes?.trim() ||
-          `Account Payment (${payment.method.charAt(0).toUpperCase() + payment.method.slice(1)})`,
-        debit: 0,
-        credit: payment.amount,
-        paymentMethod: payment.method,
+        raw.push(
+          draftEntry({
+            id: `acct-pay-${payment.id}`,
+            recordedAt: payment.created_at,
+            type: 'payment',
+            reference:
+              payment.reference ||
+              `APAY-${payment.id.slice(0, 8).toUpperCase()}`,
+            description:
+              payment.notes?.trim() ||
+              `Account Payment (${payment.method.charAt(0).toUpperCase() + payment.method.slice(1)})`,
+            debit: 0,
+            credit: payment.amount,
+            paymentMethod: payment.method,
+          }),
+        );
       });
-    });
 
-    // Sort ascending for running balance, then display newest-first below.
-    raw.sort((a, b) => a.date.getTime() - b.date.getTime());
+  raw.sort(compareStatementChronological);
 
     const now = new Date();
     // Build period start for filtering while preserving accurate running balance.
@@ -449,15 +495,17 @@ export function CustomerStatement({
                 ? new Date(now.getFullYear(), 0, 1)
                 : null;
 
-    const openingCarriedForward = periodStart
+    const periodStartMs = periodStart?.getTime() ?? null;
+
+    const openingCarriedForward = periodStartMs
       ? raw
-          .filter((entry) => entry.date.getTime() < periodStart.getTime())
+          .filter((entry) => statementRecordedAtMs(entry) < periodStartMs)
           .reduce((sum, entry) => sum + entry.debit - entry.credit, 0)
       : 0;
 
     const filtered = raw.filter(
       (entry) =>
-        !periodStart || entry.date.getTime() >= periodStart.getTime(),
+        periodStartMs === null || statementRecordedAtMs(entry) >= periodStartMs,
     );
 
     // Compute running balance (ascending order for correctness)
@@ -465,14 +513,17 @@ export function CustomerStatement({
     const withBalance: StatementEntry[] = [];
 
     if (periodStart && openingCarriedForward !== 0) {
+      const bfRecordedAt = periodStart.toISOString();
       withBalance.push({
-        id: `bf-${dateRange}`,
-        date: periodStart,
-        type: 'opening',
-        reference: 'B/F',
-        description: 'Balance Brought Forward',
-        debit: openingCarriedForward > 0 ? openingCarriedForward : 0,
-        credit: openingCarriedForward < 0 ? Math.abs(openingCarriedForward) : 0,
+        ...draftEntry({
+          id: `bf-${dateRange}`,
+          recordedAt: bfRecordedAt,
+          type: 'opening',
+          reference: 'B/F',
+          description: 'Balance Brought Forward',
+          debit: openingCarriedForward > 0 ? openingCarriedForward : 0,
+          credit: openingCarriedForward < 0 ? Math.abs(openingCarriedForward) : 0,
+        }),
         balance: openingCarriedForward,
       });
     }
@@ -482,11 +533,7 @@ export function CustomerStatement({
       withBalance.push({ ...entry, balance: runningBalance });
     });
 
-    withBalance.sort((a, b) => {
-      const byDate = b.date.getTime() - a.date.getTime();
-      if (byDate !== 0) return byDate;
-      return b.id.localeCompare(a.id);
-    });
+    withBalance.sort(compareStatementNewestFirst);
 
     // Compute totals
     const totalDebit = withBalance.reduce((s, e) => s + e.debit, 0);
@@ -511,6 +558,7 @@ export function CustomerStatement({
     customer.id,
     customer.created_at,
     customer.opening_balance,
+    displayName,
   ]);
 
   const handlePrint = () => {
@@ -540,7 +588,7 @@ export function CustomerStatement({
             .debit { color: #dc2626; }
             .credit { color: #16a34a; }
             .footer { margin-top: 24px; padding-top: 12px; border-top: 2px solid #ddd; font-size: 12px; color: #666; text-align: center; }
-            .invoice-detail-row td { padding-top: 0; padding-bottom: 12px; vertical-align: top; }
+            .invoice-detail-inline { margin-top: 8px; }
             .invoice-items { width: 100%; max-width: 520px; font-size: 11px; margin-top: 4px; }
             .invoice-items th { font-size: 10px; padding: 4px 8px; border-bottom: 1px solid #e5e5e5; text-transform: uppercase; color: #666; }
             .invoice-items td { padding: 4px 8px; border-bottom: none; }
@@ -735,63 +783,60 @@ export function CustomerStatement({
                   </thead>
                   <tbody>
                     {entries.map((entry) => {
-                      const order = entry.orderId
-                        ? ordersById.get(entry.orderId)
-                        : undefined;
+                      const invoiceOrder = resolveInvoiceOrder(entry, ordersById);
                       const showInvoiceDetail =
-                        entry.type === 'invoice' && order && invoiceHasDetail(order);
+                        Boolean(invoiceOrder && invoiceHasDetail(invoiceOrder));
 
                       return (
-                        <Fragment key={entry.id}>
-                          <tr className="border-b border-border/50 hover:bg-muted/30 transition-colors">
-                            <td className="py-2.5 px-3 text-muted-foreground whitespace-nowrap">
-                              {format(entry.date, 'MMM dd, yyyy')}
-                            </td>
-                            <td className="py-2.5 px-3 font-semibold whitespace-nowrap">
-                              {entry.reference}
-                            </td>
-                            <td className="py-2.5 px-3">
-                              <div className="flex items-center gap-2">
-                                {entry.type === 'payment' ? (
-                                  <ArrowDownRight className="w-3.5 h-3.5 text-success shrink-0" />
-                                ) : entry.type === 'reversal' ? (
-                                  <Undo2 className="w-3.5 h-3.5 text-warning shrink-0" />
-                                ) : (
-                                  <ArrowUpRight className="w-3.5 h-3.5 text-destructive shrink-0" />
-                                )}
-                                {entry.description}
+                        <tr
+                          key={entry.id}
+                          className="border-b border-border/50 hover:bg-muted/30 transition-colors"
+                        >
+                          <td className="py-2.5 px-3 text-muted-foreground whitespace-nowrap">
+                            {format(entry.date, 'MMM dd, yyyy')}
+                          </td>
+                          <td className="py-2.5 px-3 font-semibold whitespace-nowrap">
+                            {entry.reference}
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <div className="flex items-center gap-2">
+                              {entry.type === 'payment' ? (
+                                <ArrowDownRight className="w-3.5 h-3.5 text-success shrink-0" />
+                              ) : entry.type === 'reversal' ? (
+                                <Undo2 className="w-3.5 h-3.5 text-warning shrink-0" />
+                              ) : (
+                                <ArrowUpRight className="w-3.5 h-3.5 text-destructive shrink-0" />
+                              )}
+                              <span>{entry.description}</span>
+                            </div>
+                            {showInvoiceDetail && invoiceOrder && (
+                              <div className="mt-2 pl-5 border-l-2 border-border/60">
+                                <InvoiceDetailBlock order={invoiceOrder} />
                               </div>
-                            </td>
-                            <td className="py-2.5 px-3 text-right tabular-nums whitespace-nowrap">
-                              {entry.debit > 0 ? (
-                                <span className="text-destructive font-semibold">
-                                  <Money value={entry.debit} align="right" />
-                                </span>
-                              ) : (
-                                <span className="text-muted-foreground">—</span>
-                              )}
-                            </td>
-                            <td className="py-2.5 px-3 text-right tabular-nums whitespace-nowrap">
-                              {entry.credit > 0 ? (
-                                <span className="text-success font-semibold">
-                                  <Money value={entry.credit} align="right" />
-                                </span>
-                              ) : (
-                                <span className="text-muted-foreground">—</span>
-                              )}
-                            </td>
-                            <td className="py-2.5 px-3 text-right tabular-nums font-bold whitespace-nowrap">
-                              <Money value={entry.balance} align="right" />
-                            </td>
-                          </tr>
-                          {showInvoiceDetail && (
-                            <tr className="border-b border-border/50 bg-muted/20">
-                              <td colSpan={6} className="py-2 px-3 pl-10">
-                                <InvoiceDetailBlock order={order} />
-                              </td>
-                            </tr>
-                          )}
-                        </Fragment>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-right tabular-nums whitespace-nowrap">
+                            {entry.debit > 0 ? (
+                              <span className="text-destructive font-semibold">
+                                <Money value={entry.debit} align="right" />
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-right tabular-nums whitespace-nowrap">
+                            {entry.credit > 0 ? (
+                              <span className="text-success font-semibold">
+                                <Money value={entry.credit} align="right" />
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-right tabular-nums font-bold whitespace-nowrap">
+                            <Money value={entry.balance} align="right" />
+                          </td>
+                        </tr>
                       );
                     })}
                   </tbody>
@@ -828,10 +873,7 @@ export function CustomerStatement({
               {/* Mobile timeline — cards */}
               <div className="md:hidden space-y-3">
                 {entries.map((entry, index) => {
-                  const invoiceOrder =
-                    entry.type === 'invoice' && entry.orderId
-                      ? ordersById.get(entry.orderId)
-                      : undefined;
+                  const invoiceOrder = resolveInvoiceOrder(entry, ordersById);
 
                   return (
                   <div key={entry.id} className="relative flex gap-3">
@@ -892,11 +934,11 @@ export function CustomerStatement({
                       <p className="text-sm text-muted-foreground mb-2">
                         {entry.description}
                       </p>
-                      {invoiceOrder && (
-                          <div className="mb-2 pl-0.5">
-                            <InvoiceDetailBlock order={invoiceOrder} />
-                          </div>
-                        )}
+                      {invoiceOrder && invoiceHasDetail(invoiceOrder) && (
+                        <div className="mb-2 pl-0.5 border-l-2 border-border/60 pl-2">
+                          <InvoiceDetailBlock order={invoiceOrder} />
+                        </div>
+                      )}
                       <div className="flex items-center justify-between text-sm gap-3">
                         <span className="tabular-nums">
                           {entry.type === 'payment' || entry.credit > 0 ? (
