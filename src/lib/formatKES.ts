@@ -75,17 +75,15 @@ export function formatKESAxisTick(amount: number): string {
 }
 
 /**
- * KES amounts for SMS gateways: GSM-7-safe ASCII (no unicode minus, no grouping commas).
- * Grouping commas in GET query payloads are a common source of truncated messages at gateways.
+ * KES amounts for SMS: same grouping/decimals as the app, with ASCII minus (GSM-7) not Unicode −.
+ * Commas are fine — the gateway receives the full body via POST JSON, not a GET query string.
  */
 export function formatKESForSms(amount: number): string {
   const n = Number(amount);
   if (!Number.isFinite(n)) return 'KES 0';
   if (n === 0 || Math.abs(n) < 1e-9) return 'KES 0';
 
-  const abs = Math.abs(n);
-  const hasFraction = Math.abs(abs % 1) > 1e-9;
-  const numeric = hasFraction ? abs.toFixed(2) : String(Math.round(abs));
+  const numeric = formatKESAmount(n);
   if (n < 0) return `-KES ${numeric}`;
   return `KES ${numeric}`;
 }
