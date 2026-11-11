@@ -1,4 +1,4 @@
-import { formatCurrency } from '@/lib/currency';
+import { formatKESForSms } from '@/lib/formatKES';
 import type { SaleOrder } from '@/hooks/useOrders';
 
 /** Short GSM-friendly footer (customer + owner). */
@@ -17,7 +17,7 @@ function formatPaymentNotePart(paymentDescription?: string): string {
 /** Customer-facing closing line after a payment (settled vs balance due). */
 function formatCustomerBalanceAfterLine(balanceAfter: number): string {
   if (balanceAfter <= 0) return 'Your account is fully settled.';
-  return `New balance: ${formatCurrency(Math.max(balanceAfter, 0))}.`;
+  return `New balance: ${formatKESForSms(Math.max(balanceAfter, 0))}.`;
 }
 
 function formatInvoiceDuePart(dueDateIso: string | null | undefined): string {
@@ -40,7 +40,7 @@ export function buildOrderItemsSummary(order: SaleOrder): string {
   const items = order.items.slice(0, SMS_MAX_ITEMS).map((item) => {
     const name = item.product_name || 'Item';
     const qty = Number(item.quantity || 0);
-    const unit = formatCurrency(Number(item.unit_price || 0));
+    const unit = formatKESForSms(Number(item.unit_price || 0));
     return `${name} x${qty} @ ${unit}`;
   });
   const remaining = order.items.length - SMS_MAX_ITEMS;
@@ -56,9 +56,9 @@ export function buildInvoiceCreatedCustomerMessage(
   consignmentInfo?: string,
 ): string {
   const invoiceNo = order.invoice_number || order.order_number;
-  const amount = formatCurrency(order.total);
-  const prevBalanceAmount = formatCurrency(Math.max(previousBalance || 0, 0));
-  const overallBalanceAmount = formatCurrency(Math.max(overallBalance || order.total, 0));
+  const amount = formatKESForSms(order.total);
+  const prevBalanceAmount = formatKESForSms(Math.max(previousBalance || 0, 0));
+  const overallBalanceAmount = formatKESForSms(Math.max(overallBalance || order.total, 0));
   const name = order.customer_name || 'Customer';
   const duePart = formatInvoiceDuePart(order.due_date);
   const consignmentPart = formatConsignmentPart(consignmentInfo, order);
@@ -77,15 +77,15 @@ export function buildInvoiceCancelledCustomerMessage(
   totalPaidOnInvoice: number,
 ): string {
   const invoiceNo = order.invoice_number || order.order_number;
-  const invoiceAmount = formatCurrency(order.total);
-  const removed = formatCurrency(Math.max(amountRemovedFromBalance, 0));
-  const previous = formatCurrency(Math.max(previousBalance, 0));
+  const invoiceAmount = formatKESForSms(order.total);
+  const removed = formatKESForSms(Math.max(amountRemovedFromBalance, 0));
+  const previous = formatKESForSms(Math.max(previousBalance, 0));
   const balanceLine = formatCustomerBalanceAfterLine(balanceAfter);
   const name = order.customer_name || 'Customer';
   const shopName = companyName?.trim() || 'Our Shop';
   const depositPart =
     totalPaidOnInvoice > 0
-      ? ` Payments totalling ${formatCurrency(totalPaidOnInvoice)} on this invoice remain on record; contact ${shopName} if you need a cash refund.`
+      ? ` Payments totalling ${formatKESForSms(totalPaidOnInvoice)} on this invoice remain on record; contact ${shopName} if you need a cash refund.`
       : '';
 
   return `Dear ${name}, invoice #${invoiceNo} for ${invoiceAmount} at ${shopName} has been cancelled. ${removed} removed from your account balance. Previous balance: ${previous}. ${balanceLine}${depositPart} Thank you. ${SMS_FOOTER}`;
@@ -100,15 +100,15 @@ export function buildInvoiceCancelledOwnerMessage(
   totalPaidOnInvoice: number,
 ): string {
   const invoiceNo = order.invoice_number || order.order_number;
-  const invoiceAmount = formatCurrency(order.total);
-  const removed = formatCurrency(Math.max(amountRemovedFromBalance, 0));
-  const previous = formatCurrency(Math.max(previousBalance, 0));
-  const balance = formatCurrency(Math.max(balanceAfter, 0));
+  const invoiceAmount = formatKESForSms(order.total);
+  const removed = formatKESForSms(Math.max(amountRemovedFromBalance, 0));
+  const previous = formatKESForSms(Math.max(previousBalance, 0));
+  const balance = formatKESForSms(Math.max(balanceAfter, 0));
   const name = order.customer_name || 'Customer';
   const shopName = companyName?.trim() || 'Our Shop';
   const depositPart =
     totalPaidOnInvoice > 0
-      ? ` Deposits on invoice: ${formatCurrency(totalPaidOnInvoice)} (not auto-refunded).`
+      ? ` Deposits on invoice: ${formatKESForSms(totalPaidOnInvoice)} (not auto-refunded).`
       : '';
 
   return `Owner Alert: Credit invoice #${invoiceNo} for ${name} cancelled at ${shopName}. Invoice: ${invoiceAmount}. Removed from balance: ${removed}. Previous balance: ${previous}. New balance: ${balance}.${depositPart} ${SMS_FOOTER}`;
@@ -122,9 +122,9 @@ export function buildInvoiceCreatedOwnerMessage(
   consignmentInfo?: string,
 ): string {
   const invoiceNo = order.invoice_number || order.order_number;
-  const amount = formatCurrency(order.total);
-  const prevBalanceAmount = formatCurrency(Math.max(previousBalance || 0, 0));
-  const overallBalanceAmount = formatCurrency(Math.max(overallBalance || order.total, 0));
+  const amount = formatKESForSms(order.total);
+  const prevBalanceAmount = formatKESForSms(Math.max(previousBalance || 0, 0));
+  const overallBalanceAmount = formatKESForSms(Math.max(overallBalance || order.total, 0));
   const name = order.customer_name || 'Customer';
   const duePart = formatInvoiceDuePart(order.due_date);
   const consignmentPart = formatConsignmentPart(consignmentInfo, order);
@@ -143,8 +143,8 @@ export function buildPaymentReceivedCustomerMessage(
   paymentDescription?: string,
 ): string {
   const invoiceNo = order.invoice_number || order.order_number;
-  const paid = formatCurrency(paidAmount);
-  const previous = formatCurrency(Math.max(previousBalance, 0));
+  const paid = formatKESForSms(paidAmount);
+  const previous = formatKESForSms(Math.max(previousBalance, 0));
   const balanceLine = formatCustomerBalanceAfterLine(balanceAfter);
   const name = order.customer_name || 'Customer';
   const shopName = companyName?.trim() || 'Our Shop';
@@ -162,9 +162,9 @@ export function buildPaymentReceivedOwnerMessage(
   paymentDescription?: string,
 ): string {
   const invoiceNo = order.invoice_number || order.order_number;
-  const paid = formatCurrency(paidAmount);
-  const previous = formatCurrency(Math.max(previousBalance, 0));
-  const balance = formatCurrency(Math.max(balanceAfter, 0));
+  const paid = formatKESForSms(paidAmount);
+  const previous = formatKESForSms(Math.max(previousBalance, 0));
+  const balance = formatKESForSms(Math.max(balanceAfter, 0));
   const name = order.customer_name || 'Customer';
   const shopName = companyName?.trim() || 'Our Shop';
   const descriptionPart = formatPaymentNotePart(paymentDescription);
@@ -180,8 +180,8 @@ export function buildAccountPaymentReceivedCustomerMessage(
   companyName: string,
   paymentDescription?: string,
 ): string {
-  const paid = formatCurrency(Math.max(paidAmount, 0));
-  const previous = formatCurrency(Math.max(previousBalance, 0));
+  const paid = formatKESForSms(Math.max(paidAmount, 0));
+  const previous = formatKESForSms(Math.max(previousBalance, 0));
   const balanceLine = formatCustomerBalanceAfterLine(balanceAfter);
   const name = customerName || 'Customer';
   const shopName = companyName?.trim() || 'Our Shop';
@@ -198,9 +198,9 @@ export function buildAccountPaymentReceivedOwnerMessage(
   companyName: string,
   paymentDescription?: string,
 ): string {
-  const paid = formatCurrency(Math.max(paidAmount, 0));
-  const previous = formatCurrency(Math.max(previousBalance, 0));
-  const balance = formatCurrency(Math.max(balanceAfter, 0));
+  const paid = formatKESForSms(Math.max(paidAmount, 0));
+  const previous = formatKESForSms(Math.max(previousBalance, 0));
+  const balance = formatKESForSms(Math.max(balanceAfter, 0));
   const name = customerName || 'Customer';
   const shopName = companyName?.trim() || 'Our Shop';
   const descriptionPart = formatPaymentNotePart(paymentDescription);
@@ -217,8 +217,8 @@ export function buildInvoicePaymentReversedCustomerMessage(
   paymentDescription?: string,
 ): string {
   const invoiceNo = order.invoice_number || order.order_number;
-  const reversed = formatCurrency(Math.max(reversedAmount, 0));
-  const previous = formatCurrency(Math.max(previousBalance, 0));
+  const reversed = formatKESForSms(Math.max(reversedAmount, 0));
+  const previous = formatKESForSms(Math.max(previousBalance, 0));
   const balanceLine = formatCustomerBalanceAfterLine(balanceAfter);
   const name = order.customer_name || 'Customer';
   const shopName = companyName?.trim() || 'Our Shop';
@@ -236,9 +236,9 @@ export function buildInvoicePaymentReversedOwnerMessage(
   paymentDescription?: string,
 ): string {
   const invoiceNo = order.invoice_number || order.order_number;
-  const reversed = formatCurrency(Math.max(reversedAmount, 0));
-  const previous = formatCurrency(Math.max(previousBalance, 0));
-  const balance = formatCurrency(Math.max(balanceAfter, 0));
+  const reversed = formatKESForSms(Math.max(reversedAmount, 0));
+  const previous = formatKESForSms(Math.max(previousBalance, 0));
+  const balance = formatKESForSms(Math.max(balanceAfter, 0));
   const name = order.customer_name || 'Customer';
   const shopName = companyName?.trim() || 'Our Shop';
   const descriptionPart = formatPaymentNotePart(paymentDescription);
@@ -254,8 +254,8 @@ export function buildAccountPaymentReversedCustomerMessage(
   companyName: string,
   paymentDescription?: string,
 ): string {
-  const reversed = formatCurrency(Math.max(reversedAmount, 0));
-  const previous = formatCurrency(Math.max(previousBalance, 0));
+  const reversed = formatKESForSms(Math.max(reversedAmount, 0));
+  const previous = formatKESForSms(Math.max(previousBalance, 0));
   const balanceLine = formatCustomerBalanceAfterLine(balanceAfter);
   const name = customerName || 'Customer';
   const shopName = companyName?.trim() || 'Our Shop';
@@ -272,9 +272,9 @@ export function buildAccountPaymentReversedOwnerMessage(
   companyName: string,
   paymentDescription?: string,
 ): string {
-  const reversed = formatCurrency(Math.max(reversedAmount, 0));
-  const previous = formatCurrency(Math.max(previousBalance, 0));
-  const balance = formatCurrency(Math.max(balanceAfter, 0));
+  const reversed = formatKESForSms(Math.max(reversedAmount, 0));
+  const previous = formatKESForSms(Math.max(previousBalance, 0));
+  const balance = formatKESForSms(Math.max(balanceAfter, 0));
   const name = customerName || 'Customer';
   const shopName = companyName?.trim() || 'Our Shop';
   const descriptionPart = formatPaymentNotePart(paymentDescription);

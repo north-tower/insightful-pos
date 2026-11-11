@@ -32,15 +32,24 @@ serve(async (req) => {
       );
     }
 
-    // Temporary Celcom Africa IP while isms.celcomafrica.com is down
-    const smsUrl = new URL('http://34.78.92.242/api/services/sendsms');
-    smsUrl.searchParams.set('apikey', API_KEY);
-    smsUrl.searchParams.set('partnerID', PARTNER_ID);
-    smsUrl.searchParams.set('message', message);
-    smsUrl.searchParams.set('shortcode', shortcode || DEFAULT_SHORTCODE);
-    smsUrl.searchParams.set('mobile', mobile);
+    // POST JSON per Celcom docs — avoids query-string comma/parsing issues in amounts (e.g. KES 1,500,000).
+    const smsEndpoint =
+      Deno.env.get('CELCOM_SEND_URL') ?? 'https://isms.celcomafrica.com/api/services/sendsms/';
 
-    const smsRes = await fetch(smsUrl.toString());
+    console.log('SMS outbound preview:', String(message).slice(0, 120));
+
+    const smsRes = await fetch(smsEndpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        apikey: API_KEY,
+        partnerID: PARTNER_ID,
+        mobile,
+        message,
+        shortcode: shortcode || DEFAULT_SHORTCODE,
+        pass_type: 'plain',
+      }),
+    });
     const smsData = await smsRes.text();
 
     console.log('Celcom SMS response:', smsData);
