@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef, useEffect } from 'react';
+import { useMemo, useState, useRef, useEffect, Fragment } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Customer } from '@/hooks/useCustomers';
-import { SaleOrder, Payment } from '@/hooks/useOrders';
+import { SaleOrder } from '@/hooks/useOrders';
 import { format } from 'date-fns';
 import {
   FileText,
@@ -82,6 +82,142 @@ interface LedgerEntryRow {
 
 type DateRange = 'all' | '30' | '60' | '90' | 'this-month' | 'this-year';
 
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function invoiceHasDetail(order: SaleOrder): boolean {
+  return (order.items?.length ?? 0) > 0 || Boolean(order.consignment_info?.trim());
+}
+
+function InvoiceDetailBlock({ order }: { order: SaleOrder }) {
+  const hasItems = (order.items?.length ?? 0) > 0;
+  const consignment = order.consignment_info?.trim();
+
+  if (!hasItems && !consignment) return null;
+
+  return (
+    <div className="text-xs text-muted-foreground space-y-2">
+      {hasItems && (
+        <table className="w-full max-w-xl">
+          <thead>
+            <tr className="border-b border-border/60">
+              <th className="text-left py-1 pr-2 font-medium text-[10px] uppercase tracking-wide">
+                Item
+              </th>
+              <th className="text-right py-1 px-2 font-medium text-[10px] uppercase tracking-wide w-12">
+                Qty
+              </th>
+              <th className="text-right py-1 px-2 font-medium text-[10px] uppercase tracking-wide w-24">
+                Unit
+              </th>
+              <th className="text-right py-1 pl-2 font-medium text-[10px] uppercase tracking-wide w-24">
+                Total
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {order.items.map((item) => (
+              <tr key={item.id} className="border-b border-border/30 last:border-0">
+                <td className="py-1 pr-2 text-foreground">{item.product_name}</td>
+                <td className="py-1 px-2 text-right tabular-nums">{item.quantity}</td>
+                <td className="py-1 px-2 text-right tabular-nums">
+                  <Money value={item.unit_price} align="right" />
+                </td>
+                <td className="py-1 pl-2 text-right tabular-nums font-medium text-foreground">
+                  <Money value={item.line_total} align="right" />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {consignment && (
+        <p>
+          <span className="uppercase text-[10px] tracking-wide font-medium">Consignment</span>
+          {' · '}
+          <span className="text-foreground font-medium">{consignment}</span>
+          {' · '}
+          <span className="tabular-nums">
+            Invoice value{' '}
+            <Money value={order.total} className="font-semibold text-foreground" />
+          </span>
+        </p>
+      )}
+    </div>
+  );
+}
+
+function buildInvoiceDetailPrintHtml(order: SaleOrder): string {
+  if (!invoiceHasDetail(order)) return '';
+
+  const itemRows = (order.items || [])
+    .map(
+      (item) => `
+        <tr>
+          <td>${escapeHtml(item.product_name)}</td>
+          <td class="text-right">${item.quantity}</td>
+          <td class="text-right">${fc(item.unit_price)}</td>
+          <td class="text-right">${fc(item.line_total)}</td>
+        </tr>`,
+    )
+    .join('');
+
+  const itemsTable = order.items?.length
+    ? `<table class="invoice-items">
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th class="text-right">Qty</th>
+            <th class="text-right">Unit</th>
+            <th class="text-right">Total</th>
+          </tr>
+        </thead>
+        <tbody>${itemRows}</tbody>
+      </table>`
+    : '';
+
+  const consignment = order.consignment_info?.trim()
+    ? `<p class="consignment">
+        <span class="muted">Consignment:</span>
+        ${escapeHtml(order.consignment_info.trim())}
+        · <span class="muted">Invoice value:</span> ${fc(order.total)}
+      </p>`
+    : '';
+
+  return `${itemsTable}${consignment}`;
+}
+
+function buildStatementPrintRows(
+  entries: StatementEntry[],
+  ordersById: Map<string, SaleOrder>,
+): string {
+  return entries
+    .map((e) => {
+      const order = e.orderId ? ordersById.get(e.orderId) : undefined;
+      const detailHtml =
+        e.type === 'invoice' && order ? buildInvoiceDetailPrintHtml(order) : '';
+      const mainRow = `
+        <tr>
+          <td>${format(e.date, 'MMM dd, yyyy')}</td>
+          <td class="bold">${escapeHtml(e.reference)}</td>
+          <td>${escapeHtml(e.description)}</td>
+          <td class="text-right ${e.debit > 0 ? 'debit bold' : ''}">${e.debit > 0 ? fc(e.debit) : '—'}</td>
+          <td class="text-right ${e.credit > 0 ? 'credit bold' : ''}">${e.credit > 0 ? fc(e.credit) : '—'}</td>
+          <td class="text-right bold">${fc(e.balance)}</td>
+        </tr>`;
+      const detailRow = detailHtml
+        ? `<tr class="invoice-detail-row"><td></td><td></td><td colspan="4">${detailHtml}</td></tr>`
+        : '';
+      return mainRow + detailRow;
+    })
+    .join('');
+}
+
 // ─── Component ──────────────────────────────────────────────────────────────
 
 export function CustomerStatement({
@@ -99,6 +235,11 @@ export function CustomerStatement({
   const [ledgerLoading, setLedgerLoading] = useState(false);
 
   const displayName = `${customer.first_name} ${customer.last_name}`.trim();
+
+  const ordersById = useMemo(
+    () => new Map(orders.map((order) => [order.id, order])),
+    [orders],
+  );
 
   useEffect(() => {
     const fetchAccountPayments = async () => {
@@ -349,9 +490,6 @@ export function CustomerStatement({
   ]);
 
   const handlePrint = () => {
-    const content = printRef.current;
-    if (!content) return;
-
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
@@ -378,6 +516,12 @@ export function CustomerStatement({
             .debit { color: #dc2626; }
             .credit { color: #16a34a; }
             .footer { margin-top: 24px; padding-top: 12px; border-top: 2px solid #ddd; font-size: 12px; color: #666; text-align: center; }
+            .invoice-detail-row td { padding-top: 0; padding-bottom: 12px; vertical-align: top; }
+            .invoice-items { width: 100%; max-width: 520px; font-size: 11px; margin-top: 4px; }
+            .invoice-items th { font-size: 10px; padding: 4px 8px; border-bottom: 1px solid #e5e5e5; text-transform: uppercase; color: #666; }
+            .invoice-items td { padding: 4px 8px; border-bottom: none; }
+            .consignment { font-size: 11px; margin-top: 8px; color: #444; }
+            .muted { color: #666; }
             @media print { body { padding: 0; } }
           </style>
         </head>
@@ -388,15 +532,15 @@ export function CustomerStatement({
           <div class="summary">
             <div class="summary-item">
               <div class="summary-label">Total Invoiced</div>
-              <div class="summary-value">$<Money value={summary.totalDebit} /></div>
+              <div class="summary-value">${fc(summary.totalDebit)}</div>
             </div>
             <div class="summary-item">
               <div class="summary-label">Total Paid</div>
-              <div class="summary-value credit">$<Money value={summary.totalCredit} /></div>
+              <div class="summary-value credit">${fc(summary.totalCredit)}</div>
             </div>
             <div class="summary-item">
               <div class="summary-label">Balance</div>
-              <div class="summary-value ${summary.closingBalance > 0 ? 'debit' : 'credit'}">$<Money value={Math.abs(summary.closingBalance)} /></div>
+              <div class="summary-value ${summary.closingBalance > 0 ? 'debit' : 'credit'}">${fc(Math.abs(summary.closingBalance))}</div>
             </div>
             <div class="summary-item">
               <div class="summary-label">Transactions</div>
@@ -416,20 +560,7 @@ export function CustomerStatement({
               </tr>
             </thead>
             <tbody>
-              ${entries
-                .map(
-                  (e) => `
-                <tr>
-                  <td>${format(e.date, 'MMM dd, yyyy')}</td>
-                  <td class="bold">${e.reference}</td>
-                  <td>${e.description}</td>
-                  <td class="text-right ${e.debit > 0 ? 'debit bold' : ''}">${e.debit > 0 ? fc(e.debit) : '—'}</td>
-                  <td class="text-right ${e.credit > 0 ? 'credit bold' : ''}">${e.credit > 0 ? fc(e.credit) : '—'}</td>
-                  <td class="text-right bold">${fc(e.balance)}</td>
-                </tr>
-              `,
-                )
-                .join('')}
+              ${buildStatementPrintRows(entries, ordersById)}
             </tbody>
           </table>
 
@@ -579,52 +710,66 @@ export function CustomerStatement({
                     </tr>
                   </thead>
                   <tbody>
-                    {entries.map((entry) => (
-                      <tr
-                        key={entry.id}
-                        className="border-b border-border/50 hover:bg-muted/30 transition-colors"
-                      >
-                        <td className="py-2.5 px-3 text-muted-foreground whitespace-nowrap">
-                          {format(entry.date, 'MMM dd, yyyy')}
-                        </td>
-                        <td className="py-2.5 px-3 font-semibold whitespace-nowrap">
-                          {entry.reference}
-                        </td>
-                        <td className="py-2.5 px-3">
-                          <div className="flex items-center gap-2">
-                            {entry.type === 'payment' ? (
-                              <ArrowDownRight className="w-3.5 h-3.5 text-success shrink-0" />
-                            ) : entry.type === 'reversal' ? (
-                              <Undo2 className="w-3.5 h-3.5 text-warning shrink-0" />
-                            ) : (
-                              <ArrowUpRight className="w-3.5 h-3.5 text-destructive shrink-0" />
-                            )}
-                            {entry.description}
-                          </div>
-                        </td>
-                        <td className="py-2.5 px-3 text-right tabular-nums whitespace-nowrap">
-                          {entry.debit > 0 ? (
-                            <span className="text-destructive font-semibold">
-                              <Money value={entry.debit} align="right" />
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
+                    {entries.map((entry) => {
+                      const order = entry.orderId
+                        ? ordersById.get(entry.orderId)
+                        : undefined;
+                      const showInvoiceDetail =
+                        entry.type === 'invoice' && order && invoiceHasDetail(order);
+
+                      return (
+                        <Fragment key={entry.id}>
+                          <tr className="border-b border-border/50 hover:bg-muted/30 transition-colors">
+                            <td className="py-2.5 px-3 text-muted-foreground whitespace-nowrap">
+                              {format(entry.date, 'MMM dd, yyyy')}
+                            </td>
+                            <td className="py-2.5 px-3 font-semibold whitespace-nowrap">
+                              {entry.reference}
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <div className="flex items-center gap-2">
+                                {entry.type === 'payment' ? (
+                                  <ArrowDownRight className="w-3.5 h-3.5 text-success shrink-0" />
+                                ) : entry.type === 'reversal' ? (
+                                  <Undo2 className="w-3.5 h-3.5 text-warning shrink-0" />
+                                ) : (
+                                  <ArrowUpRight className="w-3.5 h-3.5 text-destructive shrink-0" />
+                                )}
+                                {entry.description}
+                              </div>
+                            </td>
+                            <td className="py-2.5 px-3 text-right tabular-nums whitespace-nowrap">
+                              {entry.debit > 0 ? (
+                                <span className="text-destructive font-semibold">
+                                  <Money value={entry.debit} align="right" />
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3 text-right tabular-nums whitespace-nowrap">
+                              {entry.credit > 0 ? (
+                                <span className="text-success font-semibold">
+                                  <Money value={entry.credit} align="right" />
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3 text-right tabular-nums font-bold whitespace-nowrap">
+                              <Money value={entry.balance} align="right" />
+                            </td>
+                          </tr>
+                          {showInvoiceDetail && (
+                            <tr className="border-b border-border/50 bg-muted/20">
+                              <td colSpan={6} className="py-2 px-3 pl-10">
+                                <InvoiceDetailBlock order={order} />
+                              </td>
+                            </tr>
                           )}
-                        </td>
-                        <td className="py-2.5 px-3 text-right tabular-nums whitespace-nowrap">
-                          {entry.credit > 0 ? (
-                            <span className="text-success font-semibold">
-                              <Money value={entry.credit} align="right" />
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
-                        </td>
-                        <td className="py-2.5 px-3 text-right tabular-nums font-bold whitespace-nowrap">
-                          <Money value={entry.balance} align="right" />
-                        </td>
-                      </tr>
-                    ))}
+                        </Fragment>
+                      );
+                    })}
                   </tbody>
                   <tfoot>
                     <tr className="border-t-2 border-border bg-muted/30">
@@ -658,7 +803,13 @@ export function CustomerStatement({
 
               {/* Mobile timeline — cards */}
               <div className="md:hidden space-y-3">
-                {entries.map((entry, index) => (
+                {entries.map((entry, index) => {
+                  const invoiceOrder =
+                    entry.type === 'invoice' && entry.orderId
+                      ? ordersById.get(entry.orderId)
+                      : undefined;
+
+                  return (
                   <div key={entry.id} className="relative flex gap-3">
                     {/* Timeline line */}
                     <div className="flex flex-col items-center">
@@ -717,6 +868,11 @@ export function CustomerStatement({
                       <p className="text-sm text-muted-foreground mb-2">
                         {entry.description}
                       </p>
+                      {invoiceOrder && (
+                          <div className="mb-2 pl-0.5">
+                            <InvoiceDetailBlock order={invoiceOrder} />
+                          </div>
+                        )}
                       <div className="flex items-center justify-between text-sm gap-3">
                         <span className="tabular-nums">
                           {entry.type === 'payment' || entry.credit > 0 ? (
@@ -735,7 +891,8 @@ export function CustomerStatement({
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
 
                 {/* Closing balance card */}
                 <Card className="border-2">
