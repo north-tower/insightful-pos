@@ -334,8 +334,13 @@ export function CustomerStatement({
       });
     }
 
-    // Add invoice entries
-    creditOrders.forEach((order) => {
+    // Add invoice entries (newest invoices processed first; final order is by date below)
+  [...creditOrders]
+      .sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      )
+      .forEach((order) => {
       const cancelled = order.status === 'cancelled';
       raw.push({
         id: `inv-${order.id}`,
@@ -351,8 +356,13 @@ export function CustomerStatement({
       });
 
       // Add payment entries for each active payment on this order
-      order.payments.forEach((payment) => {
-        if (payment.reversed_at) return;
+      [...order.payments]
+        .filter((payment) => !payment.reversed_at)
+        .sort(
+          (a, b) =>
+            new Date(b.paid_at).getTime() - new Date(a.paid_at).getTime(),
+        )
+        .forEach((payment) => {
         const paymentDescription =
           payment.description?.trim() ||
           `Payment (${payment.method.charAt(0).toUpperCase() + payment.method.slice(1)})`;
@@ -371,7 +381,13 @@ export function CustomerStatement({
       });
     });
 
-    ledgerEntries.forEach((entry) => {
+    ledgerEntries
+      .slice()
+      .sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      )
+      .forEach((entry) => {
       if (
         entry.entry_type === 'order_payment_reversed' ||
         entry.entry_type === 'account_payment_reversed'
@@ -392,8 +408,13 @@ export function CustomerStatement({
     });
 
     // Add account-level payments (not tied to specific invoices).
-    accountPayments.forEach((payment) => {
-      if (payment.reversed_at) return;
+    accountPayments
+      .filter((payment) => !payment.reversed_at)
+      .sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      )
+      .forEach((payment) => {
       raw.push({
         id: `acct-pay-${payment.id}`,
         date: new Date(payment.created_at),
@@ -410,7 +431,7 @@ export function CustomerStatement({
       });
     });
 
-    // Sort by date ascending
+    // Sort ascending for running balance, then display newest-first below.
     raw.sort((a, b) => a.date.getTime() - b.date.getTime());
 
     const now = new Date();
@@ -461,8 +482,11 @@ export function CustomerStatement({
       withBalance.push({ ...entry, balance: runningBalance });
     });
 
-    // Reverse to show newest first
-    withBalance.reverse();
+    withBalance.sort((a, b) => {
+      const byDate = b.date.getTime() - a.date.getTime();
+      if (byDate !== 0) return byDate;
+      return b.id.localeCompare(a.id);
+    });
 
     // Compute totals
     const totalDebit = withBalance.reduce((s, e) => s + e.debit, 0);

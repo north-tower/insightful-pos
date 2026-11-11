@@ -634,11 +634,11 @@ export default function AccountsReceivable({
                               )}
                             </div>
                           )}
-                          {account.orders
+                          {[...account.orders]
                             .sort(
                               (a, b) =>
-                                new Date(a.created_at).getTime() -
-                                new Date(b.created_at).getTime(),
+                                new Date(b.created_at).getTime() -
+                                new Date(a.created_at).getTime(),
                             )
                             .map((order) => {
                               const balanceDue = getOrderBalanceDue(order);
